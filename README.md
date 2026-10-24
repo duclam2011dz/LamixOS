@@ -1,10 +1,12 @@
 # Lamix OS
 
+[![Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/workflows/docs-ci.yml/badge.svg?branch=main)](https://github.com/duclam2011dz/LamixOS/actions/workflows/docs-ci.yml)
+
 Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C và freestanding C++. Định hướng: boot BIOS/UEFI tự viết, Hybrid Kernel và hệ sinh thái game native.
 
 ## Trạng thái
 
-M00 đạt tiêu chí tài liệu ban đầu; phần bổ sung GitHub, GPL và CI đang được nghiệm thu. Skill `docs-consistency` đã cài và được kiểm tra. Chưa có bootloader, kernel, game, hệ thống build hoặc test harness. Chưa có bản phát hành và chưa đạt Playable.
+M00 đã đạt nghiệm thu tài liệu, GitHub Public, GPL và Documentation CI. Milestone tag M00 chờ xác nhận hoàn thành riêng của người dùng. Skill `docs-consistency` đã cài và được kiểm tra. Chưa có bootloader, kernel, game, hệ thống build hoặc test harness OS. Chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 
@@ -14,7 +16,7 @@ Host mục tiêu là Windows + WSL2, ưu tiên workspace trên filesystem Linux.
 
 ## Repository và giấy phép
 
-Repository chính thức dự kiến: [duclam2011dz/LamixOS](https://github.com/duclam2011dz/LamixOS), public, nhánh `main`. Việc tạo/push và CI thực tế được ghi ở [handoff](docs/SESSION_HANDOFF.md); URL dự kiến không phải bằng chứng đã xuất bản.
+Repository chính thức: [duclam2011dz/LamixOS](https://github.com/duclam2011dz/LamixOS), public, nhánh `main`. Kết quả push và CI thực tế được ghi ở [handoff](docs/SESSION_HANDOFF.md).
 
 Dự án dùng **GPL-3.0-only**, GNU General Public License version 3, không cấp lựa chọn phiên bản mới hơn. Văn bản tiếng Anh chính thức nằm ở [LICENSE](LICENSE). Chưa có thành phần OS bên thứ ba được nhập vào dự án; toolchain/firmware trên host không được phân phối trong repository.
 

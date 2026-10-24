@@ -13,9 +13,10 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 - Skill docs-consistency tại .agents/skills/docs-consistency/SKILL.md, đã qua validator và rà soát M00.
 
 - Giấy phép GPL-3.0-only, văn bản GPL v3 tiếng Anh chính thức.
-- Validator Python độc lập, unittest và workflow Documentation CI; chưa coi workflow đã PASS trên GitHub khi chưa có run thành công.
+- Validator Python độc lập, 22 unittest và workflow Documentation CI; đã chạy thành công trên GitHub-hosted runner.
+- Repository GitHub public duclam2011dz/LamixOS, remote origin/main và commit bằng email noreply.
 - Quy trình Git/CI, milestone tags và release gate; chuẩn hóa đường dẫn host trong tài liệu.
 
 ### Ghi chú
 
-M00 đạt tiêu chí ban đầu ngày 2026-10-24; phần bổ sung GitHub/CI đang nghiệm thu. Chưa có mã OS hoặc bản phát hành; M01 chưa bắt đầu.
+M00 đạt nghiệm thu phần GitHub/GPL/CI ngày 2026-10-24; tag milestone/M00 chờ xác nhận riêng, chưa tạo tag hoặc Release. Chưa có mã OS hoặc bản phát hành; M01 chưa bắt đầu.
