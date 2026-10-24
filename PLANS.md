@@ -14,16 +14,16 @@ Doctor, dependencies cô lập, CMake/Ninja Debug/Release, sample NASM/C11/C++17
 - [x] Build sample, CTest/host tests và ELF verification.
 - [x] Chứng minh tái lập Debug/Release và regression tài liệu.
 - [x] Push commits đã review; Documentation CI và Toolchain CI trên fee069b8d22f836113c0f0049157de819a2f7f09 đã SUCCESS, gồm GNU bootstrap thật. Commit tài liệu nghiệm thu tiếp sau phải có cả hai workflows xanh trước báo cáo cuối.
-- [ ] Người dùng xác nhận hoàn thành trước tạo/push annotated tag milestone/M01.
+- [x] Người dùng phê duyệt kết thúc M01; annotated tag milestone/M01 đã tạo/push và xác minh local/remote trên 99f7591046c843d77362eed5f16cf6a34a085bbb.
 
 ## Giới hạn và rollback
 
-Không triển khai bootloader/kernel/LBP hoặc M02; không chạy ELF như chương trình host. Local và CI thật đã đạt; M01 PASS cuối phiên chỉ khi CI trên HEAD tài liệu nghiệm thu cũng đạt; không tự hạ tiêu chí. Không đổi tag M00, force-push, overwrite prefix chưa xác minh hoặc gỡ gói hệ thống. Rollback bằng diff/commit mới, artifacts ở build/out và .venv. Tag M01 cần xác nhận hoàn thành riêng.
+Không triển khai bootloader/kernel/LBP hoặc M02; không chạy ELF như chương trình host. Local và CI thật đã đạt; M01 PASS cuối phiên chỉ khi CI trên HEAD tài liệu nghiệm thu cũng đạt; không tự hạ tiêu chí. Không đổi tag M00, force-push, overwrite prefix chưa xác minh hoặc gỡ gói hệ thống. Rollback bằng diff/commit mới, artifacts ở build/out và .venv. Tag M01 đã tạo sau phê duyệt kết thúc riêng; không chuyển tag sang commit tài liệu đóng thủ tục.
 
-Tiếp tục ngay trong phiên này; chỉ chuyển phiên sau M01 PASS và hoàn tất thủ tục Git/tag/bàn giao. Trạng thái thật tại [handoff](docs/SESSION_HANDOFF.md), nguồn milestone là [roadmap](ROADMAP.md).
+Thủ tục kết thúc M01 được hoàn tất trong phiên hiện tại. Theo chỉ dẫn mới nhất, lượt này không chuyển phiên hoặc bắt đầu M02. Trạng thái thật tại [handoff](docs/SESSION_HANDOFF.md), nguồn milestone là [roadmap](ROADMAP.md).
 
 ## Bằng chứng nghiệm thu
 
 Doctor local PASS (KVM WARN tùy chọn); 39 host tests PASS, CTest 2/2 mỗi profile, ELF verification và SHA-256 hai source roots PASS. CI đã build GNU source thật, doctor/build/reproducibility PASS, cache prefix đã lưu. URLs và giới hạn tại [handoff](docs/SESSION_HANDOFF.md).
 
-Không tạo milestone/M01 trước xác nhận hoàn thành riêng. Vẫn ở phiên hiện tại; chưa chuyển phiên hoặc triển khai M02.
+Annotated milestone/M01 đã được xác minh đúng SHA nghiệm thu và giữ nguyên sau commit tài liệu đóng thủ tục. Commit tài liệu cần cả hai workflows SUCCESS trước báo cáo cuối. Chờ chỉ dẫn tiếp theo của người dùng; không tự chuyển phiên hoặc triển khai M02.

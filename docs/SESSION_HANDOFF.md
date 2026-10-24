@@ -2,13 +2,15 @@
 
 Trạng thái milestone: M00=DONE; M01=DONE
 
-M01 đã đạt kiểm chứng local và GitHub CI. **Chưa chuyển phiên:** người dùng yêu cầu chỉ chuyển sau M01 PASS và hoàn tất thủ tục Git/tag/bàn giao. Annotated tag milestone/M01 còn chờ xác nhận hoàn thành riêng; không tạo version tag/Release hoặc triển khai M02.
+M01 đã đạt PASS/DONE và người dùng đã phê duyệt kết thúc, tạo/push tag. Annotated milestone/M01 đã được xác minh local/remote. **Lượt đóng thủ tục này không chuyển phiên hoặc bắt đầu M02**, theo chỉ dẫn mới nhất của người dùng. Không tạo version tag hoặc Release.
 
 ## Repository và ranh giới milestone
 
 Repository [duclam2011dz/LamixOS](https://github.com/duclam2011dz/LamixOS), Public/main, GPL-3.0-only; origin `https://github.com/duclam2011dz/LamixOS.git`. Tag M00 giữ nguyên trên aa6aeb9ff8ea4620227020ea43e03f430328d6b6.
 
-Commits M01: eae3d68 (implementation) và fee069b8d22f836113c0f0049157de819a2f7f09 (sửa context workflow). Commit tài liệu chứa bản này ghi nhận nghiệm thu; lấy SHA bằng `git rev-parse HEAD`. Sau push phải xác minh main local/remote cùng SHA, working tree sạch và cả hai workflows thành công trên HEAD trước báo cáo cuối. Không tạo vòng lặp commit để tự ghi SHA/run của chính commit.
+Commit nghiệm thu M01: `99f7591046c843d77362eed5f16cf6a34a085bbb`. Annotated tag [milestone/M01](https://github.com/duclam2011dz/LamixOS/tree/milestone/M01) đã push; tag object local/remote khớp nhau và peeled SHA đúng commit nghiệm thu.
+
+Working tree sạch, main local/remote cùng SHA nghiệm thu trước tạo tag. Commit chứa bản bàn giao này chỉ ghi nhận thủ tục tag sau nghiệm thu; tag giữ nguyên đích. Lấy SHA commit tài liệu bằng `git rev-parse HEAD`. Sau push phải xác minh main local/remote cùng SHA, working tree sạch và cả hai workflows thành công trên HEAD trước báo cáo cuối. Không tạo vòng lặp commit để tự ghi SHA/run của chính commit.
 
 ## Đã triển khai
 
@@ -26,6 +28,8 @@ Commits M01: eae3d68 (implementation) và fee069b8d22f836113c0f0049157de819a2f7f
 | `python -m pytest -q tests` trong .venv/PATH | PASS, 39 tests; gồm negative configure thật, ELF fixtures và bootstrap guards |
 | `python scripts/smoke.py --reproducible` | PASS Debug/Release; CTest 2/2 mỗi profile; ELF static, đúng compiler và chỉ ba object sample |
 | Hai source roots sạch | PASS; Debug SHA-256 27bff42a69a12de77ef5e28876258b13b8e6e5439a3fd23439c9c5bdba04967c; Release 7a940cf7c465d8fa300dee97a7d39916271f51b8f97238578df6f16a8ee7a099 |
+| [Toolchain CI 40113075828](https://github.com/duclam2011dz/LamixOS/actions/runs/40113075828) | SUCCESS trên SHA nghiệm thu 99f7591; logs gốc xác nhận cache restore/receipt, doctor, CTest/ELF và tái lập |
+| [Documentation CI 40113075712](https://github.com/duclam2011dz/LamixOS/actions/runs/40113075712) | SUCCESS trên cùng SHA nghiệm thu |
 | [Toolchain CI 40112238564](https://github.com/duclam2011dz/LamixOS/actions/runs/40112238564) | SUCCESS trên fee069b; logs xác nhận GNU bootstrap, doctor, CTest/ELF và tái lập thực sự chạy; cache đã lưu |
 | [Documentation CI 40112238477](https://github.com/duclam2011dz/LamixOS/actions/runs/40112238477) | SUCCESS trên cùng fee069b |
 | Validator tài liệu, 22 unittest tài liệu và checksum ba prompt | PASS; không đổi mục tiêu/thứ tự roadmap hoặc tag M00 |
@@ -39,4 +43,6 @@ Sudo local cần mật khẩu nên không cài apt; dependencies thiếu đượ
 
 Run Toolchain đầu tiên 40112182236 FAIL trước tạo job do context runner.temp ở job env; đã sửa sang github.workspace và run kế tiếp SUCCESS. API steps có lúc chậm cập nhật so với kết luận run; đã đối chiếu logs hoàn chỉnh. GitHub cảnh báo các Actions ghim Node 20 được ép chạy Node 24; run thực tế vẫn thành công. Không âm thầm bỏ kiểm tra hoặc sửa tag/lịch sử.
 
-**Bước tiếp theo trong phiên hiện tại:** báo SHA/CI cuối và chờ người dùng xác nhận M01 hoàn thành. Sau xác nhận mới tạo/push annotated milestone/M01 trên SHA đã CI xanh, xác minh tag/peeled SHA và cập nhật commit đóng thủ tục với CI thật. Chỉ sau đó mới chuyển phiên. M02 còn PLANNED; phiên mới phải bật Plan Mode, đọc AGENTS/handoff/PLANS/M02, khảo sát và chờ duyệt kế hoạch riêng.
+**Thủ tục tag M01:** đã tạo/push annotated tag sau phê duyệt của người dùng và xác minh đúng commit nghiệm thu. Lượt đóng thủ tục cập nhật README, ROADMAP, PLANS, CHANGELOG và handoff; validator cùng 22 unittest tài liệu được chạy trước commit. Không sửa code/toolchain/workflows. CI của commit tài liệu phải được xác minh theo đúng HEAD trước báo cáo cuối.
+
+**Bước tiếp theo:** chờ chỉ dẫn của người dùng, vẫn ở phiên hiện tại. Không chuyển phiên, không khảo sát/lập kế hoạch hoặc triển khai M02 trong lượt đóng thủ tục này. M02 giữ PLANNED. Khi người dùng yêu cầu milestone mới, phải bật Plan Mode thật, đọc AGENTS/handoff/PLANS/đúng milestone trong ROADMAP, khảo sát và chờ duyệt kế hoạch riêng.
