@@ -1,0 +1,59 @@
+name: Toolchain CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  toolchain:
+    name: Build and verify freestanding sample
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      LAMIX_CROSS_ROOT: ${{ runner.temp }}/lamix-cross
+    steps:
+      - name: Lấy mã nguồn
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Chuẩn bị Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Cài dependencies host
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential bison flex libgmp-dev libmpfr-dev libmpc-dev texinfo xz-utils nasm cmake ninja-build python3-venv qemu-system-x86 gdb ovmf seabios clang-format clang-tidy cppcheck
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-dev.lock
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+      - name: Cache cross-toolchain chính xác
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ env.LAMIX_CROSS_ROOT }}
+          key: cross-ubuntu22-gcc12-binutils239-${{ hashFiles('scripts/toolchain-lock.json', 'scripts/bootstrap_cross.py') }}
+      - name: Bootstrap GNU cross-toolchain
+        run: .venv/bin/python scripts/bootstrap_cross.py --prefix "$LAMIX_CROSS_ROOT" --jobs 4
+      - name: Doctor
+        run: .venv/bin/python scripts/doctor.py --profile ci --json out/m01/doctor.json
+      - name: Build, CTest và kiểm chứng tái lập
+        run: .venv/bin/python scripts/smoke.py --reproducible
+      - name: Kiểm tra tài liệu
+        run: python3 scripts/validate_docs.py
+      - name: Lưu logs khi thất bại
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m01-failure-logs
+          path: |
+            out/m01/*.json
+            out/m01/*.log
+            out/m01/bootstrap/bootstrap.log
+            build/*/Testing/Temporary/LastTest.log
+          if-no-files-found: warn

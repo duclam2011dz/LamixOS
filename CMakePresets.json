@@ -1,0 +1,22 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {"major": 3, "minor": 22, "patch": 0},
+  "configurePresets": [
+    {
+      "name": "m01-base", "hidden": true, "generator": "Ninja",
+      "toolchainFile": "${sourceDir}/cmake/x86_64-elf.cmake",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {"CMAKE_EXPORT_COMPILE_COMMANDS": "ON"}
+    },
+    {"name": "m01-debug", "inherits": "m01-base", "cacheVariables": {"CMAKE_BUILD_TYPE": "Debug"}},
+    {"name": "m01-release", "inherits": "m01-base", "cacheVariables": {"CMAKE_BUILD_TYPE": "Release"}}
+  ],
+  "buildPresets": [
+    {"name": "m01-debug", "configurePreset": "m01-debug"},
+    {"name": "m01-release", "configurePreset": "m01-release"}
+  ],
+  "testPresets": [
+    {"name": "m01-debug", "configurePreset": "m01-debug", "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}},
+    {"name": "m01-release", "configurePreset": "m01-release", "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}}
+  ]
+}

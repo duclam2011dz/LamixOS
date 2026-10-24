@@ -37,7 +37,7 @@ Tag milestone chỉ tạo sau xác nhận hoàn thành của người dùng và 
 
 ## Mở rộng sau M00
 
-**Chưa triển khai.** M01 thêm toolchain/build checks khi có target thật; M02 thêm harness. Khi có bootable image, thêm BIOS/SeaBIOS và UEFI/OVMF smoke tests, timeout, panic detection và serial assertions. Upload logs khi lỗi; thêm subsystem regression khi có subsystem tương ứng theo [roadmap](../ROADMAP.md).
+**Chưa triển khai.** M01 có toolchain/build sample checks theo phần dưới; M02 mới thêm boot harness. Khi có bootable image, thêm BIOS/SeaBIOS và UEFI/OVMF smoke tests, timeout, panic detection và serial assertions. Upload logs khi lỗi; thêm subsystem regression khi có subsystem tương ứng theo [roadmap](../ROADMAP.md).
 
 Release tương lai chỉ chạy từ version tag đã duyệt, xác minh trước phát hành và đính kèm artifacts/checksums khi tồn tại. Chỉ job release cần thiết mới có quyền ghi; CI mặc định giữ read-only. Chưa tạo workflow release hoặc các job chờ giả.
 
@@ -50,3 +50,19 @@ Release tương lai chỉ chạy từ version tag đã duyệt, xác minh trư�
 - NOT RUN: chưa chạy; không suy ra kết quả.
 
 Build/boot/QEMU trong M00: NOT RUN, chưa có mã hoặc harness. Không bịa FPS, uptime, logs hoặc bảo đảm bảo mật.
+
+## Kiểm thử M01
+
+Theo [TOOLCHAIN](TOOLCHAIN.md), kích hoạt .venv rồi chạy:
+
+```bash
+python scripts/doctor.py --profile wsl2 --json out/m01/doctor.json
+python -m pytest -q tests
+python scripts/smoke.py --reproducible
+```
+
+CTest trong mỗi profile gọi host tests và verifier ELF, không thực thi target ELF. Smoke runner build hai profiles và so hashes của hai source roots tạm theo từng profile; JSON/logs trong out/m01. Negative tests dùng mocked commands, ELF fixtures, configure thật với prefix thiếu/target host và archive/prefix guards. Không coi missing cross compiler hoặc không có test là PASS.
+
+[Toolchain CI](../.github/workflows/toolchain-ci.yml) bootstrap GNU source theo manifest có hash, doctor profile ci, build/CTest/reproducibility và validation tài liệu. Cache khớp chính xác; logs lỗi được upload, không upload compiler. Runner ubuntu-22.04, Python 3.12, timeout 60 phút, contents: read. Documentation CI vẫn độc lập. Chỉ báo M01 PASS khi cả hai workflows thành công trên SHA nghiệm thu.
+
+Boot BIOS/UEFI, kernel và QEMU smoke: NOT RUN, ngoài M01; chưa bật boot job. Việc firmware đọc được và QEMU --version chạy được không chứng minh OS boot.

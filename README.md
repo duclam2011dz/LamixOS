@@ -6,13 +6,13 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00 đã đạt nghiệm thu tài liệu, GitHub Public, GPL và Documentation CI. Người dùng đã xác nhận hoàn thành; annotated tag [milestone/M00](https://github.com/duclam2011dz/LamixOS/tree/milestone/M00) ghi nhận commit nghiệm thu. Skill `docs-consistency` đã cài và được kiểm tra. Chưa có bootloader, kernel, game, hệ thống build hoặc test harness OS. Chưa có bản phát hành và chưa đạt Playable.
+M00 đã đạt nghiệm thu tài liệu, GitHub Public, GPL và Documentation CI. Người dùng đã xác nhận hoàn thành; annotated tag [milestone/M00](https://github.com/duclam2011dz/LamixOS/tree/milestone/M00) ghi nhận commit nghiệm thu. Skill `docs-consistency` đã cài và được kiểm tra. M01 đang nghiệm thu toolchain/build sample freestanding; chưa có bootloader, kernel, game hoặc test harness boot OS. Chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 
 Đọc [mục tiêu](GOALS.md), [roadmap](ROADMAP.md), [kế hoạch M00](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md). Người đóng góp xem [CONTRIBUTING.md](CONTRIBUTING.md); Codex đọc [AGENTS.md](AGENTS.md).
 
-Host mục tiêu là Windows + WSL2, ưu tiên workspace trên filesystem Linux. Toolchain dự kiến dùng GCC cross-compiler, Binutils, NASM, CMake/Ninja/Python; kiểm chứng và thiết lập thuộc M01. Hiện chưa có lệnh build/run OS. Các kiểm tra tài liệu có trong [TESTING](docs/TESTING.md).
+Host mục tiêu là Windows + WSL2, ưu tiên workspace trên filesystem Linux. Toolchain dùng GCC cross-compiler, Binutils, NASM, CMake/Ninja/Python; hướng dẫn local và CI ở [TOOLCHAIN](docs/TOOLCHAIN.md). Chưa có lệnh run/boot OS. Các kiểm tra tài liệu có trong [TESTING](docs/TESTING.md).
 
 ## Repository và giấy phép
 
@@ -26,3 +26,15 @@ Kiểm tra tài liệu tại local:
 python3 scripts/validate_docs.py
 python3 -m unittest discover -s tests -p 'test_validate_docs.py'
 ```
+
+## Build sample M01
+
+Sau khi chuẩn bị dependencies theo TOOLCHAIN, chạy tại root:
+
+```bash
+. .venv/bin/activate
+python scripts/doctor.py --profile wsl2 --json out/m01/doctor.json
+python scripts/smoke.py --reproducible
+```
+
+Sample chỉ được compile/link và kiểm tra ELF; không chạy trực tiếp hoặc boot. Logs/hashes nằm trong out/m01, không được commit. Kết quả CI thực tế và trạng thái M01 tại [handoff](docs/SESSION_HANDOFF.md).

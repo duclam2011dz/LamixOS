@@ -20,3 +20,11 @@ CMake/Ninja/CTest/pytest chưa tìm thấy trong PATH ở lượt khảo sát; P
 ## Lỗi OS
 
 **Chưa triển khai.** Chưa có panic, serial logs hoặc QEMU profile OS để chẩn đoán. Khi có lỗi thật, ghi lệnh tái hiện và bằng chứng; không thêm cách sửa suy đoán như kết quả đã kiểm chứng.
+
+## Toolchain M01
+
+Nếu sudo yêu cầu mật khẩu, không gửi mật khẩu trong chat. Dùng dependencies cô lập đã ghim theo [TOOLCHAIN](TOOLCHAIN.md); không sửa Python hệ thống hoặc thay cross-toolchain. Kích hoạt .venv trước khi gọi doctor/CMake để tìm đúng công cụ.
+
+Nếu CMake cache trỏ compiler cũ, dùng build directory mới đã xác nhận thay vì sửa lịch sử hoặc xóa tùy tiện. Với prefix bootstrap chưa hoàn tất, chỉ script có pending receipt đúng manifest mới được tiếp tục; prefix không rõ nguồn gốc phải dừng, không cài đè. Xem out/m01/bootstrap/bootstrap.log khi GNU build lỗi.
+
+Nếu SHA tái lập khác nhau, giữ logs/JSON, kiểm tra SOURCE_DATE_EPOCH và prefix maps; không hạ tiêu chí thành chỉ compile thành công. KVM không có chỉ là WARN, không ảnh hưởng nghiệm thu build sample M01.

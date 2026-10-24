@@ -1,26 +1,23 @@
-# Kế hoạch hiện hành — M00 bổ sung
+# Kế hoạch hiện hành — M01
 
-Trạng thái milestone: M00=DONE; M01=PLANNED
+Trạng thái milestone: M00=DONE; M01=IN_PROGRESS
 
-M00 cũ đã đạt tiêu chí repository/tài liệu. Phần GitHub Public, GPL-3.0-only và Documentation CI được người dùng duyệt triển khai ngày 2026-10-24; đã nghiệm thu local và trên GitHub; chi tiết bằng chứng tại handoff.
+Người dùng đã duyệt triển khai M01 trong phiên hiện tại ngày 2026-10-24. M00 giữ nguyên tag milestone/M00 trên aa6aeb9ff8ea4620227020ea43e03f430328d6b6.
 
-## Phạm vi và các bước
+## Phạm vi được duyệt
 
-- [x] Kiểm tra lại Git, tài liệu, skill, checksum prompt và account; không làm lại M00 cũ.
-- [x] Thêm LICENSE chính thức, chuẩn hóa đường dẫn host, quy trình Git/CI/tag và tài liệu liên quan.
-- [x] Thêm validator độc lập, unittest và workflow documentation-only; kiểm tra local trước commit.
-- [x] Commit bằng danh tính noreply, tạo repository public đúng account, origin và push main.
-- [x] Xác minh GitHub metadata/license và CI nghiệm thu trên aa6aeb9ff8ea4620227020ea43e03f430328d6b6.
-- [x] Người dùng chính thức xác nhận M00 PASS/DONE; annotated tag milestone/M00 đã push và xác minh đúng commit nghiệm thu.
+Doctor, dependencies cô lập, CMake/Ninja Debug/Release, sample NASM/C11/C++17 freestanding, kiểm chứng ELF/link không dùng host runtime và SHA-256 tái lập ở hai đường dẫn nguồn khác nhau. Bootstrap CI dùng GCC 12.2.0/Binutils 2.39 từ GNU source ghim hash; không thay cross-toolchain local.
 
-Không triển khai M01, mã OS, toolchain installation hoặc Release. Tag đã tạo sau xác nhận hoàn thành riêng; commit cập nhật bàn giao sau nghiệm thu không thay đổi đích của tag. Nguồn trình tự là [ROADMAP](ROADMAP.md), cách kiểm tra ở [TESTING](docs/TESTING.md), trạng thái thực tế ở [handoff](docs/SESSION_HANDOFF.md).
+## Thứ tự
 
-## Nghiệm thu và rollback
+- [ ] Chuẩn bị công cụ thiếu, doctor và dependency lock.
+- [ ] Build sample, CTest/host tests và ELF verification.
+- [ ] Chứng minh tái lập Debug/Release và regression tài liệu.
+- [ ] Push commits đã review, xác minh Documentation CI và Toolchain CI trên SHA nghiệm thu.
+- [ ] Người dùng xác nhận hoàn thành trước tạo/push annotated tag milestone/M01.
 
-Local tests đạt, nội dung công khai được review, remote main đúng SHA, repo public/main đúng description, license GPL-3.0-only và Actions thành công trên HEAD nghiệm thu. Tag đã được xác minh ở local và remote. Nếu CI pending/fail hoặc xác thực/quyền bị chặn thì chưa báo phần bổ sung PASS.
+## Giới hạn và rollback
 
-Giữ checksum ba prompt và mục tiêu/thứ tự roadmap. Trước public hoàn nguyên riêng diff/file đã kiểm tra; sau public dùng commit mới/revert, không force-push hoặc xóa repository. Không sửa tag công khai. Nếu nghi lộ secret, dừng push và xử lý thu hồi credential an toàn; xóa file trong commit mới không đủ.
+Không triển khai bootloader/kernel/LBP hoặc M02; không chạy ELF như chương trình host. M01 PASS chỉ khi local và CI thật đạt; không tự hạ tiêu chí. Không đổi tag M00, force-push, overwrite prefix chưa xác minh hoặc gỡ gói hệ thống. Rollback bằng diff/commit mới, artifacts ở build/out và .venv. Tag M01 cần xác nhận hoàn thành riêng.
 
-## Bước tiếp theo
-
-Thủ tục tag M00 đã hoàn tất. Commit tài liệu đóng phiên phải được push và xác minh CI theo đúng SHA trước báo cáo cuối; không chuyển tag sang commit này. M01 cần lượt chat mới ở Plan Mode và kế hoạch chi tiết riêng.
+Tiếp tục ngay trong phiên này; chỉ chuyển phiên sau M01 PASS và hoàn tất thủ tục Git/tag/bàn giao. Trạng thái thật tại [handoff](docs/SESSION_HANDOFF.md), nguồn milestone là [roadmap](ROADMAP.md).
