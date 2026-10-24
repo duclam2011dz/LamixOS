@@ -1,0 +1,24 @@
+# Sản phẩm sinh ra trong thư mục đầu ra quy ước
+/build/
+/out/
+# Cache Python
+__pycache__/
+.pytest_cache/
+*.py[cod]
+# Credentials và cấu hình cá nhân
+.env
+.env.*
+.aws/
+.codex/
+.ssh/
+credentials.json
+*.pem
+*.key
+# Artifact máy ảo và môi trường phát triển
+*.img
+*.qcow2
+*.vmdk
+*.vdi
+*.fd
+*.rom
+.venv/
