@@ -3,10 +3,10 @@
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
 > **Cập nhật:** 2026-10-24  
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 IN_PROGRESS; M02–M44 PLANNED; chưa có mã OS  
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02–M44 PLANNED; chưa có mã OS  
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
-Trạng thái milestone: M00=DONE; M01=IN_PROGRESS
+Trạng thái milestone: M00=DONE; M01=DONE
 
 ## 0. Tầm nhìn và giới hạn
 
@@ -77,13 +77,13 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 IN_PROGRESS; M02–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
 **M00 — Repository và hệ thống tài liệu.** **Trạng thái: DONE (2026-10-24).** Đạt tiêu chí ban đầu và phần bổ sung GitHub Public/GPL-3.0-only/Documentation CI; người dùng đã xác nhận hoàn thành, annotated tag `milestone/M00` đã được push; xem [kế hoạch](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md). Chuẩn hóa root repo, `AGENTS.md`, `README.md`, `GOALS.md`, `PLANS.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `.gitignore`, tài liệu trong `docs/`, skill có ích; kiểm tra `ROADMAP.md` là tài liệu gốc do người dùng cung cấp, **không thay toàn bộ nội dung nếu chưa được cho phép**. Nghiệm thu: cấu trúc có trách nhiệm rõ, tài liệu tiếng Việt, handoff ngắn và hướng dẫn Plan Mode.
 
-**M01 — Toolchain/reproducible build trên WSL2.** **Trạng thái: IN_PROGRESS (2026-10-24).** Phát hiện công cụ thật, CMake/Ninja, GNU cross-compiler, NASM, Binutils, Python, QEMU, GDB, OVMF, clang-format/tidy, cppcheck; `scripts/doctor.py`, preset/profile build debug/release và tối thiểu smoke CI local. Nghiệm thu: báo phiên bản, build sample freestanding, không link nhầm thư viện host.
+**M01 — Toolchain/reproducible build trên WSL2.** **Trạng thái: DONE (2026-10-24).** Doctor, Debug/Release sample, ELF/link provenance và SHA-256 hai source roots đã PASS tại local và Toolchain CI; tag M01 chờ xác nhận hoàn thành riêng.  Phát hiện công cụ thật, CMake/Ninja, GNU cross-compiler, NASM, Binutils, Python, QEMU, GDB, OVMF, clang-format/tidy, cppcheck; `scripts/doctor.py`, preset/profile build debug/release và tối thiểu smoke CI local. Nghiệm thu: báo phiên bản, build sample freestanding, không link nhầm thư viện host.
 
 **M02 — QEMU harness và đo kiểm tự động.** `pytest` khởi chạy QEMU có timeout, nhận serial markers, phân loại hang/panic/exit, lưu logs, CTest host tests, kịch bản BIOS và UEFI skeleton; test chưa thực thi được phải `SKIP` có giải thích. Nghiệm thu: ít nhất một bài test harness tự kiểm thử kết quả pass/fail thật.
 
