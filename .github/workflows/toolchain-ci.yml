@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     env:
-      LAMIX_CROSS_ROOT: ${{ runner.temp }}/lamix-cross
+      LAMIX_CROSS_ROOT: ${{ github.workspace }}/out/m01/cross
     steps:
       - name: Lấy mã nguồn
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
