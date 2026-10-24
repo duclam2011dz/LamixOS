@@ -19,4 +19,4 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ### Ghi chú
 
-M00 đạt nghiệm thu phần GitHub/GPL/CI ngày 2026-10-24; tag milestone/M00 chờ xác nhận riêng, chưa tạo tag hoặc Release. Chưa có mã OS hoặc bản phát hành; M01 chưa bắt đầu.
+M00 đạt nghiệm thu phần GitHub/GPL/CI ngày 2026-10-24; người dùng đã chính thức xác nhận hoàn thành. Annotated tag milestone/M00 đã được tạo và push trên commit aa6aeb9ff8ea4620227020ea43e03f430328d6b6; chưa tạo version tag hoặc Release. Chưa có mã OS hoặc bản phát hành; M01 chưa bắt đầu.

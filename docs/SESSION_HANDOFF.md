@@ -2,38 +2,31 @@
 
 Trạng thái milestone: M00=DONE; M01=PLANNED
 
-M00 đạt nghiệm thu tài liệu/repository ban đầu và phần bổ sung GitHub Public, GPL-3.0-only, Documentation CI. Tag milestone/M00 chờ người dùng xác nhận hoàn thành riêng; chưa tạo tag hoặc Release. Chưa có mã OS, build system hoặc harness QEMU.
+M00 đã được người dùng chính thức xác nhận **PASS/DONE**, gồm repository/tài liệu, GitHub Public, GPL-3.0-only và Documentation CI. Đã hoàn tất tạo/push annotated tag M00; chưa có mã OS, build system hoặc harness QEMU.
 
-## Repository và commit
+## Git và nghiệm thu
 
-- Repository: [duclam2011dz/LamixOS](https://github.com/duclam2011dz/LamixOS), account cá nhân duclam2011dz, Public, default branch main.
-- Origin: `https://github.com/duclam2011dz/LamixOS.git`; main đã push và theo dõi origin/main.
-- Commits triển khai: `5b47a47` (tài liệu/license) và `54ad4c5ac9c3f176d339b5ea70ec73f4dbacbfc5` (validator/CI). Cả hai dùng email GitHub noreply; Git config toàn cục giữ nguyên.
-- Commit chứa bản bàn giao này ghi nhận kết quả trên; lấy SHA chính xác bằng `git rev-parse HEAD`. Không nhúng SHA của chính commit vào nội dung của nó.
-- License: [LICENSE](../LICENSE) nguyên văn GPL v3 từ GNU, byte-identical tại thời điểm tải; GitHub nhận diện GPL-3.0, README/CONTRIBUTING tuyên bố GPL-3.0-only.
+- Repository: [duclam2011dz/LamixOS](https://github.com/duclam2011dz/LamixOS), Public, default branch main.
+- Origin: `https://github.com/duclam2011dz/LamixOS.git`; branch local main theo dõi origin/main.
+- Commit nghiệm thu: `aa6aeb9ff8ea4620227020ea43e03f430328d6b6`.
+- Annotated tag [milestone/M00](https://github.com/duclam2011dz/LamixOS/tree/milestone/M00): đã tạo và push; local/remote tag object khớp nhau, peeled SHA đúng commit nghiệm thu trên. Không tạo version tag hoặc GitHub Release.
+- [Documentation CI nghiệm thu](https://github.com/duclam2011dz/LamixOS/actions/runs/40109813158): đã xác minh completed/success, đúng SHA nghiệm thu.
+- Working tree sạch, local/remote main khớp commit nghiệm thu tại lần kiểm tra trước tạo tag. Các chỉnh sửa đóng phiên nằm trong commit tài liệu tiếp sau, không thay đổi đích tag.
 
-## Thay đổi và bằng chứng
+Commit chứa bản bàn giao này chỉ ghi nhận thủ tục tag và chuẩn bị chuyển phiên, không triển khai M01. Lấy SHA của commit bàn giao bằng `git rev-parse HEAD`; không nhúng SHA của chính commit vào nội dung của nó. Sau push phải xác minh working tree sạch, main local/remote khớp và [CI theo HEAD](https://github.com/duclam2011dz/LamixOS/actions/workflows/docs-ci.yml) thành công trước báo cáo cuối. URL run cuối được cung cấp trong báo cáo phiên; không tạo vòng lặp commit chỉ để tự ghi URL/SHA.
 
-Đã thêm LICENSE, scripts/validate_docs.py, tests/test_validate_docs.py và workflow docs-ci.yml. Cập nhật AGENTS, README, CONTRIBUTING, CHANGELOG, PLANS, ROADMAP, TESTING, DECISIONS, skill và handoff; loại đường dẫn host không cần thiết, giữ nguyên ba prompt và mục tiêu/thứ tự roadmap.
+## Phần đã hoàn thành và kiểm tra
 
-| Kiểm tra thực tế | Kết quả |
-|---|---|
-| `python3 scripts/validate_docs.py` | PASS, đủ cấu trúc, UTF-8, whitespace, link/anchor, metadata và trạng thái |
-| `python3 -m unittest discover -s tests -p 'test_validate_docs.py'` | PASS, 22 tests local; positive/negative fixtures tạm |
-| Skill validator hệ thống tại vị trí skill đã cài | PASS; CI dùng validator Python trong repo thay vì gọi skill Codex |
-| Review 29 file dự kiến public, mẫu credential, binary/size, đường dẫn host và ignore probes | PASS trong phạm vi kiểm tra; không phải bảo đảm tuyệt đối không có secrets |
-| Checksum ba prompt, review diff roadmap với bản gốc | PASS, prompt nguyên vẹn, không đổi mục tiêu/thứ tự milestone |
-| GitHub API repository/license và ls-remote main | PASS, Public/main, description đúng yêu cầu, main khớp commit triển khai |
-| [Documentation CI run 40109678126](https://github.com/duclam2011dz/LamixOS/actions/runs/40109678126) | PASS, success trên SHA `54ad4c5ac9c3f176d339b5ea70ec73f4dbacbfc5`; cả unittest và validator chạy trên runner |
-| Trigger PR / workflow_dispatch thực tế | NOT RUN; cấu hình có cả hai, chưa tạo PR hoặc dispatch để tránh chạy trùng |
-| Build/boot/QEMU | NOT RUN, chưa có mã/harness, ngoài M00 |
+Sáu tài liệu root, 13 tài liệu docs, .gitignore, skill docs-consistency, LICENSE GPL v3 chính thức và validator độc lập đã có. Workflow Documentation CI dùng Python 3.12 trên ubuntu-24.04, contents: read, actions ghim SHA. Giữ nguyên ba prompt, kiến trúc và thứ tự roadmap.
 
-CI của commit bàn giao cuối cần được kiểm chứng trước khi báo kết quả cuối phiên. Tra [runs của Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/workflows/docs-ci.yml) theo SHA từ `git rev-parse HEAD`; kết quả cuối phiên cung cấp URL run đúng HEAD. Không cập nhật thêm commit chỉ để ghi URL/SHA của chính commit này.
+Lượt đóng phiên cập nhật README, ROADMAP, PLANS, CHANGELOG và handoff này để ghi tag/xác nhận và ranh giới commit. `python3 scripts/validate_docs.py`: PASS; `python3 -m unittest discover -s tests -p 'test_validate_docs.py'`: PASS, 22 tests; kiểm tra diff whitespace theo quy tắc Markdown: PASS. Không sửa validator/workflow hoặc chạy lại test OS.
+
+Build/boot/QEMU: **NOT RUN**, ngoài phạm vi M00, chưa có mã/harness. Trigger PR và workflow_dispatch thực tế chưa chạy; push CI đã chạy thành công. Review credentials/artifacts thuộc nghiệm thu trước, không phải bảo đảm bảo mật tuyệt đối.
 
 ## Giới hạn và bước tiếp theo
 
-Sandbox có thể báo Read-only file system hoặc chặn DNS cho Git/skill/GitHub; thao tác đã thành công qua cơ chế nâng quyền được môi trường chấp thuận. Không đổi quyền để lách bảo vệ. Chưa bật branch protection; PR review và CI gate hiện là quy trình trong CONTRIBUTING.
+Sandbox có thể chặn ghi metadata Git hoặc DNS; dùng cơ chế nâng quyền được môi trường chấp thuận, không lách bảo vệ. Chưa bật branch protection; review/CI gate hiện là quy trình CONTRIBUTING. Không di chuyển/xóa/ghi đè tag đã push hoặc rewrite lịch sử.
 
-Sau khi người dùng xác nhận hoàn thành: kiểm tra tag local/remote milestone/M00, tạo annotated tag trên SHA đã CI xanh, push đúng tag và xác minh peeled SHA. Nếu tag tồn tại thì chỉ xác minh; không di chuyển/xóa/ghi đè. Không tạo version tag hoặc Release.
+M01 là milestone tiếp theo, **chưa được phê duyệt triển khai**. Phạm vi dự kiến theo roadmap: xác minh WSL2/toolchain, GCC cross-compiler/Binutils, CMake/Ninja, freestanding sample, debug/release profiles và smoke checks. CMake/Ninja/CTest/pytest chưa tìm thấy trong khảo sát trước; các cross-tools có đường dẫn nhưng chưa kiểm chứng phối hợp. Chưa cài toolchain, chưa tạo doctor.py, CMake presets hoặc targets.
 
-M01 tiếp theo: xác minh toolchain WSL2, GCC cross-compiler/Binutils, CMake/Ninja, freestanding sample, debug/release profiles và smoke checks theo roadmap. CMake/Ninja/CTest/pytest chưa tìm thấy trong khảo sát; cross-tools có đường dẫn nhưng chưa kiểm chứng phối hợp. Chưa cài hoặc triển khai M01; mở Plan Mode riêng, đọc AGENTS/handoff/PLANS và M01, khảo sát rồi chờ duyệt kế hoạch chi tiết.
+**Bước chính xác cho phiên mới:** người dùng bật Codex Plan Mode và gửi Next Milestone Prompt cho M01. Codex đọc AGENTS.md, handoff, PLANS.md và M00/M01 trong ROADMAP.md; kiểm tra Git/môi trường thực tế, lập kế hoạch riêng M01 rồi dừng chờ duyệt. Không tự triển khai M01 từ việc M00 đã hoàn thành.

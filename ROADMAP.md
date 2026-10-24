@@ -81,7 +81,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
-**M00 — Repository và hệ thống tài liệu.** **Trạng thái: DONE (2026-10-24).** Đạt tiêu chí ban đầu và phần bổ sung GitHub Public/GPL-3.0-only/Documentation CI; milestone tag chờ xác nhận riêng; xem [kế hoạch](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md). Chuẩn hóa root repo, `AGENTS.md`, `README.md`, `GOALS.md`, `PLANS.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `.gitignore`, tài liệu trong `docs/`, skill có ích; kiểm tra `ROADMAP.md` là tài liệu gốc do người dùng cung cấp, **không thay toàn bộ nội dung nếu chưa được cho phép**. Nghiệm thu: cấu trúc có trách nhiệm rõ, tài liệu tiếng Việt, handoff ngắn và hướng dẫn Plan Mode.
+**M00 — Repository và hệ thống tài liệu.** **Trạng thái: DONE (2026-10-24).** Đạt tiêu chí ban đầu và phần bổ sung GitHub Public/GPL-3.0-only/Documentation CI; người dùng đã xác nhận hoàn thành, annotated tag `milestone/M00` đã được push; xem [kế hoạch](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md). Chuẩn hóa root repo, `AGENTS.md`, `README.md`, `GOALS.md`, `PLANS.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `.gitignore`, tài liệu trong `docs/`, skill có ích; kiểm tra `ROADMAP.md` là tài liệu gốc do người dùng cung cấp, **không thay toàn bộ nội dung nếu chưa được cho phép**. Nghiệm thu: cấu trúc có trách nhiệm rõ, tài liệu tiếng Việt, handoff ngắn và hướng dẫn Plan Mode.
 
 **M01 — Toolchain/reproducible build trên WSL2.** Phát hiện công cụ thật, CMake/Ninja, GNU cross-compiler, NASM, Binutils, Python, QEMU, GDB, OVMF, clang-format/tidy, cppcheck; `scripts/doctor.py`, preset/profile build debug/release và tối thiểu smoke CI local. Nghiệm thu: báo phiên bản, build sample freestanding, không link nhầm thư viện host.
 
