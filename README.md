@@ -8,7 +8,7 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00 đã đạt nghiệm thu tài liệu, GitHub Public, GPL và Documentation CI. Người dùng đã xác nhận hoàn thành; annotated tag [milestone/M00](https://github.com/duclam2011dz/LamixOS/tree/milestone/M00) ghi nhận commit nghiệm thu. Skill `docs-consistency` đã cài và được kiểm tra. M01 đã đạt kiểm chứng local và Toolchain CI cho build sample freestanding; annotated tag [milestone/M01](https://github.com/duclam2011dz/LamixOS/tree/milestone/M01) đã được người dùng duyệt và push; chưa có bootloader, kernel, game hoặc test harness boot OS. Chưa có bản phát hành và chưa đạt Playable.
+M00 đã đạt nghiệm thu tài liệu, GitHub Public, GPL và Documentation CI. Người dùng đã xác nhận hoàn thành; annotated tag [milestone/M00](https://github.com/duclam2011dz/LamixOS/tree/milestone/M00) ghi nhận commit nghiệm thu. Skill `docs-consistency` đã cài và được kiểm tra. M01 đã đạt kiểm chứng local và Toolchain CI cho build sample freestanding; annotated tag [milestone/M01](https://github.com/duclam2011dz/LamixOS/tree/milestone/M01) đã được người dùng duyệt và push; chưa có bootloader, kernel, game hoặc kết quả OS boot. Chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 
@@ -40,3 +40,16 @@ python scripts/smoke.py --reproducible
 ```
 
 Sample chỉ được compile/link và kiểm tra ELF; không chạy trực tiếp hoặc boot. Logs/hashes nằm trong out/m01, không được commit. Kết quả CI thực tế và trạng thái M01 tại [handoff](docs/SESSION_HANDOFF.md).
+
+## QEMU harness M02
+
+M02 đang nghiệm thu harness; không phải bằng chứng OS đã boot. Sau khi kích hoạt .venv:
+
+```bash
+python scripts/run_qemu.py --profile bios --launch-only
+python scripts/run_qemu.py --profile uefi --launch-only
+cmake -S tests/qemu -B build/m02 -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+ctest --test-dir build/m02 --no-tests=error --output-on-failure
+```
+
+Launch-only dùng TCG và -S, xác minh QMP rồi đóng tiến trình. Boot skeleton chưa có image sẽ SKIPPED, exit 77. Logs và result.json mỗi run ở out/m02; [TESTING](docs/TESTING.md) mô tả kết quả/timeout/cleanup và CI thực tế tại [handoff](docs/SESSION_HANDOFF.md).

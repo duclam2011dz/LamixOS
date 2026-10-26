@@ -1,0 +1,74 @@
+name: Harness CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harness:
+    name: Verify harness and paused BIOS/UEFI launch
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Lấy mã nguồn
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Chuẩn bị Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Cài dependencies host, không build cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 ovmf seabios cmake ninja-build python3-venv
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-dev.lock
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+      - name: Cấu hình CTest host-only
+        run: cmake -S tests/qemu -B build/m02 -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+      - name: Fixture, emulator launch thật và boot skeleton
+        run: ctest --test-dir build/m02 --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m02/ctest.xml"
+      - name: Kiểm tra tài liệu
+        run: python3 scripts/validate_docs.py
+      - name: Ghi summary đúng phạm vi
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write('### Harness M02\n\nLaunch-only không chứng minh OS boot.\n\n')
+              report = Path('out/m02/ctest.xml')
+              if not report.exists():
+                  summary.write('NOT RUN: chưa có CTest report; xem lỗi job.\n')
+              else:
+                  for case in ET.parse(report).getroot().iter('testcase'):
+                      status = 'SKIPPED' if case.find('skipped') is not None else 'FAIL' if case.find('failure') is not None or case.find('error') is not None else 'PASS'
+                      summary.write(f"- {case.attrib['name']}: {status}\n")
+          PY
+      - name: Lưu JUnit và kết quả phân loại
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m02-reports
+          path: |
+            out/m02/*.xml
+            out/m02/**/result.json
+          if-no-files-found: warn
+      - name: Lưu logs khi thất bại, không upload firmware
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m02-failure-logs
+          path: |
+            out/m02/**/*.log
+            build/m02/Testing/Temporary/*.log
+          if-no-files-found: warn

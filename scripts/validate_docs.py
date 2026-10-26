@@ -30,7 +30,7 @@ EXCLUDED = {
 }
 STATES = {"PLANNED", "IN_PLAN", "APPROVED", "IN_PROGRESS", "VERIFYING", "DONE", "BLOCKED"}
 STATUS_FILES = ("ROADMAP.md", "PLANS.md", "docs/SESSION_HANDOFF.md")
-STATUS_PATTERN = re.compile(r"^Trạng thái milestone: M00=(\w+); M01=(\w+)$", re.M)
+STATUS_PATTERN = re.compile(r"^Trạng thái milestone: M00=(\w+); M01=(\w+); M02=(\w+)$", re.M)
 
 
 def prose_lines(text):
@@ -229,8 +229,8 @@ def validate_repository(root):
         if state not in STATES:
             error("ROADMAP.md", f"trạng thái không hợp lệ cho {match[1]}")
         actual[match[1]] = state
-    if "ROADMAP.md" in status and tuple(actual.get(n) for n in ("M00", "M01")) != status["ROADMAP.md"]:
-        error("ROADMAP.md", "trạng thái chuẩn không khớp trạng thái mục M00/M01")
+    if "ROADMAP.md" in status and tuple(actual.get(n) for n in ("M00", "M01", "M02")) != status["ROADMAP.md"]:
+        error("ROADMAP.md", "trạng thái chuẩn không khớp trạng thái mục M00/M01/M02")
     return errors
 
 

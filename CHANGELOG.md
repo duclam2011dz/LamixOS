@@ -27,3 +27,11 @@ M00 đạt nghiệm thu phần GitHub/GPL/CI ngày 2026-10-24; người dùng đ
 - CMake/Ninja presets Debug/Release, sample NASM/C11/C++17 freestanding và verifier ELF/link provenance.
 - Host tests và kiểm chứng SHA-256 giữa hai source roots; bootstrap GCC 12.2.0/Binutils 2.39 từ GNU archives đã xác minh chữ ký/hash.
 - Workflow Toolchain CI đã chạy GNU source bootstrap và doctor/build/reproducibility thành công; cache chính xác và logs lỗi được cấu hình. URLs/kết quả tại handoff.
+
+### Thêm trong M02
+
+- Harness host QMP/serial với monotonic deadlines, phân loại kết quả, process-group cleanup và logs/JSON riêng từng run.
+- Fixture tests và QEMU launch-only thật BIOS/UEFI; boot skeleton chưa có image được SKIPPED/77, không phải OS boot PASS.
+- CTest host-only, pytest marker qemu, validator trạng thái mở rộng tới M02 và Harness CI riêng với JUnit/summary/logs lỗi.
+
+M02 đang nghiệm thu; kết quả CI thực tế ở handoff, chưa suy ra PASS từ workflow tồn tại. Không tạo boot code/image hoặc thay tags M00/M01.

@@ -28,3 +28,11 @@ Nếu sudo yêu cầu mật khẩu, không gửi mật khẩu trong chat. Dùng 
 Nếu CMake cache trỏ compiler cũ, dùng build directory mới đã xác nhận thay vì sửa lịch sử hoặc xóa tùy tiện. Với prefix bootstrap chưa hoàn tất, chỉ script có pending receipt đúng manifest mới được tiếp tục; prefix không rõ nguồn gốc phải dừng, không cài đè. Xem out/m01/bootstrap/bootstrap.log khi GNU build lỗi.
 
 Nếu SHA tái lập khác nhau, giữ logs/JSON, kiểm tra SOURCE_DATE_EPOCH và prefix maps; không hạ tiêu chí thành chỉ compile thành công. KVM không có chỉ là WARN, không ảnh hưởng nghiệm thu build sample M01.
+
+## Harness M02
+
+Đọc result.json cùng serial.log, stderr.log và qmp.log trong đúng thư mục run. LAUNCH_ERROR thường do path/image/firmware không hợp lệ hoặc QEMU không gọi được; PROTOCOL_ERROR cần đối chiếu QMP JSON/capabilities/query-status. TIMEOUT là deadline hết, không suy ra kernel panic. CLEANUP_ERROR là không shutdown/reap sạch; không báo PASS chỉ vì có marker success.
+
+Thiếu bootable image là SKIPPED/77; đường dẫn được chỉ định nhưng sai là FAIL. Emulator launch-only PASS chỉ xác minh QEMU paused và QMP, không xác minh OS boot. Kiểm tra cặp OVMF CODE/VARS và bản copy riêng, không sửa firmware hệ thống hoặc dùng disk thật.
+
+Khi cần debug thủ công ở milestone có guest thật, sao chép command từ result.json và thêm -S cùng -gdb tcp:127.0.0.1:1234, dùng cổng riêng chưa bị chiếm; không bật GDB server mặc định trong CI. Không đánh dấu debug/boot PASS khi chưa thực thi.

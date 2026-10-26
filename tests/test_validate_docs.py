@@ -17,7 +17,7 @@ class ValidationTests(unittest.TestCase):
             self.write(name, "# Tài liệu\n")
         self.write(SKILL, "---\nname: docs-consistency\ndescription: Kiểm tra tài liệu.\n---\n# Skill\n")
         for name in STATUS_FILES:
-            self.write(name, "Trạng thái milestone: M00=DONE; M01=PLANNED\n")
+            self.write(name, "Trạng thái milestone: M00=DONE; M01=PLANNED; M02=PLANNED\n")
         self.append("ROADMAP.md", "\n".join(
             f"**M{i:02d} — Tên milestone.**" + (" **Trạng thái: DONE.**" if i == 0 else "")
             for i in range(45)
@@ -124,11 +124,11 @@ class ValidationTests(unittest.TestCase):
                 self.assertTrue(any("đúng thứ tự" in e for e in self.errors()))
 
     def test_invalid_milestone_state(self):
-        self.append("PLANS.md", "Trạng thái milestone: M00=BOGUS; M01=PLANNED\n")
+        self.append("PLANS.md", "Trạng thái milestone: M00=BOGUS; M01=PLANNED; M02=PLANNED\n")
         self.assertTrue(any("một dòng trạng thái" in e for e in self.errors()))
 
     def test_disagreeing_status_files(self):
-        self.write("PLANS.md", "Trạng thái milestone: M00=VERIFYING; M01=PLANNED\n")
+        self.write("PLANS.md", "Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED\n")
         self.assertTrue(any("không khớp roadmap/handoff" in e for e in self.errors()))
 
     def test_canonical_status_must_match_milestone(self):
@@ -139,6 +139,17 @@ class ValidationTests(unittest.TestCase):
     def test_invalid_skill_metadata(self):
         self.write(SKILL, "---\nname: wrong\ndescription: \n---\n# Skill\n")
         self.assertTrue(any("metadata" in e for e in self.errors()))
+
+    def test_m02_state_must_match_roadmap(self):
+        for name in STATUS_FILES:
+            path = self.root / name
+            self.write(name, path.read_text().replace("M02=PLANNED", "M02=VERIFYING"))
+        self.assertTrue(any("không khớp trạng thái mục" in e for e in self.errors()))
+
+    def test_m02_state_must_match_handoff(self):
+        path = self.root / "docs/SESSION_HANDOFF.md"
+        self.write(str(path.relative_to(self.root)), path.read_text().replace("M02=PLANNED", "M02=BLOCKED"))
+        self.assertTrue(any("không khớp roadmap/handoff" in e for e in self.errors()))
 
 
 if __name__ == "__main__":

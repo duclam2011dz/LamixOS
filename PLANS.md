@@ -1,29 +1,23 @@
-# Kế hoạch hiện hành — M01
+# Kế hoạch hiện hành — M02
 
-Trạng thái milestone: M00=DONE; M01=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=IN_PROGRESS
 
-Người dùng đã duyệt triển khai M01 trong phiên hiện tại ngày 2026-10-24. M00 giữ nguyên tag milestone/M00 trên aa6aeb9ff8ea4620227020ea43e03f430328d6b6.
+Người dùng đã duyệt M02 ngày 2026-10-26 trong phiên hiện tại. M00/M01 giữ nguyên tags nghiệm thu; không chuyển phiên hoặc bắt đầu M03.
 
-## Phạm vi được duyệt
+## Phạm vi và thứ tự
 
-Doctor, dependencies cô lập, CMake/Ninja Debug/Release, sample NASM/C11/C++17 freestanding, kiểm chứng ELF/link không dùng host runtime và SHA-256 tái lập ở hai đường dẫn nguồn khác nhau. Bootstrap CI dùng GCC 12.2.0/Binutils 2.39 từ GNU source ghim hash; không thay cross-toolchain local.
+- [x] Runner/QMP/serial, deadline monotonic và process-group cleanup; kết quả JSON cùng logs mỗi run.
+- [x] Fixture tests positive/negative và QEMU thật paused BIOS/UEFI; không boot OS.
+- [x] CTest host-only, hai boot skeleton SKIPPED (77) vì chưa có image.
+- [ ] Harness CI riêng, regression M01/tài liệu và ba workflows SUCCESS trên SHA nghiệm thu.
+- [ ] Người dùng xác nhận hoàn thành riêng trước tạo annotated milestone/M02.
 
-## Thứ tự
+Default launch deadline 10 giây, boot 30 giây, cleanup grace 2 giây. BIOS pc/SeaBIOS, UEFI q35 với CODE read-only và bản sao VARS riêng, TCG/1 CPU/256 MiB, headless/network off. Marker literal theo dòng, panic ưu tiên; exit thiếu marker không phải PASS. Image raw phải là regular file và dùng snapshot.
 
-- [x] Chuẩn bị công cụ thiếu, doctor và dependency lock.
-- [x] Build sample, CTest/host tests và ELF verification.
-- [x] Chứng minh tái lập Debug/Release và regression tài liệu.
-- [x] Push commits đã review; Documentation CI và Toolchain CI trên fee069b8d22f836113c0f0049157de819a2f7f09 đã SUCCESS, gồm GNU bootstrap thật. Commit tài liệu nghiệm thu tiếp sau phải có cả hai workflows xanh trước báo cáo cuối.
-- [x] Người dùng phê duyệt kết thúc M01; annotated tag milestone/M01 đã tạo/push và xác minh local/remote trên 99f7591046c843d77362eed5f16cf6a34a085bbb.
+Không tạo bootloader/kernel/image/LBP hoặc chạy sample ELF M01 như guest. Chỉ báo emulator launch PASS; boot skeleton chưa có image phải SKIP, không đổi thành boot PASS. M02 PASS cần fixture tests, launch thật, cleanup, logs/summary và CI thực tế; không hạ tiêu chí khi lỗi.
 
-## Giới hạn và rollback
+## Tài liệu và rollback
 
-Không triển khai bootloader/kernel/LBP hoặc M02; không chạy ELF như chương trình host. Local và CI thật đã đạt; M01 PASS cuối phiên chỉ khi CI trên HEAD tài liệu nghiệm thu cũng đạt; không tự hạ tiêu chí. Không đổi tag M00, force-push, overwrite prefix chưa xác minh hoặc gỡ gói hệ thống. Rollback bằng diff/commit mới, artifacts ở build/out và .venv. Tag M01 đã tạo sau phê duyệt kết thúc riêng; không chuyển tag sang commit tài liệu đóng thủ tục.
+Cập nhật README/TESTING/TROUBLESHOOTING/CHANGELOG/handoff và trạng thái roadmap, mở rộng validator trạng thái đến M02. Không sửa kiến trúc hoặc thứ tự milestone. Rollback bằng diff/commit tiếp nối, chỉ dọn artifacts thuộc run; không force-push, đổi tags M00/M01 hoặc ghi disk thật.
 
-Thủ tục kết thúc M01 được hoàn tất trong phiên hiện tại. Theo chỉ dẫn mới nhất, lượt này không chuyển phiên hoặc bắt đầu M02. Trạng thái thật tại [handoff](docs/SESSION_HANDOFF.md), nguồn milestone là [roadmap](ROADMAP.md).
-
-## Bằng chứng nghiệm thu
-
-Doctor local PASS (KVM WARN tùy chọn); 39 host tests PASS, CTest 2/2 mỗi profile, ELF verification và SHA-256 hai source roots PASS. CI đã build GNU source thật, doctor/build/reproducibility PASS, cache prefix đã lưu. URLs và giới hạn tại [handoff](docs/SESSION_HANDOFF.md).
-
-Annotated milestone/M01 đã được xác minh đúng SHA nghiệm thu và giữ nguyên sau commit tài liệu đóng thủ tục. Commit tài liệu cần cả hai workflows SUCCESS trước báo cáo cuối. Chờ chỉ dẫn tiếp theo của người dùng; không tự chuyển phiên hoặc triển khai M02.
+Trạng thái thật ở [handoff](docs/SESSION_HANDOFF.md); cần chờ duyệt riêng cho tag M02 và không tự mở M03.
