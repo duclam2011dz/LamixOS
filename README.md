@@ -1,5 +1,7 @@
 # Lamix OS
 
+[![Harness CI](https://github.com/duclam2011dz/LamixOS/actions/workflows/harness-ci.yml/badge.svg?branch=main)](https://github.com/duclam2011dz/LamixOS/actions/workflows/harness-ci.yml)
+
 [![Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/workflows/toolchain-ci.yml/badge.svg?branch=main)](https://github.com/duclam2011dz/LamixOS/actions/workflows/toolchain-ci.yml)
 
 [![Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/workflows/docs-ci.yml/badge.svg?branch=main)](https://github.com/duclam2011dz/LamixOS/actions/workflows/docs-ci.yml)
@@ -43,7 +45,7 @@ Sample chỉ được compile/link và kiểm tra ELF; không chạy trực ti�
 
 ## QEMU harness M02
 
-M02 đang nghiệm thu harness; không phải bằng chứng OS đã boot. Sau khi kích hoạt .venv:
+M02 đã đạt kiểm chứng harness local/CI, gồm 33 fixture tests và hai QEMU launch-only profiles. Tag M02 chờ xác nhận hoàn thành riêng; không phải bằng chứng OS đã boot. Sau khi kích hoạt .venv:
 
 ```bash
 python scripts/run_qemu.py --profile bios --launch-only

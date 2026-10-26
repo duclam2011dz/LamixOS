@@ -34,4 +34,6 @@ M00 đạt nghiệm thu phần GitHub/GPL/CI ngày 2026-10-24; người dùng đ
 - Fixture tests và QEMU launch-only thật BIOS/UEFI; boot skeleton chưa có image được SKIPPED/77, không phải OS boot PASS.
 - CTest host-only, pytest marker qemu, validator trạng thái mở rộng tới M02 và Harness CI riêng với JUnit/summary/logs lỗi.
 
-M02 đang nghiệm thu; kết quả CI thực tế ở handoff, chưa suy ra PASS từ workflow tồn tại. Không tạo boot code/image hoặc thay tags M00/M01.
+M02 đã kiểm chứng local và cả ba workflows trên GitHub; kết quả/URLs ở handoff. Tag M02 chờ xác nhận hoàn thành riêng. Không tạo boot code/image hoặc thay tags M00/M01.
+
+- Sửa setup CI bị chậm tải package từ Azure Ubuntu mirror: ưu tiên HTTPS Ubuntu archive trong runner, giữ chữ ký apt/package list, thêm retry/timeout; không đổi apt sources host local hoặc hạ tiêu chí tests.

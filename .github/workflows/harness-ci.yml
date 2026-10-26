@@ -25,9 +25,15 @@ jobs:
         with:
           python-version: '3.12'
       - name: Cài dependencies host, không build cross-compiler
+        timeout-minutes: 5
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qemu-system-x86 ovmf seabios cmake ninja-build python3-venv
+          for source in /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+            if test -f "$source"; then
+              sudo sed -i -e 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$source"
+            fi
+          done
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends qemu-system-x86 ovmf seabios cmake ninja-build python3-venv
           python3 -m venv .venv
           .venv/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-dev.lock
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
