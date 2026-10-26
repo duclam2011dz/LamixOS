@@ -10,11 +10,11 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00 đã đạt nghiệm thu tài liệu, GitHub Public, GPL và Documentation CI. Người dùng đã xác nhận hoàn thành; annotated tag [milestone/M00](https://github.com/duclam2011dz/LamixOS/tree/milestone/M00) ghi nhận commit nghiệm thu. Skill `docs-consistency` đã cài và được kiểm tra. M01 đã đạt kiểm chứng local và Toolchain CI cho build sample freestanding; annotated tag [milestone/M01](https://github.com/duclam2011dz/LamixOS/tree/milestone/M01) đã được người dùng duyệt và push; chưa có bootloader, kernel, game hoặc kết quả OS boot. Chưa có bản phát hành và chưa đạt Playable.
+M00 đã đạt nghiệm thu tài liệu, GitHub Public, GPL và Documentation CI. Người dùng đã xác nhận hoàn thành; annotated tag [milestone/M00](https://github.com/duclam2011dz/LamixOS/tree/milestone/M00) ghi nhận commit nghiệm thu. Skill `docs-consistency` đã cài và được kiểm tra. M01 đã đạt kiểm chứng local và Toolchain CI cho build sample freestanding; annotated tag [milestone/M01](https://github.com/duclam2011dz/LamixOS/tree/milestone/M01) đã được người dùng duyệt và push; chưa có bootloader, kernel, game hoặc kết quả OS boot. M02 đã có annotated tag nghiệm thu harness. M03 đã có LBP/GPT contract, thư viện freestanding và host tests local PASS; đang VERIFYING, chờ CI/review và xác nhận hoàn thành. Chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 
-Đọc [mục tiêu](GOALS.md), [roadmap](ROADMAP.md), [kế hoạch M00](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md). Người đóng góp xem [CONTRIBUTING.md](CONTRIBUTING.md); Codex đọc [AGENTS.md](AGENTS.md).
+Đọc [mục tiêu](GOALS.md), [roadmap](ROADMAP.md), [kế hoạch hiện hành](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md). Người đóng góp xem [CONTRIBUTING.md](CONTRIBUTING.md); Codex đọc [AGENTS.md](AGENTS.md).
 
 Host mục tiêu là Windows + WSL2, ưu tiên workspace trên filesystem Linux. Toolchain dùng GCC cross-compiler, Binutils, NASM, CMake/Ninja/Python; hướng dẫn local và CI ở [TOOLCHAIN](docs/TOOLCHAIN.md). Chưa có lệnh run/boot OS. Các kiểm tra tài liệu có trong [TESTING](docs/TESTING.md).
 
@@ -55,3 +55,7 @@ ctest --test-dir build/m02 --no-tests=error --output-on-failure
 ```
 
 Launch-only dùng TCG và -S, xác minh QMP rồi đóng tiến trình. Boot skeleton chưa có image sẽ SKIPPED, exit 77. Logs và result.json mỗi run ở out/m02; [TESTING](docs/TESTING.md) mô tả kết quả/timeout/cleanup và CI thực tế tại [handoff](docs/SESSION_HANDOFF.md).
+
+## Contract M03
+
+LBP v1 có headers C11/C++17, thư viện validation/normalization freestanding và host GPT model; chưa có bootloader/kernel/image. Xem [BOOT_PROTOCOL](docs/BOOT_PROTOCOL.md), [IMAGE_LAYOUT](docs/IMAGE_LAYOUT.md) và [lệnh kiểm thử](docs/TESTING.md#boot-contract-m03). Host tests và cross compile không chứng minh OS boot. Trạng thái nghiệm thu thực tế tại handoff.

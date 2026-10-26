@@ -18,10 +18,10 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED
+Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED; M03=PLANNED
 ```
 
-Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00/M01/M02 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
+Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00/M01/M02/M03 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
 
 [Unittest](../tests/test_validate_docs.py) dùng repository fixtures tạm cho positive/negative tests; không sửa tài liệu thật. Validator không trực tiếp chạy skill Codex. Kiểm tra metadata đơn giản trong Python không thay thế review hành vi skill.
 
@@ -108,3 +108,33 @@ Mỗi run dùng thư mục riêng out/m02/run-... (hoặc --output-root), gồm 
 Job chạy CTest, xuất fixtures.xml, launch.xml, ctest.xml và summary từ XML thực. Artifact m02-reports giữ JUnit/result.json; khi lỗi thêm m02-failure-logs. Không upload firmware, image hoặc compiler. Phải phân biệt suite thành công với hai boot skeleton bị SKIP; không dùng dòng CTest “100% tests passed” để tuyên bố OS boot.
 
 M02 PASS chỉ khi fixture/cleanup và launch BIOS/UEFI local đạt, boot skeleton SKIP có lý do, regression M01/tài liệu đạt và ba workflows cùng SUCCESS trên SHA nghiệm thu. Run URLs/kết quả thực tế nằm trong handoff; PR/manual trigger không được coi đã test thật nếu chưa chạy.
+
+## Boot contract M03
+
+Đặc tả tại [BOOT_PROTOCOL](BOOT_PROTOCOL.md) và [IMAGE_LAYOUT](IMAGE_LAYOUT.md). Chạy từ root sau khi activate .venv:
+
+```bash
+cmake -S tests/boot -B build/m03 -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+cmake --build build/m03
+ctest --test-dir build/m03 --no-tests=error --output-on-failure --output-junit "$PWD/out/m03/ctest-Debug.xml"
+cmake -S tests/boot -B build/m03-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+cmake --build build/m03-release
+ctest --test-dir build/m03-release --no-tests=error --output-on-failure --output-junit "$PWD/out/m03/ctest-Release.xml"
+cmake -S tests/boot -B build/m03-sanitize -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLAMIX_SANITIZERS=ON -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+cmake --build build/m03-sanitize
+ctest --test-dir build/m03-sanitize --no-tests=error --output-on-failure --output-junit "$PWD/out/m03/ctest-sanitize.xml"
+python scripts/check_boot_cross.py
+build/m03/layout-report > out/m03/layout.json
+python -m pytest -q tests -m 'not qemu'
+python scripts/smoke.py --reproducible
+```
+
+Host CMake dùng compiler Linux và tests C/C++; CTest Python chạy fixtures byte độc lập/negative tests, metadata GPT512/4096 và normalization oracle. Khi pytest chạy trực tiếp, fixture compile shared library vào tmp_path; thiếu compiler là FAIL, không SKIP. CTest có LIB override tới thư viện vừa build. Native runner validate BootInfo hợp lệ, mọi prefix truncation và mọi single-bit mutation của blob, note/UEFI descriptors; assertions vẫn bật trong Release (không dùng assert bị NDEBUG loại bỏ).
+
+ASan/UBSan chạy native suite, không preload sanitizer vào interpreter Python; Python semantic/GPT tests chạy trong Debug/Release. `ASAN_OPTIONS=detect_leaks=0` vì LeakSanitizer không chạy dưới ptrace sandbox và thư viện không heap; vẫn giữ ASan memory checks và `UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`. Không coi đây là kiểm chứng leaks ở subsystem OS tương lai.
+
+Cross checker compile static archive bằng x86_64-elf C11/C++17, freestanding/no builtin/stack protector/red-zone/SIMD, không chạy target. `nm -u` phải không có undefined runtime symbols; logs/cross.json tại out/m03. M01 sample và reproducibility inputs không đổi.
+
+[Boot Contract CI](../.github/workflows/boot-contract-ci.yml) chạy host Debug/Release/sanitizer, độc lập cross bootstrap; [Toolchain CI](../.github/workflows/toolchain-ci.yml) thêm cross compile-only và artifact m03-cross-reports. Bốn workflows phải xanh trên đúng SHA nghiệm thu. PR review vẫn bắt buộc trước merge. Artifact m03-reports chỉ XML/JSON/test logs, không upload BootInfo fixture binary, firmware, disk images hoặc compiler.
+
+CMake tạo out/m03; các build directories và reports ignored. Ghi commands/versions/counts và CI URLs tại handoff. Regression harness M02 vẫn gồm hai launch-only paused và hai boot skeleton SKIPPED/77; không có image, firmware execution/CPU state/paging/A-B recovery vẫn NOT RUN. Host validation PASS không phải OS boot PASS.

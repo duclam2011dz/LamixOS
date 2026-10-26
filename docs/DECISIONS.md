@@ -20,3 +20,15 @@ Mỗi ADR cần mã và tiêu đề, trạng thái (đề xuất/đã duyệt/đ
 - CI M00 chỉ kiểm tra tài liệu và validator; Python standard library để chạy lại trên WSL2/runner mà không phụ thuộc Codex. Chưa có target OS nên chưa chạy build/boot.
 
 Hệ quả: dự án công khai phải review nội dung trước push; CI chỉ chứng minh các kiểm tra đã chạy. Pin actions bằng SHA, permissions contents: read, không lưu credential checkout. PR cần review và CI xanh theo quy trình; chưa bật branch protection. Kết quả xuất bản thực tế ở [handoff](SESSION_HANDOFF.md), không suy ra thành công từ quyết định này.
+
+## ADR-002 — LBP v1 và GPT profile M03
+
+**Trạng thái:** đã duyệt qua kế hoạch M03 ngày 2026-10-26; triển khai/CI xem handoff.
+
+Chọn header + records thay vì BootInfo monolithic để có compatibility qua size/stride/required flags. Kernel note PT_NOTE phát hiện version/features trước entry; kernel vẫn validate lại. Headers C/C++ có assertions, parser đọc byte; thư viện freestanding dùng caller-owned scratch thay vì heap/runtime host. Contract cụ thể tại [BOOT_PROTOCOL](BOOT_PROTOCOL.md), bảng offsets tại [LBP_LAYOUT](LBP_LAYOUT.md).
+
+Higher-half ngay từ đầu tránh đổi entry ở M10; giới hạn allocations vật lý dưới 4 GiB giảm phức tạp BIOS bootstrap, không giới hạn memory map/RAM toàn máy. Serial bootstrap không bắt buộc framebuffer/ACPI, trừ khi note kernel yêu cầu. Giá phải trả: loader cần map higher-half và thực hiện ownership contract; host tests chưa chứng minh CPU state.
+
+Chọn GPT 128 entries, alignment1 MiB, profile tham chiếu8 GiB với BIOS Boot2 MiB/ESP256 MiB/System A/B2 GiB mỗi slot. Boot512 byte trước; mô hình4 KiB không phải cam kết BIOS4Kn. ESP boot bundle tránh buộc loader đầu tiên hiểu filesystem System A/B; update ESP/atomic A/B còn thuộc M39. Filesystem System/User chưa đóng băng. [IMAGE_LAYOUT](IMAGE_LAYOUT.md) tách yêu cầu chuẩn với policy Lamix. Không chọn GRUB/Limine hoặc thay baseline Hybrid Kernel/driver model.
+
+Thay đổi major ABI, mapping/profile hoặc partition policy cần kế hoạch và duyệt bổ sung. Không tự tạo tag M03 hoặc bắt đầu M04.
