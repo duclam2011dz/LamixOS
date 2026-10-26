@@ -16,7 +16,8 @@ GPT Protective MBR + BIOS Boot + ESP + System A/B + User Data; profile 8 GiB, al
 - [x] Parser/note/record iteration, normalization thuần và host GPT model.
 - [x] Host Debug/Release, ASan/UBSan, cross compile-only và assertions PASS.
 - [x] Validator/unittest M03, regression M01 và harness M02 PASS; boot cases SKIPPED.
-- [ ] Review diff/staged, CI trên SHA nghiệm thu, PR review trước merge.
+- [x] Review diff/staged và bốn workflows SUCCESS trên commit triển khai đầu a96186a; xem handoff.
+- [ ] CI trên HEAD tiếp nối, người dùng review PR và xác nhận hoàn thành riêng trước DONE/tag.
 
 Bằng chứng cập nhật tại [handoff](docs/SESSION_HANDOFF.md). Local PASS không chứng minh CI hoặc OS boot. Không tạo bootloader/kernel/image generator; không ghi disk thật.
 

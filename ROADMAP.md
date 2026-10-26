@@ -89,7 +89,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ### P1 — Bootchain tự viết, hợp nhất giao thức
 
-**M03 — Đặc tả LBP v1 + image layout GPT.** **Trạng thái: VERIFYING (2026-10-26).** Kế hoạch đã được người dùng duyệt; contract/thư viện/tests đã có kiểm chứng local; chờ CI/review và xác nhận hoàn thành riêng, chưa có boot. Định nghĩa cấu trúc on-wire/in-memory, memory map normalization, version negotiation, kernel entry ABI, physical/virtual ownership; thiết kế Protective MBR, BIOS Boot Partition, ESP và System A/B/User Data. Nghiệm thu: tài liệu + headers + host unit tests/struct layout assertions, quyết định không còn mơ hồ.
+**M03 — Đặc tả LBP v1 + image layout GPT.** **Trạng thái: VERIFYING (2026-10-26).** Kế hoạch đã được người dùng duyệt; contract/thư viện/tests đã có kiểm chứng local; CI theo handoff, chờ review và xác nhận hoàn thành riêng, chưa có boot. Định nghĩa cấu trúc on-wire/in-memory, memory map normalization, version negotiation, kernel entry ABI, physical/virtual ownership; thiết kế Protective MBR, BIOS Boot Partition, ESP và System A/B/User Data. Nghiệm thu: tài liệu + headers + host unit tests/struct layout assertions, quyết định không còn mơ hồ.
 
 **M04 — BIOS Stage 1.** Mã NASM boot sector phù hợp GPT, tải stage tiếp từ BIOS Boot Partition, thông báo lỗi qua cổng phù hợp/serial khi có thể. Nghiệm thu: QEMU SeaBIOS chạy stage xác định, không đụng GPT metadata.
 

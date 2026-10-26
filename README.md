@@ -10,7 +10,7 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00 đã đạt nghiệm thu tài liệu, GitHub Public, GPL và Documentation CI. Người dùng đã xác nhận hoàn thành; annotated tag [milestone/M00](https://github.com/duclam2011dz/LamixOS/tree/milestone/M00) ghi nhận commit nghiệm thu. Skill `docs-consistency` đã cài và được kiểm tra. M01 đã đạt kiểm chứng local và Toolchain CI cho build sample freestanding; annotated tag [milestone/M01](https://github.com/duclam2011dz/LamixOS/tree/milestone/M01) đã được người dùng duyệt và push; chưa có bootloader, kernel, game hoặc kết quả OS boot. M02 đã có annotated tag nghiệm thu harness. M03 đã có LBP/GPT contract, thư viện freestanding và host tests local PASS; đang VERIFYING, chờ CI/review và xác nhận hoàn thành. Chưa có bản phát hành và chưa đạt Playable.
+M00 đã đạt nghiệm thu tài liệu, GitHub Public, GPL và Documentation CI. Người dùng đã xác nhận hoàn thành; annotated tag [milestone/M00](https://github.com/duclam2011dz/LamixOS/tree/milestone/M00) ghi nhận commit nghiệm thu. Skill `docs-consistency` đã cài và được kiểm tra. M01 đã đạt kiểm chứng local và Toolchain CI cho build sample freestanding; annotated tag [milestone/M01](https://github.com/duclam2011dz/LamixOS/tree/milestone/M01) đã được người dùng duyệt và push; chưa có bootloader, kernel, game hoặc kết quả OS boot. M02 đã có annotated tag nghiệm thu harness. M03 đã có LBP/GPT contract, thư viện freestanding và host tests local PASS; đang VERIFYING, chờ review và xác nhận hoàn thành; CI theo handoff. Chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 

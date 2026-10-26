@@ -2,7 +2,7 @@
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=VERIFYING
 
-Kế hoạch M03 đã được người dùng duyệt và triển khai. Contract/thư viện/host tests đã có local PASS; CI của thay đổi M03 NOT RUN trước commit/push, chưa xác nhận hoàn thành. Không tạo tag M03, Release hoặc bắt đầu M04. Bootloader/kernel/bootable image chưa triển khai.
+Kế hoạch M03 đã được người dùng duyệt và triển khai. Contract/thư viện/host tests đã có local PASS; Bốn workflows đã SUCCESS trên commit triển khai đầu a96186a; commit tiếp nối bảo vệ ACPI nonvolatile và ghi nhận bằng chứng phải kiểm tra CI theo HEAD trước báo cáo cuối. Chưa xác nhận hoàn thành. Không tạo tag M03, Release hoặc bắt đầu M04. Bootloader/kernel/bootable image chưa triển khai.
 
 ## Git và phạm vi
 
@@ -18,10 +18,10 @@ Môi trường WSL2 x86_64; host GCC/G++ 11.4, cross 12.2/Binutils 2.39, Python 
 
 | Kiểm tra chạy thật | Kết quả |
 |---|---|
-| M03 CTest Debug/Release | PASS, mỗi profile 4 cases, gồm 107 Python host tests và assertions C/C++/native mutations |
+| M03 CTest Debug/Release | PASS, mỗi profile 4 cases, gồm 108 Python host tests và assertions C/C++/native mutations |
 | Native ASan/UBSan | PASS, 3 cases; mọi prefix truncation/single-bit mutations BootInfo, note/UEFI mutations và 256 normalization inputs |
 | Cross compile-only | PASS C11/C++17, không undefined runtime symbols; compiler/flags provenance kiểm tra từ compile_commands |
-| `pytest -q tests -m 'not qemu'` | PASS 184 tests, 2 qemu cases deselected |
+| `pytest -q tests -m 'not qemu'` | PASS 185 tests, 2 qemu cases deselected |
 | Validator/unittest tài liệu | PASS, 27 tests; trạng thái M03 đồng bộ |
 | `scripts/smoke.py --reproducible` | PASS Debug/Release/ELF/provenance và SHA-256 hai source roots theo từng profile |
 | CTest harness M02 | PASS 33 fixtures và 2 QEMU launch-only BIOS/UEFI; không cleanup cưỡng bức |
@@ -32,10 +32,19 @@ Logs/JUnit/layout.json/cross.json/cross.log và regression.xml ở out/m03; M01 
 
 ## CI và giới hạn
 
-Bàn giao M02 đã kiểm tra qua API: ba workflows SUCCESS trên SHA nghiệm thu 3a4f620 và base 211ff15; URLs ở lịch sử M02/Actions. M03 cần bốn workflows: Documentation, Toolchain (gồm cross), Harness và Boot Contract; trạng thái hiện NOT RUN cho thay đổi chưa push, không suy ra từ local PASS. PR cần review và CI xanh trước merge.
+Commit triển khai đầu `a96186a97c6ecfa89cd5cc691efed8d3e65218e8` đã được push và có [PR #1](https://github.com/duclam2011dz/LamixOS/pull/1), chưa merge. Bốn runs đã kiểm tra head_sha đúng commit này:
+
+- [Documentation SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40351889202).
+- [Toolchain SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40351889064), gồm M01 và M03 cross.
+- [Harness SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40351889824).
+- [Boot Contract SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40351890008), host Debug/Release/native sanitizer.
+
+Commit tiếp nối bổ sung chặn nonvolatile ACPI reclaim (normalizer/decoder/validator và regression test). Local mới nhất là 108 M03/185 regression tests như bảng trên; CI commit đầu là 107/184. Không chuyển kết luận của SHA trước thành PASS cho SHA sau. Khi tra CI dùng HEAD thực tế; báo cáo cuối phải xác minh bốn runs của HEAD, không tạo vòng lặp commit để ghi SHA của chính file này.
+
+Bàn giao M02 đã kiểm tra qua API: ba workflows SUCCESS trên SHA nghiệm thu 3a4f620 và base 211ff15; URLs ở lịch sử M02/Actions. M03 cần bốn workflows: Documentation, Toolchain (gồm cross), Harness và Boot Contract. PR cần review và CI xanh trên HEAD trước merge.
 
 Một số out/m02 logs cũ thiếu backend và có fixture boot/PASS; command gọi fixture_process.py, không phải OS boot. Chỉ dùng JUnit và result.json có backend rõ để báo launch thật. Firmware/image không được upload. Không có KVM; TCG launch-only không chứng minh firmware đã thực thi.
 
 ## Next exact action
 
-Review toàn diff/staged và file mới, validator/unittest trước commit; push nhánh M03, mở PR về main, kiểm tra bốn workflows trên đúng SHA. Sau khi CI thành công, cập nhật bằng chứng handoff/PLANS/roadmap và chờ review cùng xác nhận hoàn thành riêng. Không tự merge, tag hoặc sang M04. Nếu cần đổi contract/mapping/partition policy ngoài kế hoạch, dừng phần phụ thuộc để xin duyệt bổ sung.
+Commit/push phần tiếp nối sau review staged và validator/unittest; kiểm tra bốn workflows theo HEAD của PR #1 và đối chiếu branch remote/working tree. Khi CI thành công, chờ người dùng review PR và xác nhận hoàn thành riêng. Lấy SHA/run mới từ Git/Actions, không coi bảng CI commit đầu là chứng nhận HEAD tiếp nối. Không tự merge, tag hoặc sang M04. Nếu cần đổi contract/mapping/partition policy ngoài kế hoạch, dừng phần phụ thuộc để xin duyệt bổ sung.

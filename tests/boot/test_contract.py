@@ -274,3 +274,14 @@ def test_bootinfo_writable_alias(lib):
     blob[pos+size:pos+size]=segment(0x110000,0x300000,4096,3)
     S.pack_into('<Q',blob,pos+8,size+32);S.pack_into('<Q',blob,pos+64,4);S.pack_into('<Q',blob,16,len(blob))
     assert validate(lib,blob)[0]==CONFLICT
+
+
+def test_nonvolatile_acpi_reclaim_never_becomes_allocatable(lib):
+    for flags,attrs in [(2,0),(0,3),(1,0x8000)]:
+        assert normalize(lib,[(4096,4096,4,flags,attrs)])[1][0][2]==2
+    raw=S.pack('<IIQQQQ',9,0,4096,0,1,0x8000)
+    out=(Memory*1)();n=C.c_uint64()
+    assert lib.lbp_decode_uefi(raw,40,40,1,out,1,C.byref(n))==OK and out[0].type==2
+    blob=bootinfo();pos=offsets(blob)[1]+32+32
+    S.pack_into('<IIQ',blob,pos+16,4,2,0)
+    assert validate(lib,blob)[0]!=OK

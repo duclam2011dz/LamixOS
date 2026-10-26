@@ -231,17 +231,17 @@ lbp_status lbp_validate(const void *bytes, uint64_t size, const lbp_span *sp,
     uint64_t b = rd64(q), l = rd64(q + 8);
     uint32_t t = rd32(q + 16), f = rd32(q + 20);
     if (!range(b, l) || b % PAGE || l % PAGE || b < end || t < 1 || t > 7 ||
-        f & ~3u || ((f & 2u) && (t == 1 || t == 6)))
+        f & ~3u || ((f & 2u) && (t == 1 || t == 6 || t == 4)))
       return LBP_INVALID;
     if ((f & LBP_MEMORY_UEFI) &&
         (rd64(q + 24) & UINT64_C(0x8000000000000000)) && t != LBP_RUNTIME &&
         t != LBP_BAD)
       return LBP_INVALID;
     if ((f & LBP_MEMORY_UEFI) && (rd64(q + 24) & UINT64_C(0x8000)) &&
-        (t == LBP_USABLE || t == LBP_LOADER_RECLAIM))
+        (t == LBP_USABLE || t == LBP_LOADER_RECLAIM || t == LBP_ACPI_RECLAIM))
       return LBP_INVALID;
     if (!(f & LBP_MEMORY_UEFI) && (rd64(q + 24) & 2u) &&
-        (t == LBP_USABLE || t == LBP_LOADER_RECLAIM))
+        (t == LBP_USABLE || t == LBP_LOADER_RECLAIM || t == LBP_ACPI_RECLAIM))
       return LBP_INVALID;
     end = b + l;
   }

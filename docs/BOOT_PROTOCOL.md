@@ -55,7 +55,7 @@ Firmware adapters là hàm thuần trên buffers:
 
 - E820 stride 20 hoặc 24, buffer phải chia hết stride. Với 24 byte, bỏ entry valid bit0=0; bit1 nonvolatile không được biến thành usable. Zero-length bỏ qua.
 - UEFI descriptor version=1, stride>=40 và bội 8; đọc PhysicalStart offset8, NumberOfPages offset24, Attributes offset32. Padding offset4 phải zero; physical căn page. Dùng stride firmware, không giả định sizeof descriptor. Pages*4096 và range end được kiểm tra overflow.
-- UEFI LoaderCode/Data, BootServicesCode/Data thành LOADER_RECLAIM; Conventional thành USABLE; RuntimeCode/Data thành RUNTIME; ACPI reclaim/NVS và unusable giữ loại tương ứng. Reserved/MMIO/Persistent/Unaccepted/unknown giữ RESERVED. RUNTIME attribute luôn bảo vệ range; NV attribute 0x8000 và E820 nonvolatile không cho cấp phát như RAM thường.
+- UEFI LoaderCode/Data, BootServicesCode/Data thành LOADER_RECLAIM; Conventional thành USABLE; RuntimeCode/Data thành RUNTIME; ACPI reclaim/NVS và unusable giữ loại tương ứng. Reserved/MMIO/Persistent/Unaccepted/unknown giữ RESERVED. RUNTIME attribute luôn bảo vệ range; NV attribute 0x8000 và E820 nonvolatile không cho cấp phát như RAM thường; USABLE/LOADER_RECLAIM/ACPI_RECLAIM có NV đều hạ về RESERVED.
 
 Chuẩn hóa dùng ranges `[base, base+length)`, sort theo base, không overlap. Không thêm RAM cho holes. Các endpoints được tách theo floor/ceil 4 KiB; một page chỉ usable khi toàn page thuộc RAM phù hợp. Partial pages thành RESERVED. Adjacent ranges chỉ merge khi type/flags/attributes giống nhau.
 

@@ -80,7 +80,8 @@ static lbp_status decode(const void *bytes, uint64_t size, uint32_t stride,
         type = LBP_RUNTIME;
       if ((uefi && (attrs & UINT64_C(0x8000))) || (!uefi && (attrs & 2))) {
         flags |= LBP_MEMORY_NONVOLATILE;
-        if (type == LBP_USABLE || type == LBP_LOADER_RECLAIM)
+        if (type == LBP_USABLE || type == LBP_LOADER_RECLAIM ||
+            type == LBP_ACPI_RECLAIM)
           type = LBP_RESERVED;
       }
       if (pass)
@@ -110,7 +111,7 @@ static uint32_t safe_type(const lbp_memory *m) {
        (!(m->flags & LBP_MEMORY_UEFI) && (m->firmware_attributes & 2u)) ||
        ((m->flags & LBP_MEMORY_UEFI) &&
         (m->firmware_attributes & UINT64_C(0x8000)))) &&
-      (t == LBP_USABLE || t == LBP_LOADER_RECLAIM))
+      (t == LBP_USABLE || t == LBP_LOADER_RECLAIM || t == LBP_ACPI_RECLAIM))
     return LBP_RESERVED;
   return t;
 }
