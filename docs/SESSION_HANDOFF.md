@@ -2,7 +2,7 @@
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=VERIFYING
 
-Kế hoạch M03 đã được người dùng duyệt và triển khai. Contract/thư viện/host tests đã có local PASS; Bốn workflows đã SUCCESS trên commit triển khai đầu a96186a; commit tiếp nối bảo vệ ACPI nonvolatile và ghi nhận bằng chứng phải kiểm tra CI theo HEAD trước báo cáo cuối. Chưa xác nhận hoàn thành. Không tạo tag M03, Release hoặc bắt đầu M04. Bootloader/kernel/bootable image chưa triển khai.
+Kế hoạch M03 đã được người dùng duyệt và triển khai. Contract/thư viện/host tests đã có local PASS; Bốn workflows đã SUCCESS trên commit code cuối 66f5b1e, gồm bảo vệ ACPI nonvolatile. Bản handoff này thuộc commit tài liệu tiếp sau; tra HEAD thực tế và xác minh CI đúng HEAD trước báo cáo cuối, không tạo commit lặp để ghi SHA của chính nó. Chưa có review hoặc xác nhận hoàn thành riêng. Không tạo tag M03, Release hoặc bắt đầu M04. Bootloader/kernel/bootable image chưa triển khai.
 
 ## Git và phạm vi
 
@@ -32,14 +32,16 @@ Logs/JUnit/layout.json/cross.json/cross.log và regression.xml ở out/m03; M01 
 
 ## CI và giới hạn
 
-Commit triển khai đầu `a96186a97c6ecfa89cd5cc691efed8d3e65218e8` đã được push và có [PR #1](https://github.com/duclam2011dz/LamixOS/pull/1), chưa merge. Bốn runs đã kiểm tra head_sha đúng commit này:
+Commit code cuối `66f5b1ea354d918330e54ca7d0038eea156555e5` đã push, nhánh local/remote khớp, working tree sạch trước lượt tài liệu cuối. [PR #1](https://github.com/duclam2011dz/LamixOS/pull/1) mở về main, chưa merge. Main vẫn giữ 211ff15; các tag objects M00–M02 không đổi. Bốn runs đã kiểm tra head_sha đúng commit code cuối:
 
-- [Documentation SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40351889202).
-- [Toolchain SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40351889064), gồm M01 và M03 cross.
-- [Harness SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40351889824).
-- [Boot Contract SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40351890008), host Debug/Release/native sanitizer.
+- [Documentation SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40352314690).
+- [Toolchain SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40352314580), logs xác nhận M01 repro và M03 cross PASS.
+- [Harness SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40352314634).
+- [Boot Contract SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40352314598).
 
-Commit tiếp nối bổ sung chặn nonvolatile ACPI reclaim (normalizer/decoder/validator và regression test). Local mới nhất là 108 M03/185 regression tests như bảng trên; CI commit đầu là 107/184. Không chuyển kết luận của SHA trước thành PASS cho SHA sau. Khi tra CI dùng HEAD thực tế; báo cáo cuối phải xác minh bốn runs của HEAD, không tạo vòng lặp commit để ghi SHA của chính file này.
+Đã đọc artifact m03-reports (id 12663991967): host Debug/Release mỗi profile 108 tests, 0 errors/failures/skips; CTest 4/4 và native sanitizer 3/3; layout.json khớp headers. Artifact chỉ XML/JSON/logs, không có firmware/image/fixture binary. Lượt đọc artifact qua connector và URL tải tạm không thay GitHub hoặc lưu credentials. Logs/steps Toolchain xác nhận đúng cross check đã chạy, không chỉ workflow tồn tại.
+
+Commit triển khai đầu a96186a cũng có bốn workflows SUCCESS; không dùng kết quả cũ thay cho code cuối. Bản tài liệu tiếp sau chỉ ghi bằng chứng, phải kiểm tra CI theo HEAD; kết quả HEAD báo ở PR/báo cáo cuối, không tự ghi SHA/run của chính file bằng vòng lặp commits.
 
 Bàn giao M02 đã kiểm tra qua API: ba workflows SUCCESS trên SHA nghiệm thu 3a4f620 và base 211ff15; URLs ở lịch sử M02/Actions. M03 cần bốn workflows: Documentation, Toolchain (gồm cross), Harness và Boot Contract. PR cần review và CI xanh trên HEAD trước merge.
 
@@ -47,4 +49,4 @@ Một số out/m02 logs cũ thiếu backend và có fixture boot/PASS; command g
 
 ## Next exact action
 
-Commit/push phần tiếp nối sau review staged và validator/unittest; kiểm tra bốn workflows theo HEAD của PR #1 và đối chiếu branch remote/working tree. Khi CI thành công, chờ người dùng review PR và xác nhận hoàn thành riêng. Lấy SHA/run mới từ Git/Actions, không coi bảng CI commit đầu là chứng nhận HEAD tiếp nối. Không tự merge, tag hoặc sang M04. Nếu cần đổi contract/mapping/partition policy ngoài kế hoạch, dừng phần phụ thuộc để xin duyệt bổ sung.
+Kiểm tra bốn workflows của HEAD tài liệu cuối và đồng bộ nhánh/working tree; sau đó chờ người dùng review [PR #1](https://github.com/duclam2011dz/LamixOS/pull/1) và xác nhận hoàn thành M03 riêng. Không tự merge, tag hoặc sang M04. Không còn code M03 đang dở được biết; M03 giữ VERIFYING vì review/xác nhận chưa có. Nếu cần đổi contract/mapping/partition policy ngoài kế hoạch, xin duyệt bổ sung trước phần phụ thuộc.
