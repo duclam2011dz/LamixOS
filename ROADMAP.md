@@ -85,7 +85,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M01 — Toolchain/reproducible build trên WSL2.** **Trạng thái: DONE (2026-10-24).** Doctor, Debug/Release sample, ELF/link provenance và SHA-256 hai source roots đã PASS tại local và Toolchain CI; người dùng đã xác nhận kết thúc M01, annotated tag `milestone/M01` đã push. Phát hiện công cụ thật, CMake/Ninja, GNU cross-compiler, NASM, Binutils, Python, QEMU, GDB, OVMF, clang-format/tidy, cppcheck; `scripts/doctor.py`, preset/profile build debug/release và tối thiểu smoke CI local. Nghiệm thu: báo phiên bản, build sample freestanding, không link nhầm thư viện host.
 
-**M02 — QEMU harness và đo kiểm tự động.** **Trạng thái: DONE (2026-10-26).** Fixture/cleanup, launch-only BIOS/UEFI và ba workflows đã được kiểm chứng; boot skeleton SKIPPED vì chưa có image, không phải OS boot PASS; tag M02 chờ xác nhận riêng.  `pytest` khởi chạy QEMU có timeout, nhận serial markers, phân loại hang/panic/exit, lưu logs, CTest host tests, kịch bản BIOS và UEFI skeleton; test chưa thực thi được phải `SKIP` có giải thích. Nghiệm thu: ít nhất một bài test harness tự kiểm thử kết quả pass/fail thật.
+**M02 — QEMU harness và đo kiểm tự động.** **Trạng thái: DONE (2026-10-26).** Fixture/cleanup, launch-only BIOS/UEFI và ba workflows đã được kiểm chứng; boot skeleton SKIPPED vì chưa có image, không phải OS boot PASS; người dùng đã phê duyệt kết thúc, annotated tag `milestone/M02` đã push. `pytest` khởi chạy QEMU có timeout, nhận serial markers, phân loại hang/panic/exit, lưu logs, CTest host tests, kịch bản BIOS và UEFI skeleton; test chưa thực thi được phải `SKIP` có giải thích. Nghiệm thu: ít nhất một bài test harness tự kiểm thử kết quả pass/fail thật.
 
 ### P1 — Bootchain tự viết, hợp nhất giao thức
 

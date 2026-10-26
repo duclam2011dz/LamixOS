@@ -45,7 +45,7 @@ Sample chỉ được compile/link và kiểm tra ELF; không chạy trực ti�
 
 ## QEMU harness M02
 
-M02 đã đạt kiểm chứng harness local/CI, gồm 33 fixture tests và hai QEMU launch-only profiles. Tag M02 chờ xác nhận hoàn thành riêng; không phải bằng chứng OS đã boot. Sau khi kích hoạt .venv:
+M02 đã đạt kiểm chứng harness local/CI, gồm 33 fixture tests và hai QEMU launch-only profiles. Annotated tag [milestone/M02](https://github.com/duclam2011dz/LamixOS/tree/milestone/M02) đã được người dùng duyệt và push; không phải bằng chứng OS đã boot. Sau khi kích hoạt .venv:
 
 ```bash
 python scripts/run_qemu.py --profile bios --launch-only
