@@ -1,6 +1,6 @@
 # Kế hoạch hiện hành — M02
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=IN_PROGRESS
+Trạng thái milestone: M00=DONE; M01=DONE; M02=VERIFYING
 
 Người dùng đã duyệt M02 ngày 2026-10-26 trong phiên hiện tại. M00/M01 giữ nguyên tags nghiệm thu; không chuyển phiên hoặc bắt đầu M03.
 

@@ -36,3 +36,5 @@ Nếu SHA tái lập khác nhau, giữ logs/JSON, kiểm tra SOURCE_DATE_EPOCH v
 Thiếu bootable image là SKIPPED/77; đường dẫn được chỉ định nhưng sai là FAIL. Emulator launch-only PASS chỉ xác minh QEMU paused và QMP, không xác minh OS boot. Kiểm tra cặp OVMF CODE/VARS và bản copy riêng, không sửa firmware hệ thống hoặc dùng disk thật.
 
 Khi cần debug thủ công ở milestone có guest thật, sao chép command từ result.json và thêm -S cùng -gdb tcp:127.0.0.1:1234, dùng cổng riêng chưa bị chiếm; không bật GDB server mặc định trong CI. Không đánh dấu debug/boot PASS khi chưa thực thi.
+
+Nếu Toolchain CI kẹt tải packages từ azure.archive.ubuntu.com, logs M02 đã xác nhận mirror có thể rất chậm. Runner hiện thay URL Azure bằng HTTPS archive.ubuntu.com và dùng apt timeout/retries với step timeout 10 phút; vẫn giữ apt signature checks và package list. Đây là cấu hình CI, không đổi apt sources của host local. Không bỏ regression hoặc báo PASS khi bước dependency bị hủy.

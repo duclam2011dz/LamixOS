@@ -27,9 +27,16 @@ jobs:
         with:
           python-version: '3.12'
       - name: Cài dependencies host
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential bison flex libgmp-dev libmpfr-dev libmpc-dev texinfo xz-utils nasm cmake ninja-build python3-venv qemu-system-x86 gdb ovmf seabios clang-format clang-tidy cppcheck
+          # Mirror Azure có thể tải rất chậm; vẫn dùng Ubuntu archive và apt signature checks.
+          for source in /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+            if test -f "$source"; then
+              sudo sed -i -e 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$source"
+            fi
+          done
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends build-essential bison flex libgmp-dev libmpfr-dev libmpc-dev texinfo xz-utils nasm cmake ninja-build python3-venv qemu-system-x86 gdb ovmf seabios clang-format clang-tidy cppcheck
           python3 -m venv .venv
           .venv/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-dev.lock
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
