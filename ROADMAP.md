@@ -3,10 +3,10 @@
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
 > **Cập nhật:** 2026-10-26  
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 VERIFYING; M04–M44 PLANNED; chưa có mã OS  
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04–M44 PLANNED; chưa có mã OS  
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE
 
 ## 0. Tầm nhìn và giới hạn
 
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 VERIFYING; M04–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -89,7 +89,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ### P1 — Bootchain tự viết, hợp nhất giao thức
 
-**M03 — Đặc tả LBP v1 + image layout GPT.** **Trạng thái: VERIFYING (2026-10-26).** Kế hoạch đã được người dùng duyệt; contract/thư viện/tests đã có kiểm chứng local; CI theo handoff, chờ review và xác nhận hoàn thành riêng, chưa có boot. Định nghĩa cấu trúc on-wire/in-memory, memory map normalization, version negotiation, kernel entry ABI, physical/virtual ownership; thiết kế Protective MBR, BIOS Boot Partition, ESP và System A/B/User Data. Nghiệm thu: tài liệu + headers + host unit tests/struct layout assertions, quyết định không còn mơ hồ.
+**M03 — Đặc tả LBP v1 + image layout GPT.** **Trạng thái: DONE (2026-10-27).** Contract/thư viện/host tests và bốn workflows đã PASS; người dùng phê duyệt kết thúc và merge PR #1; annotated tag milestone/M03 giữ SHA nghiệm thu ab7b1e4. Bằng chứng ở handoff; chưa có OS boot. Định nghĩa cấu trúc on-wire/in-memory, memory map normalization, version negotiation, kernel entry ABI, physical/virtual ownership; thiết kế Protective MBR, BIOS Boot Partition, ESP và System A/B/User Data. Nghiệm thu: tài liệu + headers + host unit tests/struct layout assertions, quyết định không còn mơ hồ.
 
 **M04 — BIOS Stage 1.** Mã NASM boot sector phù hợp GPT, tải stage tiếp từ BIOS Boot Partition, thông báo lỗi qua cổng phù hợp/serial khi có thể. Nghiệm thu: QEMU SeaBIOS chạy stage xác định, không đụng GPT metadata.
 

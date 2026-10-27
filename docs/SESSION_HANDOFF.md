@@ -1,52 +1,48 @@
-# Trạng thái M03 — 2026-10-26
+# Bàn giao M03 — 2026-10-27
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE
 
-Kế hoạch M03 đã được người dùng duyệt và triển khai. Contract/thư viện/host tests đã có local PASS; Bốn workflows đã SUCCESS trên commit code cuối 66f5b1e, gồm bảo vệ ACPI nonvolatile. Bản handoff này thuộc commit tài liệu tiếp sau; tra HEAD thực tế và xác minh CI đúng HEAD trước báo cáo cuối, không tạo commit lặp để ghi SHA của chính nó. Chưa có review hoặc xác nhận hoàn thành riêng. Không tạo tag M03, Release hoặc bắt đầu M04. Bootloader/kernel/bootable image chưa triển khai.
+Người dùng đã phê duyệt kết thúc M03, tạo/push tag và merge ngày 2026-10-27. M03 DONE. Lượt đóng chỉ cập nhật tài liệu; không bắt đầu M04. Bootloader/kernel/bootable image chưa triển khai.
 
-## Git và phạm vi
+## Repository, merge và tags
 
-Repository public/main [duclam2011dz/LamixOS](https://github.com/duclam2011dz/LamixOS), origin HTTPS, GPL-3.0-only. Nhánh triển khai `feat/m03-boot-contract`, base `211ff15c018a159b6df3b8b9cb0e8ccc3f5ba103`; lấy HEAD hiện tại bằng `git rev-parse HEAD`, không tạo commit lặp để ghi SHA của chính handoff. Remote main đã kiểm tra vẫn ở base trước push M03.
+Repository public/main [duclam2011dz/LamixOS](https://github.com/duclam2011dz/LamixOS), origin HTTPS, GPL-3.0-only. [PR #1](https://github.com/duclam2011dz/LamixOS/pull/1) đã merge bằng commit `347cc346edc8739feb15fbb38c3b90994d9941a6`, giữ nguyên lịch sử. Phê duyệt được đưa trong chat; không tạo GitHub review thay người dùng.
 
-Annotated tags local/remote đã xác minh trong khảo sát: M00→aa6aeb9ff8ea4620227020ea43e03f430328d6b6, M01→99f7591046c843d77362eed5f16cf6a34a085bbb, M02→3a4f6206f04287d07b8bd9f29d5cc941af2f50dc. Không chuyển tag M02 sang commit tài liệu base.
+Annotated [milestone/M03](https://github.com/duclam2011dz/LamixOS/tree/milestone/M03) đã tạo/push và xác minh local/remote: tag object `138293cedea692c4a86c9e493f982182cc81b2c9`, peeled commit nghiệm thu `ab7b1e4bdab199f1368d207a2deff79806bc1433`. Tag giữ SHA này, không chuyển sang merge commit hoặc commit tài liệu đóng thủ tục. M00→aa6aeb9ff8ea4620227020ea43e03f430328d6b6, M01→99f7591046c843d77362eed5f16cf6a34a085bbb, M02→3a4f6206f04287d07b8bd9f29d5cc941af2f50dc giữ nguyên.
 
-M03 thêm headers/assertions C11/C++17, parser/note/record iteration và E820/UEFI normalization C freestanding; GPT host metadata model 512/4096, Debug/Release/native sanitizer/cross checks; Boot Contract CI và Toolchain CI cross step. Đặc tả [BOOT_PROTOCOL](BOOT_PROTOCOL.md), [LBP_LAYOUT](LBP_LAYOUT.md), [IMAGE_LAYOUT](IMAGE_LAYOUT.md), ADR-002. Ba prompt gốc giữ nguyên byte với tag M00; M01 sample/build inputs không đổi. Không disk I/O, firmware calls, boot code hoặc image generator.
+Main local/remote đã đồng bộ ở merge commit trước lượt tài liệu cuối, working tree sạch. Bản handoff nằm trong commit tài liệu tiếp sau; lấy SHA thực tế bằng `git rev-parse HEAD`, không tạo vòng lặp commit để ghi SHA/run của chính nó. Sau push phải kiểm tra main local/remote, working tree và bốn workflows trên đúng HEAD trước báo cáo cuối.
 
-## Bằng chứng local
+## Kết quả M03
 
-Môi trường WSL2 x86_64; host GCC/G++ 11.4, cross 12.2/Binutils 2.39, Python 3.10.12/pytest 8.3.5, CMake 3.22.6/Ninja 1.11. Activate .venv trước lệnh; đầy đủ tại [TESTING](TESTING.md#boot-contract-m03).
+Headers C11/C++17 assertions từng field, LBP v1 records/kernel note/entry/ownership; thư viện freestanding parsing/validation/E820/UEFI normalization dùng caller-owned buffers. GPT host metadata model 512/4096, profile 8 GiB; không disk I/O/firmware calls/image generator. Đặc tả tại [BOOT_PROTOCOL](BOOT_PROTOCOL.md), [LBP_LAYOUT](LBP_LAYOUT.md), [IMAGE_LAYOUT](IMAGE_LAYOUT.md), ADR-002; lệnh tại [TESTING](TESTING.md#boot-contract-m03).
 
-| Kiểm tra chạy thật | Kết quả |
+| Kiểm tra thực sự đã chạy trong M03 | Kết quả |
 |---|---|
-| M03 CTest Debug/Release | PASS, mỗi profile 4 cases, gồm 108 Python host tests và assertions C/C++/native mutations |
-| Native ASan/UBSan | PASS, 3 cases; mọi prefix truncation/single-bit mutations BootInfo, note/UEFI mutations và 256 normalization inputs |
-| Cross compile-only | PASS C11/C++17, không undefined runtime symbols; compiler/flags provenance kiểm tra từ compile_commands |
-| `pytest -q tests -m 'not qemu'` | PASS 185 tests, 2 qemu cases deselected |
-| Validator/unittest tài liệu | PASS, 27 tests; trạng thái M03 đồng bộ |
-| `scripts/smoke.py --reproducible` | PASS Debug/Release/ELF/provenance và SHA-256 hai source roots theo từng profile |
-| CTest harness M02 | PASS 33 fixtures và 2 QEMU launch-only BIOS/UEFI; không cleanup cưỡng bức |
+| Host Debug/Release | PASS, mỗi profile 108 Python tests; CTest 4 cases gồm assertions C/C++ và native mutations |
+| Native ASan/UBSan | PASS, 3 cases; prefix truncation/single-bit BootInfo mutations, note/UEFI mutations và 256 normalization inputs |
+| Cross C11/C++17 compile-only | PASS, đúng x86_64-elf/flags theo compile_commands; không undefined runtime symbols |
+| Host regression | PASS 185 tests, 2 qemu cases deselected |
+| Validator/unittest tài liệu | PASS 27 tests; chạy lại trong lượt đóng thủ tục trước commit |
+| M01 | PASS Debug/Release/ELF/provenance và SHA-256 giữa hai source roots |
+| M02 | PASS 33 fixtures và 2 QEMU launch-only paused BIOS/UEFI; cleanup sạch |
 | OS boot BIOS/UEFI | SKIPPED/77 hai skeleton vì chưa có image |
-| CPU state, firmware execution, actual paging, A/B recovery | NOT RUN; thuộc các milestone sau |
+| CPU state, firmware execution, actual paging, A/B recovery | NOT RUN, thuộc milestones sau |
 
-Logs/JUnit/layout.json/cross.json/cross.log và regression.xml ở out/m03; M01 ở out/m01, M02 ở out/m02, đều ignored. Các command logs chưa gắn SHA trước commit; CI sẽ gắn bằng head_sha. Native sanitizer không chạy Python semantic/GPT tests; chúng chạy ở host Debug/Release. LSan lúc đầu FAIL vì không hoạt động dưới ptrace sandbox; suite đặt detect_leaks=0 vì thư viện không heap, vẫn bật ASan và UBSan halt_on_error. Không coi đó là kiểm chứng leak OS.
+Môi trường kiểm chứng: WSL2 x86_64, host GCC/G++ 11.4, cross 12.2/Binutils 2.39, Python 3.10.12/pytest 8.3.5, CMake 3.22.6/Ninja 1.11. Logs/JUnit/layout/cross/regression reports local tại out/m03, M01 tại out/m01, M02 tại out/m02, đều ignored. Lượt đóng không chạy lại build/bootstrap/QEMU vì chỉ sửa tài liệu.
 
-## CI và giới hạn
+## CI và bằng chứng
 
-Commit code cuối `66f5b1ea354d918330e54ca7d0038eea156555e5` đã push, nhánh local/remote khớp, working tree sạch trước lượt tài liệu cuối. [PR #1](https://github.com/duclam2011dz/LamixOS/pull/1) mở về main, chưa merge. Main vẫn giữ 211ff15; các tag objects M00–M02 không đổi. Bốn runs đã kiểm tra head_sha đúng commit code cuối:
+Bốn workflows đã xác minh SUCCESS trên SHA nghiệm thu `ab7b1e4bdab199f1368d207a2deff79806bc1433`:
 
-- [Documentation SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40352314690).
-- [Toolchain SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40352314580), logs xác nhận M01 repro và M03 cross PASS.
-- [Harness SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40352314634).
-- [Boot Contract SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40352314598).
+- [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40352877005).
+- [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40352876972).
+- [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40352877288).
+- [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40352876891).
 
-Đã đọc artifact m03-reports (id 12663991967): host Debug/Release mỗi profile 108 tests, 0 errors/failures/skips; CTest 4/4 và native sanitizer 3/3; layout.json khớp headers. Artifact chỉ XML/JSON/logs, không có firmware/image/fixture binary. Lượt đọc artifact qua connector và URL tải tạm không thay GitHub hoặc lưu credentials. Logs/steps Toolchain xác nhận đúng cross check đã chạy, không chỉ workflow tồn tại.
+Artifact m03-reports của commit code 66f5b1e (id 12663991967) đã được đối chiếu: mỗi profile 108 tests, không failures/errors/skips, CTest 4/4 và native sanitizer 3/3, layout.json khớp headers; chỉ XML/JSON/logs, không firmware/image/binary. CI commit tài liệu đóng thủ tục được kiểm tra theo HEAD sau push và báo cuối lượt; không suy ra từ CI SHA trước.
 
-Commit triển khai đầu a96186a cũng có bốn workflows SUCCESS; không dùng kết quả cũ thay cho code cuối. Bản tài liệu tiếp sau chỉ ghi bằng chứng, phải kiểm tra CI theo HEAD; kết quả HEAD báo ở PR/báo cáo cuối, không tự ghi SHA/run của chính file bằng vòng lặp commits.
+## Giới hạn và bước tiếp theo
 
-Bàn giao M02 đã kiểm tra qua API: ba workflows SUCCESS trên SHA nghiệm thu 3a4f620 và base 211ff15; URLs ở lịch sử M02/Actions. M03 cần bốn workflows: Documentation, Toolchain (gồm cross), Harness và Boot Contract. PR cần review và CI xanh trên HEAD trước merge.
+LSan lúc đầu FAIL do ptrace sandbox; suite dùng detect_leaks=0 vì thư viện không heap, vẫn bật ASan/UBSan. Python semantic/GPT tests chạy Debug/Release, không chạy trong native sanitizer suite. Không có KVM; TCG launch-only không chứng minh firmware execution hoặc OS boot. Một số logs M02 cũ thiếu backend và gọi fixture_process.py, không được coi là guest boot PASS. Ba prompt gốc giữ byte-identical với tag M00; tags M00–M02 không đổi.
 
-Một số out/m02 logs cũ thiếu backend và có fixture boot/PASS; command gọi fixture_process.py, không phải OS boot. Chỉ dùng JUnit và result.json có backend rõ để báo launch thật. Firmware/image không được upload. Không có KVM; TCG launch-only không chứng minh firmware đã thực thi.
-
-## Next exact action
-
-Kiểm tra bốn workflows của HEAD tài liệu cuối và đồng bộ nhánh/working tree; sau đó chờ người dùng review [PR #1](https://github.com/duclam2011dz/LamixOS/pull/1) và xác nhận hoàn thành M03 riêng. Không tự merge, tag hoặc sang M04. Không còn code M03 đang dở được biết; M03 giữ VERIFYING vì review/xác nhận chưa có. Nếu cần đổi contract/mapping/partition policy ngoài kế hoạch, xin duyệt bổ sung trước phần phụ thuộc.
+Sau khi kiểm tra CI HEAD tài liệu cuối, chờ chỉ dẫn mới của người dùng. **Không khảo sát, lập kế hoạch hoặc triển khai M04 trong lượt đóng này.** Khi người dùng yêu cầu milestone mới, cần Plan Mode thật và kế hoạch riêng được duyệt. Không tự tạo version tag/Release hoặc thay tag M03.
