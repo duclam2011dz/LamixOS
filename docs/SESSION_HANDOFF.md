@@ -1,47 +1,52 @@
-# Trạng thái M02 — 2026-10-26
+# Trạng thái M03 — 2026-10-26
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=VERIFYING
 
-M02 đã được người dùng phê duyệt kết thúc PASS/DONE. Annotated tag milestone/M02 đã tạo/push và xác minh local/remote. Vẫn ở phiên hiện tại; không chuyển phiên hoặc bắt đầu M03. Bootable image/bootloader/kernel/LBP chưa triển khai.
+Kế hoạch M03 đã được người dùng duyệt và triển khai. Contract/thư viện/host tests đã có local PASS; Bốn workflows đã SUCCESS trên commit code cuối 66f5b1e, gồm bảo vệ ACPI nonvolatile. Bản handoff này thuộc commit tài liệu tiếp sau; tra HEAD thực tế và xác minh CI đúng HEAD trước báo cáo cuối, không tạo commit lặp để ghi SHA của chính nó. Chưa có review hoặc xác nhận hoàn thành riêng. Không tạo tag M03, Release hoặc bắt đầu M04. Bootloader/kernel/bootable image chưa triển khai.
 
-## Repository và ranh giới
+## Git và phạm vi
 
-Repository [duclam2011dz/LamixOS](https://github.com/duclam2011dz/LamixOS), Public/main, GPL-3.0-only; origin `https://github.com/duclam2011dz/LamixOS.git`. Tag M00 giữ aa6aeb9ff8ea4620227020ea43e03f430328d6b6; tag M01 giữ 99f7591046c843d77362eed5f16cf6a34a085bbb.
+Repository public/main [duclam2011dz/LamixOS](https://github.com/duclam2011dz/LamixOS), origin HTTPS, GPL-3.0-only. Nhánh triển khai `feat/m03-boot-contract`, base `211ff15c018a159b6df3b8b9cb0e8ccc3f5ba103`; lấy HEAD hiện tại bằng `git rev-parse HEAD`, không tạo commit lặp để ghi SHA của chính handoff. Remote main đã kiểm tra vẫn ở base trước push M03.
 
-Commit triển khai M02: 68de1934de265fd93ec59613de8e632aa5c31872. Commit sửa CI setup: 42116ea2ba92800384b76e3130ff7f6c5b91b01f. Commit nghiệm thu M02: `3a4f6206f04287d07b8bd9f29d5cc941af2f50dc`. Annotated tag [milestone/M02](https://github.com/duclam2011dz/LamixOS/tree/milestone/M02) giữ nguyên trên SHA này; tag object local/remote khớp nhau và peeled SHA đã được xác minh.
+Annotated tags local/remote đã xác minh trong khảo sát: M00→aa6aeb9ff8ea4620227020ea43e03f430328d6b6, M01→99f7591046c843d77362eed5f16cf6a34a085bbb, M02→3a4f6206f04287d07b8bd9f29d5cc941af2f50dc. Không chuyển tag M02 sang commit tài liệu base.
 
-Working tree sạch, main local/remote cùng SHA nghiệm thu trước tạo tag. Bản bàn giao này nằm trong commit tài liệu đóng thủ tục tiếp sau; lấy SHA bằng `git rev-parse HEAD`. Không chuyển tag sang commit tài liệu. Sau push phải xác minh ba workflows SUCCESS trên đúng HEAD, main local/remote đồng bộ và working tree sạch trước báo cáo cuối. Không tạo vòng lặp commit chỉ để tự ghi SHA/run của chính nó.
+M03 thêm headers/assertions C11/C++17, parser/note/record iteration và E820/UEFI normalization C freestanding; GPT host metadata model 512/4096, Debug/Release/native sanitizer/cross checks; Boot Contract CI và Toolchain CI cross step. Đặc tả [BOOT_PROTOCOL](BOOT_PROTOCOL.md), [LBP_LAYOUT](LBP_LAYOUT.md), [IMAGE_LAYOUT](IMAGE_LAYOUT.md), ADR-002. Ba prompt gốc giữ nguyên byte với tag M00; M01 sample/build inputs không đổi. Không disk I/O, firmware calls, boot code hoặc image generator.
 
-## Đã hoàn thành
+## Bằng chứng local
 
-- Thư viện qemu_harness và CLI run_qemu: QMP/serial, monotonic deadline, process-group cleanup, drain, JSON/logs riêng mỗi run. Backend fixture/qemu được gắn nhãn rõ.
-- Fixture host không phải guest OS; QEMU thật dùng TCG/1 CPU/256 MiB, pc/SeaBIOS và q35/OVMF, -S và QMP xác nhận running=false rồi quit/reap sạch. Firmware originals không đổi; VARS là copy riêng.
-- CTest host-only, marker qemu tránh lặp launch thật trong từng M01 profile, Harness CI riêng không bootstrap compiler. Mở rộng validator/dòng trạng thái M00/M01/M02, giữ nguyên mục tiêu/thứ tự roadmap và ba prompt gốc.
+Môi trường WSL2 x86_64; host GCC/G++ 11.4, cross 12.2/Binutils 2.39, Python 3.10.12/pytest 8.3.5, CMake 3.22.6/Ninja 1.11. Activate .venv trước lệnh; đầy đủ tại [TESTING](TESTING.md#boot-contract-m03).
 
-## Bằng chứng nghiệm thu
-
-| Kiểm tra thật | Kết quả |
+| Kiểm tra chạy thật | Kết quả |
 |---|---|
-| Pytest fixture và launch | PASS: 33 fixture tests, 2 QEMU thật paused BIOS/UEFI; gồm split/CRLF, panic ưu tiên, exit/timeout, flood lúc chạy/quit, BrokenPipe, race natural-exit, child/exception cleanup và parallel VARS |
-| CTest host-only, JUnit | harness-fixtures/emulator-launch PASS; boot-bios/boot-uefi SKIPPED (77), do chưa có image |
-| Artifact GitHub m02-reports | Đã kiểm tra fixtures.xml/launch.xml/ctest.xml và result.json: counts đúng, backend rõ, không có bản ghi qemu boot PASS |
-| Regression M01 | PASS Debug/Release, CTest, ELF/link provenance và SHA-256 hai source roots |
-| Validator và unittest tài liệu | PASS; 24 tests, trạng thái ba milestone đồng bộ; ba prompt byte-identical với tag M00 |
-| [Harness CI 40314941478](https://github.com/duclam2011dz/LamixOS/actions/runs/40314941478) | SUCCESS trên SHA nghiệm thu 3a4f620; artifact đã được kiểm chứng |
-| [Documentation CI 40314941426](https://github.com/duclam2011dz/LamixOS/actions/runs/40314941426) | SUCCESS trên cùng SHA nghiệm thu |
-| [Toolchain CI 40314941461](https://github.com/duclam2011dz/LamixOS/actions/runs/40314941461) | SUCCESS trên cùng SHA nghiệm thu |
-| OS boot BIOS/UEFI | SKIPPED, chưa có image; không tạo boot code/image để vượt gate M02 |
+| M03 CTest Debug/Release | PASS, mỗi profile 4 cases, gồm 108 Python host tests và assertions C/C++/native mutations |
+| Native ASan/UBSan | PASS, 3 cases; mọi prefix truncation/single-bit mutations BootInfo, note/UEFI mutations và 256 normalization inputs |
+| Cross compile-only | PASS C11/C++17, không undefined runtime symbols; compiler/flags provenance kiểm tra từ compile_commands |
+| `pytest -q tests -m 'not qemu'` | PASS 185 tests, 2 qemu cases deselected |
+| Validator/unittest tài liệu | PASS, 27 tests; trạng thái M03 đồng bộ |
+| `scripts/smoke.py --reproducible` | PASS Debug/Release/ELF/provenance và SHA-256 hai source roots theo từng profile |
+| CTest harness M02 | PASS 33 fixtures và 2 QEMU launch-only BIOS/UEFI; không cleanup cưỡng bức |
+| OS boot BIOS/UEFI | SKIPPED/77 hai skeleton vì chưa có image |
+| CPU state, firmware execution, actual paging, A/B recovery | NOT RUN; thuộc các milestone sau |
 
-Logs/JSON/JUnit local: out/m02, ignored. Harness CI upload m02-reports (JUnit/result.json), logs chỉ khi job lỗi; không upload firmware/image/compiler. CI của commit tài liệu cuối sẽ được báo sau khi xác minh đúng SHA; tra [Harness](https://github.com/duclam2011dz/LamixOS/actions/workflows/harness-ci.yml), [Toolchain](https://github.com/duclam2011dz/LamixOS/actions/workflows/toolchain-ci.yml) và [Documentation](https://github.com/duclam2011dz/LamixOS/actions/workflows/docs-ci.yml).
+Logs/JUnit/layout.json/cross.json/cross.log và regression.xml ở out/m03; M01 ở out/m01, M02 ở out/m02, đều ignored. Các command logs chưa gắn SHA trước commit; CI sẽ gắn bằng head_sha. Native sanitizer không chạy Python semantic/GPT tests; chúng chạy ở host Debug/Release. LSan lúc đầu FAIL vì không hoạt động dưới ptrace sandbox; suite đặt detect_leaks=0 vì thư viện không heap, vẫn bật ASan và UBSan halt_on_error. Không coi đó là kiểm chứng leak OS.
 
-## Giới hạn và sự cố đã xử lý
+## CI và giới hạn
 
-Toolchain CI 40312222548 attempt 1 bị hủy sau hơn 10 phút tải package rất chậm/retry từ azure.archive.ubuntu.com; logs xác nhận chưa tới build. Cancel thường hoàn tất trước yêu cầu force-cancel, nên API force-cancel trả 409 (run đã completed/cancelled). Không sửa Git history/tag. Đã đổi URL Azure sang HTTPS Ubuntu archive trong runner, giữ chữ ký apt/package list và thêm retry/timeout; run tiếp theo SUCCESS. Harness CI dùng cùng lựa chọn mirror, setup timeout 5 phút; Toolchain setup 10 phút. Host local không bị đổi apt sources.
+Commit code cuối `66f5b1ea354d918330e54ca7d0038eea156555e5` đã push, nhánh local/remote khớp, working tree sạch trước lượt tài liệu cuối. [PR #1](https://github.com/duclam2011dz/LamixOS/pull/1) mở về main, chưa merge. Main vẫn giữ 211ff15; các tag objects M00–M02 không đổi. Bốn runs đã kiểm tra head_sha đúng commit code cuối:
 
-Không có KVM, TCG đã kiểm chứng. Launch-only PASS không chứng minh firmware execution hoặc OS boot. Marker OS chưa đóng băng; image raw/regular file bắt buộc snapshot khi dùng về sau. Override OVMF cần cả CODE/VARS cùng biến thể. PR/manual trigger và GDB guest debug chưa chạy thật. Actions ghim Node 20 được runner ép sang Node 24 có cảnh báo deprecation; chưa coi là lỗi kiểm chứng.
+- [Documentation SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40352314690).
+- [Toolchain SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40352314580), logs xác nhận M01 repro và M03 cross PASS.
+- [Harness SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40352314634).
+- [Boot Contract SUCCESS](https://github.com/duclam2011dz/LamixOS/actions/runs/40352314598).
 
-## Bước tiếp theo
+Đã đọc artifact m03-reports (id 12663991967): host Debug/Release mỗi profile 108 tests, 0 errors/failures/skips; CTest 4/4 và native sanitizer 3/3; layout.json khớp headers. Artifact chỉ XML/JSON/logs, không có firmware/image/fixture binary. Lượt đọc artifact qua connector và URL tải tạm không thay GitHub hoặc lưu credentials. Logs/steps Toolchain xác nhận đúng cross check đã chạy, không chỉ workflow tồn tại.
 
-Thủ tục tag M02 đã hoàn tất sau phê duyệt của người dùng. Lượt đóng thủ tục chỉ cập nhật README, ROADMAP, PLANS, CHANGELOG và handoff; không sửa code/workflows. Validator và 24 unittest tài liệu phải PASS trước commit; xác minh CI của commit tài liệu theo đúng HEAD trước báo cáo cuối.
+Commit triển khai đầu a96186a cũng có bốn workflows SUCCESS; không dùng kết quả cũ thay cho code cuối. Bản tài liệu tiếp sau chỉ ghi bằng chứng, phải kiểm tra CI theo HEAD; kết quả HEAD báo ở PR/báo cáo cuối, không tự ghi SHA/run của chính file bằng vòng lặp commits.
 
-Chờ chỉ dẫn tiếp theo của người dùng, vẫn ở phiên hiện tại. Không chuyển phiên, khảo sát/lập kế hoạch hoặc triển khai M03 trong lượt này; M03 giữ PLANNED. Khi được yêu cầu milestone mới, phải dùng Plan Mode thật, đọc AGENTS/handoff/PLANS/đúng mục roadmap và chờ duyệt kế hoạch riêng.
+Bàn giao M02 đã kiểm tra qua API: ba workflows SUCCESS trên SHA nghiệm thu 3a4f620 và base 211ff15; URLs ở lịch sử M02/Actions. M03 cần bốn workflows: Documentation, Toolchain (gồm cross), Harness và Boot Contract. PR cần review và CI xanh trên HEAD trước merge.
+
+Một số out/m02 logs cũ thiếu backend và có fixture boot/PASS; command gọi fixture_process.py, không phải OS boot. Chỉ dùng JUnit và result.json có backend rõ để báo launch thật. Firmware/image không được upload. Không có KVM; TCG launch-only không chứng minh firmware đã thực thi.
+
+## Next exact action
+
+Kiểm tra bốn workflows của HEAD tài liệu cuối và đồng bộ nhánh/working tree; sau đó chờ người dùng review [PR #1](https://github.com/duclam2011dz/LamixOS/pull/1) và xác nhận hoàn thành M03 riêng. Không tự merge, tag hoặc sang M04. Không còn code M03 đang dở được biết; M03 giữ VERIFYING vì review/xác nhận chưa có. Nếu cần đổi contract/mapping/partition policy ngoài kế hoạch, xin duyệt bổ sung trước phần phụ thuộc.

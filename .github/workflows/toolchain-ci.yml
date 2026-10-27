@@ -51,8 +51,19 @@ jobs:
         run: .venv/bin/python scripts/doctor.py --profile ci --json out/m01/doctor.json
       - name: Build, CTest và kiểm chứng tái lập
         run: .venv/bin/python scripts/smoke.py --reproducible
+      - name: M03 cross compile-only, không target execution
+        run: .venv/bin/python scripts/check_boot_cross.py
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
+      - name: Lưu M03 cross evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m03-cross-reports
+          path: |
+            out/m03/cross.json
+            out/m03/cross.log
+          if-no-files-found: warn
       - name: Lưu logs khi thất bại
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

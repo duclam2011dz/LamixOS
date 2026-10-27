@@ -1,13 +1,14 @@
 # Chỉ mục API và ABI
 
-**Chưa triển khai.** Chưa có headers, syscall numbers hoặc wire format có thể sử dụng.
+LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; chưa có loader/kernel hoặc boot đã kiểm chứng. On-wire structs khác với API native (`lbp_span`, `lbp_view`, status enum).
 
-| Giao diện dự kiến | Nơi đặc tả và milestone |
+| Giao diện | Nguồn |
 |---|---|
-| LBP / kernel entry | [BOOT_PROTOCOL](BOOT_PROTOCOL.md), M03 |
-| Syscall ABI Lamix-specific x86_64 | M21 trong [roadmap](../ROADMAP.md) |
-| Handles/capabilities và IPC | M22 trong roadmap |
-| Static ELF64 và user runtime | M23 trong roadmap |
-| Lamix 2D SDK | Milestone gaming trong roadmap |
+| LBP records/layout/kernel note/entry contract | [BOOT_PROTOCOL](BOOT_PROTOCOL.md), [LBP_LAYOUT](LBP_LAYOUT.md) |
+| GPT byte-array structs và host model | [IMAGE_LAYOUT](IMAGE_LAYOUT.md) |
+| Syscall ABI Lamix-specific x86_64 | Chưa triển khai; M21 trong [roadmap](../ROADMAP.md) |
+| Handles/capabilities và IPC | Chưa triển khai; M22 |
+| Static ELF64 và user runtime | Chưa triển khai; M23 |
+| Lamix 2D SDK | Chưa triển khai; milestones gaming |
 
-Ownership, lifetime, versioning, errors và validation được quyết định khi lập kế hoạch giao diện tương ứng. Không coi hướng dẫn này là contract đã đóng băng.
+Ownership, lifetime, validation và status của LBP đã đặc tả trong BOOT_PROTOCOL; không suy ra các ABI còn lại đã được đóng băng.

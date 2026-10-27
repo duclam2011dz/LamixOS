@@ -60,3 +60,9 @@ export LAMIX_CROSS_ROOT="$PWD/out/m01/cross"
 Build Binutils rồi GCC C/C++ và target libgcc; chưa build libstdc++. Sample không link libgcc. Prefix mới phải rỗng; chỉ tiếp tục pending receipt đúng manifest hoặc dùng cache có receipt đúng, rồi doctor xác minh công cụ. Không cài đè toolchain local hiện có hoặc cài vào /usr. CI cache key gồm runner/manifest/bootstrap script; không dùng restore key rộng.
 
 Toolchain CI chạy trên ubuntu-22.04, Python 3.12; Documentation CI tiếp tục độc lập. Xem [TESTING](TESTING.md) và [handoff](SESSION_HANDOFF.md) cho bằng chứng thực tế. Boot/QEMU smoke chưa thuộc M01.
+
+## M03 host và target contract
+
+Host GCC/G++ chỉ dùng để chạy tests và shared library validation; không được dùng thay cross compiler cho target. M03 CMake độc lập tại tests/boot, không thay entry/linker script sample M01. `python scripts/check_boot_cross.py` dùng toolchain M01, compile static archive và kiểm tra undefined symbols; không yêu cầu i686 hoặc bootstrap lại toolchain.
+
+Flags target M03 gồm freestanding/no builtin/no stack protector/no red-zone/general-registers-only/no PIE, C++ không exceptions/RTTI. Headers dùng stdint/stddef do compiler cung cấp; không link libc/libstdc++. [TESTING](TESTING.md) có lệnh Debug/Release/sanitizer/cross cụ thể.

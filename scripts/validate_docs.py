@@ -18,7 +18,7 @@ ROOT_DOCS = (
 TECH_DOCS = (
     "ARCHITECTURE", "CONTEXT", "CONVENTIONS", "RULES", "TESTING", "SECURITY",
     "DECISIONS", "BOOT_PROTOCOL", "MEMORY_MANAGEMENT", "GRAPHICS", "API",
-    "TROUBLESHOOTING", "SESSION_HANDOFF",
+    "TROUBLESHOOTING", "SESSION_HANDOFF", "IMAGE_LAYOUT", "LBP_LAYOUT",
 )
 SKILL = ".agents/skills/docs-consistency/SKILL.md"
 REQUIRED = ROOT_DOCS + tuple(f"docs/{name}.md" for name in TECH_DOCS) + (
@@ -30,7 +30,7 @@ EXCLUDED = {
 }
 STATES = {"PLANNED", "IN_PLAN", "APPROVED", "IN_PROGRESS", "VERIFYING", "DONE", "BLOCKED"}
 STATUS_FILES = ("ROADMAP.md", "PLANS.md", "docs/SESSION_HANDOFF.md")
-STATUS_PATTERN = re.compile(r"^Trạng thái milestone: M00=(\w+); M01=(\w+); M02=(\w+)$", re.M)
+STATUS_PATTERN = re.compile(r"^Trạng thái milestone: M00=(\w+); M01=(\w+); M02=(\w+); M03=(\w+)$", re.M)
 
 
 def prose_lines(text):
@@ -229,8 +229,8 @@ def validate_repository(root):
         if state not in STATES:
             error("ROADMAP.md", f"trạng thái không hợp lệ cho {match[1]}")
         actual[match[1]] = state
-    if "ROADMAP.md" in status and tuple(actual.get(n) for n in ("M00", "M01", "M02")) != status["ROADMAP.md"]:
-        error("ROADMAP.md", "trạng thái chuẩn không khớp trạng thái mục M00/M01/M02")
+    if "ROADMAP.md" in status and tuple(actual.get(n) for n in ("M00", "M01", "M02", "M03")) != status["ROADMAP.md"]:
+        error("ROADMAP.md", "trạng thái chuẩn không khớp trạng thái mục M00/M01/M02/M03")
     return errors
 
 
