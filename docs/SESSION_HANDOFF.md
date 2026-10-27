@@ -1,14 +1,17 @@
-# M04 — BIOS Stage1 đang kiểm chứng, 2026-10-27
+# Bàn giao đóng M04 — 2026-10-27
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE
 
-Người dùng đã duyệt Stage1 và vòng tối ưu giữ checks/ABI/gate, cho phép tiếp tục M04 sau gate PASS. M04 chưa DONE, chưa có tag/merge. Không bắt đầu M05. Đây là bootloader smoke, chưa có kernel hoặc image OS.
+Người dùng đã xác nhận hoàn thành và duyệt tag/merge/bàn giao. M05 vẫn PLANNED, chưa được phép bắt đầu trong lượt đóng này. M04 là BIOS bootloader smoke, chưa chứng minh Lamix OS boot.
 
 ## Git và phạm vi
 
-Nhánh feat/m04-bios-stage1, base main/origin `6d05b818636fdfef9e1f1d8aaa2e8dc5deedfa0e`. Commit code M04 `72df89001b3787067fd27cb9dfc9c1bde8c1ab40` đã push và có [PR #2](https://github.com/duclam2011dz/LamixOS/pull/2), chưa merge; nhánh local/remote khớp, working tree sạch trước lượt tài liệu tiếp sau; SHA thật lấy bằng git rev-parse HEAD, không tự ghi SHA của chính handoff qua vòng lặp. Tags M00–M03 giữ nguyên; milestone/M03 giữ ab7b1e4, object 138293cedea692c4a86c9e493f982182cc81b2c9.
+- Commit nghiệm thu: `1c2f001896327d06a3875fa5b7443f847ae2ad7f`; code M04 tại `72df89001b3787067fd27cb9dfc9c1bde8c1ab40`.
+- Annotated `milestone/M04`: tag object `90778d4b630c9fe5292f5d43c49cd6a91b8670b7`, peeled commit đúng SHA nghiệm thu; đã push. Không di chuyển sang commit tài liệu.
+- [PR #2](https://github.com/duclam2011dz/LamixOS/pull/2) đã merge, merge commit `78b5a60e54c5cdfb32f1ca32a4d4a42ece7fa78d`. Tags M00–M03 giữ nguyên.
+- Nhánh hiện hành main/origin; commit đóng thủ tục tiếp sau chỉ sửa tài liệu. Lấy HEAD thực bằng git rev-parse HEAD, không tạo vòng lặp ghi SHA của chính handoff.
 
-Thêm Stage1 NASM/probe real-mode/test builder sparse 8 GiB, CTest host/guest, audit [BIOS_STAGE1](BIOS_STAGE1.md); harness purpose bios-stage1/fault injection/TMPDIR per-run; metadata encoder M03 tách dùng lại; validator trạng thái M04 và Harness CI mở rộng. Không đổi code LBP/CMake sample M01 hoặc filesystem/GPT product profile. Xem [kế hoạch](../PLANS.md) và [TESTING](TESTING.md#bios-stage1-m04).
+Stage1/probe, sparse fixtures, harness bios-stage1 và CI theo [kế hoạch](../PLANS.md), [audit](BIOS_STAGE1.md), [TESTING](TESTING.md#bios-stage1-m04). Không đổi LBP/GPT M03 hoặc triển khai Stage2/kernel/UEFI loader.
 
 ## Gate và kiểm chứng local
 
@@ -35,15 +38,15 @@ out/m04 có host.xml/guest.xml/ctest.xml/regression.xml, binary.json/gate.json, 
 
 ## CI và next exact action
 
-Bốn workflows đã SUCCESS trên đúng commit code `72df89001b3787067fd27cb9dfc9c1bde8c1ab40`:
+Bốn workflows SUCCESS trên đúng SHA nghiệm thu `1c2f001896327d06a3875fa5b7443f847ae2ad7f`:
 
-- [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525243318).
-- [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525243387).
-- [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525243313).
-- [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525243316).
+- [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525737668).
+- [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525737404).
+- [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525737717).
+- [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525737687).
 
-Đã đọc artifact m04-reports id 12743517058: JUnit host 15/guest 69, 0 failures/errors/skips; CTest 2/2; binary.json 436/440/padding 4 và SHA256 khớp local. Có 69 case.json/result.json đúng backend=qemu/mode=bios-stage1, 3 PASS/66 PANIC khớp expected; EIO nhận R, hashes và cleanup đều đúng. Không có binary/image/firmware trong ZIP.
+Artifact m04-reports id 12743517058 của code 72df890 đã được đọc: host15/guest69, binary436/440/padding4, 3 PASS/66 PANIC đúng expected, hashes và cleanup đúng; không có image/firmware/binary trong ZIP.
 
-Bản handoff này thuộc commit tài liệu tiếp sau; phải kiểm tra bốn workflows theo HEAD thực tế sau push, không dùng kết quả code SHA làm PASS cho HEAD mới hoặc lặp commit để tự ghi SHA của chính file.
+Lượt đóng chỉ chạy lại validator và 30 unittest tài liệu, không chạy lại toàn bộ build/QEMU local vì không sửa code. CI commit đóng thủ tục phải kiểm tra theo HEAD thực tế sau push; kết quả nghiệm thu không thay thế CI của SHA mới.
 
-Sau khi xác minh CI HEAD cuối, chờ người dùng review [PR #2](https://github.com/duclam2011dz/LamixOS/pull/2) và xác nhận hoàn thành riêng. M04 giữ VERIFYING; không tự merge/tag/Release hoặc bắt đầu M05. Không còn code đang dở được biết; Unsupported EDD/4Kn và các trường hợp NOT RUN giữ như bảng trên.
+Next exact action: kết thúc M04; chỉ khảo sát/lập kế hoạch M05 khi người dùng yêu cầu và bật Plan Mode thật. Không có code đang dở được biết. Không tự tạo version tag, Release hoặc bắt đầu M05.

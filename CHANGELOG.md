@@ -63,3 +63,8 @@ M02 đã kiểm chứng local và cả ba workflows trên GitHub; kết quả/UR
 - Harness purpose bios-stage1, fault Config test-only và snapshot TMPDIR per-run; giữ API positional/mode mặc định. Tách metadata encoder fixture M03 dùng lại, mở rộng validator đến M04, tích hợp Harness CI và audit documentation. Kết quả nghiệm thu thật tại handoff; chưa tạo tag M04 hoặc bắt đầu M05.
 
 - Bốn workflows SUCCESS trên commit code M04 72df890; đã đọc artifact m04-reports, đối chiếu gate436/440, 15 host/69 guest tests, expected PANIC, protected hashes và cleanup. M04 vẫn VERIFYING, chưa merge/tag.
+
+### Đóng M04 — 2026-10-27
+
+- Người dùng xác nhận hoàn thành và duyệt tag/merge/bàn giao. Annotated milestone/M04 (object 90778d4b630c9fe5292f5d43c49cd6a91b8670b7) trỏ commit nghiệm thu 1c2f001896327d06a3875fa5b7443f847ae2ad7f, bốn workflows SUCCESS; đã push.
+- PR #2 merge tại 78b5a60e54c5cdfb32f1ca32a4d4a42ece7fa78d; đồng bộ DONE và handoff. Không đổi tags M00–M03, không tạo Release hoặc bắt đầu M05.
