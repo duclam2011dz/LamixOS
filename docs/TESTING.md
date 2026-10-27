@@ -18,10 +18,10 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED; M03=PLANNED
+Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED
 ```
 
-Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00/M01/M02/M03 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
+Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00/M01/M02/M03/M04 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
 
 [Unittest](../tests/test_validate_docs.py) dùng repository fixtures tạm cho positive/negative tests; không sửa tài liệu thật. Validator không trực tiếp chạy skill Codex. Kiểm tra metadata đơn giản trong Python không thay thế review hành vi skill.
 
@@ -138,3 +138,23 @@ Cross checker compile static archive bằng x86_64-elf C11/C++17, freestanding/n
 [Boot Contract CI](../.github/workflows/boot-contract-ci.yml) chạy host Debug/Release/sanitizer, độc lập cross bootstrap; [Toolchain CI](../.github/workflows/toolchain-ci.yml) thêm cross compile-only và artifact m03-cross-reports. Bốn workflows phải xanh trên đúng SHA nghiệm thu. PR review vẫn bắt buộc trước merge. Artifact m03-reports chỉ XML/JSON/test logs, không upload BootInfo fixture binary, firmware, disk images hoặc compiler.
 
 CMake tạo out/m03; các build directories và reports ignored. Ghi commands/versions/counts và CI URLs tại handoff. Regression harness M02 vẫn gồm hai launch-only paused và hai boot skeleton SKIPPED/77; không có image, firmware execution/CPU state/paging/A-B recovery vẫn NOT RUN. Host validation PASS không phải OS boot PASS.
+
+## BIOS Stage1 M04
+
+Sau activate .venv, từ root:
+
+```bash
+cmake -S tests/bios -B build/m04 -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+cmake --build build/m04
+ctest --test-dir build/m04 --no-tests=error --output-on-failure --output-junit "$PWD/out/m04/ctest.xml"
+```
+
+Build phải qua gate 440 byte trước target probe. CTest stage1-host kiểm size/padding/PMBR, budget assertion thật, reproducibility 2 roots, sparse builder/path/no overwrite và harness mode guards; stage1-qemu chạy 69 cases thật qua default QEMU command builder, không mock BIOS. Thiếu NASM/QEMU/firmware là FAIL, không SKIP. Pytest host trực tiếp assemble vào tmp nếu chưa có override artifact; CTest dùng binary vừa build qua LAMIX_STAGE1_BIN. Marker qemu tránh lặp guest tests trong M01 Debug/Release.
+
+Positive canonical/relocated/exact-window nhận M04:PASS sau probe ABI và 32 KiB patterns/trailer. Negative GPT/header 32 bytes/GUID 16 bytes/bounds/payload/EIO nhận PANIC với reason phù hợp; pytest PASS của expected failure không đổi JSON guest status thành PASS. backend=qemu, mode=bios-stage1, không -S. Snapshot/metadata hashes/firmware hashes và process cleanup đều phải đạt. Các errors D do unsupported EDD/4Kn không có injection riêng, ghi NOT RUN.
+
+Harness Config thêm purpose và test_io_error_sector ở cuối để giữ positional API cũ; CLI chỉ thêm --purpose. Fault chỉ cho Stage1, validate sector trước launch; blkdebug dùng read_aio/errno 5/once off, rerror report. TMPDIR của process con là run directory, xử lý snapshot khi /var/tmp host chỉ đọc; không sửa environment của host.
+
+[Harness CI](../.github/workflows/harness-ci.yml) thêm NASM, build/CTest M04 và m04-reports (XML/JSON/serial/QMP/listing), không bootstrap cross hoặc upload binary/image/firmware. Summary tách M02 paused launch khỏi M04 Stage1, không tuyên bố OS boot. Logs/result.json/case.json và binary.json ở out/m04; baseline/group snapshots local ignored. [BIOS_STAGE1](BIOS_STAGE1.md) có matrix source checks/ABI; run URLs và counts tại handoff.
+
+Regression gồm validator/unittest, pytest -m 'not qemu', M03 CTest/sanitizer/cross, M01 smoke --reproducible và M02 CTest. M04 không gán image OS mặc định: boot-bios/boot-uefi vẫn SKIPPED/77. GDB, actual kernel/UEFI boot và A/B recovery vẫn NOT RUN.

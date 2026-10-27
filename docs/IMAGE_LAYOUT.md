@@ -1,6 +1,6 @@
 # GPT image layout — profile Lamix v1
 
-M03 đặc tả layout và mô hình metadata host; **chưa có image generator, FAT32 formatter hoặc bootable image**. [GPT headers](../include/lamix/boot/gpt.h) dùng byte arrays alignment=1, assertions mọi offset; [mô hình host](../tests/boot/gpt_model.py) không file/disk I/O. Generator/checker thực tế thuộc M07.
+M03 đặc tả layout và mô hình metadata host; **chưa có generator sản phẩm, FAT32 formatter hoặc image OS**. M04 có sparse fixture bootable riêng cho Stage1/probe, xem [BIOS_STAGE1](BIOS_STAGE1.md). [GPT headers](../include/lamix/boot/gpt.h) dùng byte arrays alignment=1, assertions mọi offset; [mô hình host](../tests/boot/gpt_model.py) không file/disk I/O. Generator/checker thực tế thuộc M07.
 
 ## Metadata theo chuẩn và policy
 

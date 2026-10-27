@@ -30,6 +30,8 @@ class Config:
     bios: Path = Path("/usr/share/seabios/bios.bin")
     ovmf_code: Path | None = None
     ovmf_vars: Path | None = None
+    purpose: str = "os"
+    test_io_error_sector: int | None = None
 
 
 @dataclass
@@ -93,7 +95,19 @@ def build_command(config, directory):
         command += ["-S"]
     else:
         image = regular_file(config.image)
-        command += ["-drive", f"file={qemu_value(image)},format=raw,if=ide,snapshot=on"]
+        if config.test_io_error_sector is None:
+            drive = f"file={qemu_value(image)},format=raw,if=ide,snapshot=on"
+        else:
+            sector = config.test_io_error_sector
+            if isinstance(sector, bool) or not isinstance(sector, int) or not 0 <= sector < image.stat().st_size // 512:
+                raise ValueError("test_io_error_sector ngoài image")
+            fault = directory / "blkdebug.conf"
+            fault.write_text('[inject-error]\nevent = "read_aio"\nerrno = "5"\n'
+                             f'sector = "{sector}"\nonce = "off"\nimmediately = "off"\n')
+            drive = (f"file.driver=blkdebug,file.config={qemu_value(fault)},"
+                     f"file.image.driver=file,file.image.filename={qemu_value(image)},"
+                     "format=raw,if=ide,snapshot=on,rerror=report")
+        command += ["-drive", drive]
     return command
 
 
@@ -272,7 +286,7 @@ def run(config, command_factory=build_command):
     output = Path(config.output_root).resolve()
     output.mkdir(parents=True, exist_ok=True)
     directory = Path(tempfile.mkdtemp(prefix="run-", dir=output))
-    result = Result(config.profile, "launch-only" if config.launch_only else "boot", str(directory))
+    result = Result(config.profile, "launch-only" if config.launch_only else "bios-stage1" if config.purpose == "bios-stage1" else "boot", str(directory))
     if command_factory is not build_command:
         result.backend = "fixture"
     serial = directory / "serial.log"
@@ -282,6 +296,12 @@ def run(config, command_factory=build_command):
     process = qmp = scanner = None
     stderr = transcript = None
     try:
+        if config.purpose not in ("os", "bios-stage1"):
+            raise ValueError("purpose không hợp lệ")
+        if config.purpose == "bios-stage1" and (config.profile != "bios" or config.launch_only or config.image is None):
+            raise ValueError("bios-stage1 cần BIOS, image và không launch-only")
+        if config.test_io_error_sector is not None and config.purpose != "bios-stage1":
+            raise ValueError("fault injection chỉ cho bios-stage1")
         if config.profile not in ("bios", "uefi"):
             raise ValueError("profile phải là bios hoặc uefi")
         timeout = config.timeout if config.timeout is not None else (10 if config.launch_only else 30)
@@ -301,8 +321,10 @@ def run(config, command_factory=build_command):
             stderr = (directory / "stderr.log").open("wb")
             transcript = (directory / "qmp.log").open("wb")
             scanner = SerialScanner(serial, config.success_marker, config.panic_marker)
+            child_env = os.environ.copy()
+            child_env["TMPDIR"] = str(directory)  # Snapshot tạm thuộc đúng run, không /var/tmp host.
             process = subprocess.Popen(result.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                       stderr=stderr, start_new_session=True)
+                                       stderr=stderr, start_new_session=True, env=child_env)
             result.pid = process.pid
             qmp = QMP(process, transcript)
             deadline = started + timeout

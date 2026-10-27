@@ -10,7 +10,7 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00 đã đạt nghiệm thu tài liệu, GitHub Public, GPL và Documentation CI. Người dùng đã xác nhận hoàn thành; annotated tag [milestone/M00](https://github.com/duclam2011dz/LamixOS/tree/milestone/M00) ghi nhận commit nghiệm thu. Skill `docs-consistency` đã cài và được kiểm tra. M01 đã đạt kiểm chứng local và Toolchain CI cho build sample freestanding; annotated tag [milestone/M01](https://github.com/duclam2011dz/LamixOS/tree/milestone/M01) đã được người dùng duyệt và push; chưa có bootloader, kernel, game hoặc kết quả OS boot. M02 đã có annotated tag nghiệm thu harness. M03 đã đạt nghiệm thu LBP/GPT contract, thư viện freestanding và host tests local/CI; người dùng xác nhận hoàn thành, PR #1 đã merge và annotated tag [milestone/M03](https://github.com/duclam2011dz/LamixOS/tree/milestone/M03) đã push. CI và SHA tại handoff. Chưa có bản phát hành và chưa đạt Playable.
+M00 đã đạt nghiệm thu tài liệu, GitHub Public, GPL và Documentation CI. Người dùng đã xác nhận hoàn thành; annotated tag [milestone/M00](https://github.com/duclam2011dz/LamixOS/tree/milestone/M00) ghi nhận commit nghiệm thu. Skill `docs-consistency` đã cài và được kiểm tra. M01 đã đạt kiểm chứng local và Toolchain CI cho build sample freestanding; annotated tag [milestone/M01](https://github.com/duclam2011dz/LamixOS/tree/milestone/M01) đã được người dùng duyệt và push; chưa có bootchain hoàn chỉnh, kernel, game hoặc kết quả OS boot. M02 đã có annotated tag nghiệm thu harness. M03 đã đạt nghiệm thu LBP/GPT contract, thư viện freestanding và host tests local/CI; người dùng xác nhận hoàn thành, PR #1 đã merge và annotated tag [milestone/M03](https://github.com/duclam2011dz/LamixOS/tree/milestone/M03) đã push. CI và SHA tại handoff. M04 đang VERIFYING: Stage1 436/440 byte đã chạy probe và negative tests trên SeaBIOS local/CI, chờ PR review và xác nhận hoàn thành; đây là bootloader smoke, chưa phải OS boot. Chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 
@@ -59,3 +59,7 @@ Launch-only dùng TCG và -S, xác minh QMP rồi đóng tiến trình. Boot ske
 ## Contract M03
 
 LBP v1 có headers C11/C++17, thư viện validation/normalization freestanding và host GPT model; chưa có bootloader/kernel/image. Xem [BOOT_PROTOCOL](docs/BOOT_PROTOCOL.md), [IMAGE_LAYOUT](docs/IMAGE_LAYOUT.md) và [lệnh kiểm thử](docs/TESTING.md#boot-contract-m03). Host tests và cross compile không chứng minh OS boot. Trạng thái nghiệm thu thực tế tại handoff.
+
+## BIOS Stage1 M04
+
+Stage1 NASM và fixture tests: [đặc tả/audit](docs/BIOS_STAGE1.md), [lệnh kiểm thử](docs/TESTING.md#bios-stage1-m04). Fixture sparse 8 GiB là test-only, không phải image OS. Trạng thái local/CI thực tế ở handoff; không tự tạo tag M04 hoặc bắt đầu M05.

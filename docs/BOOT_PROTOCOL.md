@@ -1,6 +1,6 @@
 # Lamix Boot Protocol v1.0
 
-Contract M03 được duyệt ngày 2026-10-26. Headers và thư viện validation/normalization đã triển khai; bootloader, kernel và chuyển quyền điều khiển **chưa triển khai**. Kết quả kiểm chứng ở [handoff](SESSION_HANDOFF.md); không coi host tests là OS boot.
+Contract M03 được duyệt ngày 2026-10-26. Headers và thư viện validation/normalization đã triển khai; BIOS Stage1 M04 có smoke test riêng; Stage2/UEFI loader/kernel và kernel handoff **chưa triển khai**. Kết quả kiểm chứng ở [handoff](SESSION_HANDOFF.md); không coi host tests là OS boot.
 
 ## Encoding và cấu trúc
 
