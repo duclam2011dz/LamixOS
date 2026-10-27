@@ -18,8 +18,9 @@ Gate ban đầu FAIL 539 byte, đã dừng. Vòng tối ưu đo A 494, B 467, C 
 - [x] Local guest 69 cases PASS gồm relocation/exact-window, header/GUID/bounds, payload/trailer và EIO thật; backend=qemu/mode=bios-stage1, negative status không đổi thành guest PASS.
 - [x] Thêm host tests và harness purpose/fault/TMPDIR, giữ positional Config/default modes; mở rộng trạng thái validator M04 và Harness CI.
 - [x] Regression local PASS: 203 host tests, validator/30 unittest, M01 reproducibility, M02/M03 và M04 suites.
-- [ ] Review staged/secrets trước commit.
-- [ ] Bốn workflows SUCCESS trên đúng SHA; PR review và người dùng xác nhận hoàn thành riêng trước DONE/tag.
+- [x] Review staged/secrets và commit/push code 72df890; mở PR #2, artifact CI đã đọc.
+- [x] Bốn workflows SUCCESS trên code 72df890, binary size/hash và 69 guest results đúng expected.
+- [ ] CI HEAD tài liệu cuối, PR review và người dùng xác nhận hoàn thành riêng trước DONE/tag.
 
 Commands và reports theo [TESTING](docs/TESTING.md#bios-stage1-m04), kết quả cuối tại [handoff](docs/SESSION_HANDOFF.md). Gate FAIL sau vòng này phải dừng xin kế hoạch, không hạ checks. Guest fixes trong contract phải qua gate lại trước test.
 
