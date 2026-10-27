@@ -44,3 +44,9 @@ Nếu Toolchain CI kẹt tải packages từ azure.archive.ubuntu.com, logs M02 
 Thiếu Ninja/CMake trong PATH: activate .venv trước configure; không thay compiler target bằng GCC host. Lỗi cross xem out/m03/cross.log và cross.json; undefined symbols là FAIL cần sửa thay vì link runtime host.
 
 LeakSanitizer báo không hoạt động dưới ptrace trong sandbox: suite M03 cấu hình detect_leaks=0 vì thư viện không heap, vẫn chạy ASan/UBSan. Không tắt memory/undefined-behavior checks để vượt lỗi. Input validation thất bại không có nghĩa firmware/OS đã chạy; xem status và đúng fixture/span. Không dereference physical addresses trong host test để khắc phục TRUNCATED ACPI span.
+
+## BIOS Stage1 M04
+
+Nếu NASM báo TIMES value âm, gate 440 byte FAIL; không xóa assertion hoặc viết qua PMBR metadata. Giữ listing/source hash và dừng theo gate/plan hiện hành. Vòng tối ưu539→436 byte đã giữ ở evidence local; xem BIOS_STAGE1 cho check matrix.
+
+QEMU snapshot báo Could not get temporary filename/Read-only file system: harness dùng TMPDIR riêng trong run directory. Không tắt snapshot hoặc đổi quyền /var/tmp. Guest M04:FAIL có reason D/G/N/R; probe dùng P. Expected PANIC ở negative tests không phải lỗi harness nếu reason và cleanup khớp, cũng không phải OS boot PASS. Đọc case.json cùng result.json/serial.log.

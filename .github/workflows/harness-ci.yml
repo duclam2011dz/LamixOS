@@ -12,9 +12,9 @@ permissions:
 
 jobs:
   harness:
-    name: Verify harness and paused BIOS/UEFI launch
+    name: Verify harness, paused launch and BIOS Stage1
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Lấy mã nguồn
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -33,7 +33,7 @@ jobs:
             fi
           done
           sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends qemu-system-x86 ovmf seabios cmake ninja-build python3-venv
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends qemu-system-x86 ovmf seabios nasm cmake ninja-build python3-venv
           python3 -m venv .venv
           .venv/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-dev.lock
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
@@ -41,6 +41,12 @@ jobs:
         run: cmake -S tests/qemu -B build/m02 -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
       - name: Fixture, emulator launch thật và boot skeleton
         run: ctest --test-dir build/m02 --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m02/ctest.xml"
+      - name: BIOS Stage1 thực thi thật, không phải OS boot
+        timeout-minutes: 5
+        run: |
+          cmake -S tests/bios -B build/m04 -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m04
+          ctest --test-dir build/m04 --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m04/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Ghi summary đúng phạm vi
@@ -58,6 +64,14 @@ jobs:
               else:
                   for case in ET.parse(report).getroot().iter('testcase'):
                       status = 'SKIPPED' if case.find('skipped') is not None else 'FAIL' if case.find('failure') is not None or case.find('error') is not None else 'PASS'
+                      summary.write(f"- {case.attrib['name']}: {status}\n")
+              summary.write('\n### BIOS Stage1 M04\n\nNegative cases đạt khi nhận guest failure dự kiến; không phải OS boot.\n\n')
+              m04 = Path('out/m04/ctest.xml')
+              if not m04.exists():
+                  summary.write('NOT RUN: chưa có M04 report.\n')
+              else:
+                  for case in ET.parse(m04).getroot().iter('testcase'):
+                      status = 'FAIL' if case.find('failure') is not None or case.find('error') is not None else 'SKIPPED' if case.find('skipped') is not None else 'PASS'
                       summary.write(f"- {case.attrib['name']}: {status}\n")
           PY
       - name: Lưu JUnit và kết quả phân loại
@@ -77,4 +91,18 @@ jobs:
           path: |
             out/m02/**/*.log
             build/m02/Testing/Temporary/*.log
+          if-no-files-found: warn
+      - name: Lưu bằng chứng Stage1, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m04-reports
+          path: |
+            out/m04/*.xml
+            out/m04/*.json
+            out/m04/**/result.json
+            out/m04/**/case.json
+            out/m04/**/*.log
+            build/m04/stage1.lst
+            build/m04/Testing/Temporary/*.log
           if-no-files-found: warn

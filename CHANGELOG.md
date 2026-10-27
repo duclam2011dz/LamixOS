@@ -50,3 +50,14 @@ M02 đã kiểm chứng local và cả ba workflows trên GitHub; kết quả/UR
 
 - Người dùng phê duyệt kết thúc M03, tạo/push tag và merge. Annotated milestone/M03 đã push, trỏ commit nghiệm thu ab7b1e4bdab199f1368d207a2deff79806bc1433 có bốn workflows SUCCESS.
 - PR #1 đã merge bằng merge commit 347cc346edc8739feb15fbb38c3b90994d9941a6; giữ nguyên lịch sử và tags M00–M02. Đồng bộ trạng thái DONE và handoff; không triển khai M04, không tạo version tag hoặc GitHub Release.
+
+### Khảo nghiệm gate M04 — 2026-10-27
+
+- Thêm bản draft NASM Stage1 và CMake target assemble/listing để kiểm tra budget PMBR. Gate FAIL: 539/440 byte, NASM từ chối tạo binary (vượt 99 byte).
+- Dừng theo gate đã duyệt; ghi BLOCKED trong kế hoạch/roadmap/handoff. Chưa thêm probe, fixture image, harness changes, CI hoặc guest tests M04; không bắt đầu M05.
+
+### Triển khai M04 sau vòng tối ưu được duyệt
+
+- Tối ưu Stage1 539→494→467→436 byte hữu ích, artifact 440 byte; giữ checks/ABI và assertion budget. Sửa DL boot drive sau UART init, gom REP comparisons, DAP stack căn 4 và diagnostic data riêng; không external helper hoặc self-modifying code.
+- Thêm real-mode probe 32 KiB, sparse GPT test fixture, host/binary/path/reproducibility và 69 guest positives/negatives gồm blkdebug EIO thật; không tạo image OS hoặc Stage2.
+- Harness purpose bios-stage1, fault Config test-only và snapshot TMPDIR per-run; giữ API positional/mode mặc định. Tách metadata encoder fixture M03 dùng lại, mở rộng validator đến M04, tích hợp Harness CI và audit documentation. Kết quả nghiệm thu thật tại handoff; chưa tạo tag M04 hoặc bắt đầu M05.

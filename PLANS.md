@@ -1,32 +1,30 @@
-# Kế hoạch hiện hành — M03
+# Kế hoạch hiện hành — M04
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=VERIFYING
 
-Người dùng duyệt kế hoạch M03 và chuyển sang chế độ triển khai ngày 2026-10-26. M00–M02 giữ nguyên annotated tags. Không bắt đầu M04.
+Kế hoạch Stage1 và vòng tối ưu A/B/C đã được người dùng duyệt. Sau gate và review tĩnh PASS, được tiếp tục probe/fixture/guest/CI M04. Không mở rộng sang M05.
 
-## Phạm vi đã duyệt
+## Contract giữ nguyên
 
-LBP v1 little-endian, header 64 byte + records căn 8; ELF PT_NOTE negotiation; memory normalization E820/UEFI; higher-half entry với allocations ban đầu dưới 4 GiB; ownership/release conditions. Thư viện C11 freestanding dùng caller-owned buffers, không heap/firmware/disk I/O. Headers dùng được từ C++17 và có assertions từng field.
+Mã/data PMBR<=440 byte, EDD 512/disk<2 TiB, không CHS hoặc truncate. Primary GPT/header shape theo M03, GUID 16 byte/128 entries, bounds và 64-sector window; retry 3/partial-read rejection. COM1 bounded polling, diagnostics D/G/N/R và handoff real-mode đúng ABI. Không helper ngoài PMBR, code/data overlap, self-modifying code, disk write hoặc đổi LBP/GPT.
 
-GPT Protective MBR + BIOS Boot + ESP + System A/B + User Data; profile 8 GiB, alignment 1 MiB, boot 512 byte, mô hình/tests 512/4096. ESP boot bundles theo slot; chưa làm update/rollback M39. Đặc tả tại [BOOT_PROTOCOL](docs/BOOT_PROTOCOL.md), [layout LBP](docs/LBP_LAYOUT.md) và [IMAGE_LAYOUT](docs/IMAGE_LAYOUT.md).
+Gate ban đầu FAIL 539 byte, đã dừng. Vòng tối ưu đo A 494, B 467, C 436 byte; binary 440 với 4 byte padding. Baseline/group source/listings/logs ignored tại out/m04; source hash và binary.json/gate.json là bằng chứng, không suy ra guest correctness từ size. Audit từng invariant tại [BIOS_STAGE1](docs/BIOS_STAGE1.md).
 
-## Thứ tự và kiểm chứng
+## Tiến độ và nghiệm thu
 
-- [x] Đặc tả/headers/ADR và các quyết định đã duyệt thống nhất.
-- [x] Parser/note/record iteration, normalization thuần và host GPT model.
-- [x] Host Debug/Release, ASan/UBSan, cross compile-only và assertions PASS.
-- [x] Validator/unittest M03, regression M01 và harness M02 PASS; boot cases SKIPPED.
-- [x] Review diff/staged và bốn workflows SUCCESS trên commit code cuối 66f5b1e; artifact JUnit/layout đã đối chiếu, xem handoff.
-- [x] Bốn workflows SUCCESS trên SHA nghiệm thu ab7b1e4; người dùng phê duyệt kết thúc/merge/tag ngày 2026-10-27, PR #1 đã merge và tag đã xác minh.
+- [x] Lưu baseline 539 và đo ba nhóm A/B/C, giữ assertion budget.
+- [x] Review REP pointer/counter, EBP capacity lifetime, DAP 16 byte trên stack căn 4, flags và stack cleanup; sửa DL sau UART.
+- [x] Stage1/probe và sparse test-only GPT fixtures; không format filesystem hoặc tạo image OS.
+- [x] Local guest 69 cases PASS gồm relocation/exact-window, header/GUID/bounds, payload/trailer và EIO thật; backend=qemu/mode=bios-stage1, negative status không đổi thành guest PASS.
+- [x] Thêm host tests và harness purpose/fault/TMPDIR, giữ positional Config/default modes; mở rộng trạng thái validator M04 và Harness CI.
+- [x] Regression local PASS: 203 host tests, validator/30 unittest, M01 reproducibility, M02/M03 và M04 suites.
+- [ ] Review staged/secrets trước commit.
+- [ ] Bốn workflows SUCCESS trên đúng SHA; PR review và người dùng xác nhận hoàn thành riêng trước DONE/tag.
 
-Bằng chứng cập nhật tại [handoff](docs/SESSION_HANDOFF.md). Local PASS không chứng minh CI hoặc OS boot. Không tạo bootloader/kernel/image generator; không ghi disk thật.
+Commands và reports theo [TESTING](docs/TESTING.md#bios-stage1-m04), kết quả cuối tại [handoff](docs/SESSION_HANDOFF.md). Gate FAIL sau vòng này phải dừng xin kế hoạch, không hạ checks. Guest fixes trong contract phải qua gate lại trước test.
 
-## Rollback và gate
+## Ranh giới và rollback
 
-Rollback bằng commit tiếp nối/revert đúng diff M03, giữ thay đổi người dùng và logs. Không reset/clean hàng loạt hoặc đổi tags M00–M02. Đổi ABI/mapping/layout ngoài kế hoạch phải xin duyệt bổ sung. Chỉ tạo tag M03 sau khi đủ nghiệm thu và người dùng xác nhận hoàn thành riêng; không tự Release hoặc sang M04.
+Fixtures chỉ metadata/Stage1/probe/sentinels trong sparse image test; snapshot và protected extent hashes bắt buộc. Full guest GPT CRC/backup, E820/A20, CPU mode transition, ELF/kernel/LBP handoff, UEFI và generator M07 ngoài phạm vi. OS boot skeleton vẫn SKIPPED; không suy ra tương thích PC thật từ SeaBIOS.
 
-## Đóng thủ tục — 2026-10-27
-
-Annotated `milestone/M03` giữ `ab7b1e4bdab199f1368d207a2deff79806bc1433`, không chuyển sang merge commit hoặc commit tài liệu. PR #1 merge bằng commit `347cc346edc8739feb15fbb38c3b90994d9941a6`. Lượt đóng chỉ cập nhật README/ROADMAP/PLANS/CHANGELOG/handoff, validator và unittest phải PASS; kiểm tra bốn workflows của HEAD tài liệu sau push. Không chạy lại bootstrap hoặc sửa code/workflows.
-
-M03 DONE theo xác nhận người dùng; không bắt đầu M04 trong lượt này. Chờ chỉ dẫn mới; milestone tiếp theo cần Plan Mode thật và kế hoạch riêng. Không tạo version tag hoặc GitHub Release.
+Rollback theo đúng diff/file task, giữ source/logs và chỉnh sửa người dùng; không reset/clean hàng loạt, đổi tags M00–M03 hoặc ghi disk thật. Không tự merge/tag/Release/M05. Cuối lượt cập nhật trạng thái và CI đúng bằng chứng, không lặp commit để tự ghi SHA của handoff.
