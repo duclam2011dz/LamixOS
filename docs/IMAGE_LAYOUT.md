@@ -1,6 +1,6 @@
 # GPT image layout — profile Lamix v1
 
-M03 đặc tả layout và mô hình metadata host; **chưa có generator sản phẩm, FAT32 formatter hoặc image OS**. M04 có sparse fixture bootable riêng cho Stage1/probe, xem [BIOS_STAGE1](BIOS_STAGE1.md). [GPT headers](../include/lamix/boot/gpt.h) dùng byte arrays alignment=1, assertions mọi offset; [mô hình host](../tests/boot/gpt_model.py) không file/disk I/O. Generator/checker thực tế thuộc M07.
+M03 đặc tả layout và mô hình metadata host; **chưa có generator sản phẩm, FAT32 formatter hoặc image OS**. M05 có fixture ESP FAT32/kernel probe test-only, chưa có generator sản phẩm; M04 có sparse fixture bootable riêng cho Stage1/probe, xem [BIOS_STAGE1](BIOS_STAGE1.md). [GPT headers](../include/lamix/boot/gpt.h) dùng byte arrays alignment=1, assertions mọi offset; [mô hình host](../tests/boot/gpt_model.py) không file/disk I/O. Generator/checker thực tế thuộc M07.
 
 ## Metadata theo chuẩn và policy
 
@@ -43,3 +43,7 @@ BIOS Boot Partition là raw stage storage, không filesystem. BIOS Stage1 phải
 Mô hình nhận riêng PMBR, hai header blocks và hai entry arrays trong memory. Kiểm tra block/size, CRC, primary/backup mirror fields, exact array locations, usable bounds, GUID identity/type/encoding, partition order/bounds/no overlap, alignment, names/attributes và unused entries. Từ chối metadata hỏng, không repair hoặc ghi disk.
 
 Fixtures chỉ tạo metadata tổng hợp khoảng vài chục KiB để kiểm tra assertions, không ghép raw image hoặc tạo executable boot code. Không gọi mkfs, mount, loop device, parted, dd hay QEMU với image. Host tests không chứng minh firmware tìm ESP hoặc BIOS đọc đúng sectors; M04–M07 kiểm chứng thật.
+
+## Fixtures M05
+
+Builder tests/bios_stage2/stage2_fixture.py tạo mới sparse8 GiB, metadata đúng M03, Stage1/Stage2 trong BIOS Boot Partition, ESP FAT32 tối thiểu và kernel ELF trong slot A. Không format System/User, không mount/device/overwrite hoặc cài filesystem driver ghi. Thông tin thực thi và giới hạn ở [BIOS_STAGE2](BIOS_STAGE2.md); generator dùng cho người dùng/UEFI parity vẫn thuộc M07.

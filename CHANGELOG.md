@@ -68,3 +68,15 @@ M02 đã kiểm chứng local và cả ba workflows trên GitHub; kết quả/UR
 
 - Người dùng xác nhận hoàn thành và duyệt tag/merge/bàn giao. Annotated milestone/M04 (object 90778d4b630c9fe5292f5d43c49cd6a91b8670b7) trỏ commit nghiệm thu 1c2f001896327d06a3875fa5b7443f847ae2ad7f, bốn workflows SUCCESS; đã push.
 - PR #2 merge tại 78b5a60e54c5cdfb32f1ca32a4d4a42ece7fa78d; đồng bộ DONE và handoff. Không đổi tags M00–M03, không tạo Release hoặc bắt đầu M05.
+
+### Triển khai M05 theo kế hoạch được duyệt — 2026-10-28
+
+- Thêm Stage2 bootstrap32 KiB/core C32 có CRC/bounded E820/A20/thunk, GPT primary/backup validation, FAT32 slot A chỉ đọc và ELF64 higher-half loading; giữ Stage1440/ABI và LBP/GPT M03.
+- Thêm parser API native, helper division unsigned64, loader first-fit/reservations/page tables và LBP builder; kernel probe kiểm state CPU/mappings/BSS và faults RO/guard thật. Chưa có kernel sản phẩm hoặc UEFI loader.
+- Suite host/guest/sanitizer và fixtures sparse8 GiB test-only; harness purpose bios-stage2, test CPU/RAM/fault adapters; bổ sung CI M05 trong bốn workflows hiện có và validator trạng thái M05. Kết quả thật ở handoff; chưa tag/merge M05 hoặc triển khai M06.
+
+- Bốn workflows code68cbd48 SUCCESS; artifact host/target đã đối chiếu: host45, guest51 mỗi profile, tổng102 guests đúng expected (14 PASS/88 PANIC), hashes binary/source khớp local và protected hashes/cleanup đúng. PR #3 open, M05 giữ VERIFYING chờ review/người dùng xác nhận riêng; không tag/merge hoặc bắt đầu M06.
+
+- Review sau CI đầu sửa bootstrap để CRC/BSS/E820 dùng segment:offset real-mode chuẩn, loại phụ thuộc hidden segment limits. Thêm adapter64 KiB và core fixture70000 byte/corruption cuối file; giữ Stage1/LBP/GPT/budget. CI68cbd48 không thay nghiệm thu HEAD sửa.
+
+- Revision sửa0a0f496 đã có bốn workflows SUCCESS; artifact mới xác nhận host46/guest54 mỗi profile,108 guest results đúng expected (18 PASS/90 PANIC), source/binary hashes khớp local và cleanup/protected hashes đúng. M05 vẫn VERIFYING, PR #3 chờ review/xác nhận riêng.

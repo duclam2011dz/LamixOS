@@ -32,6 +32,8 @@ class Config:
     ovmf_vars: Path | None = None
     purpose: str = "os"
     test_io_error_sector: int | None = None
+    test_stage2_memory_mib: int | None = None
+    test_stage2_cpu: str | None = None
 
 
 @dataclass
@@ -80,6 +82,17 @@ def build_command(config, directory):
                "-nic", "none", "-monitor", "none", "-no-reboot", "-no-shutdown",
                "-chardev", f"file,id=serial0,path={qemu_value(directory / 'serial.log')}",
                "-serial", "chardev:serial0", "-qmp", "stdio"]
+    if config.test_stage2_memory_mib is not None or config.test_stage2_cpu is not None:
+        if config.purpose != "bios-stage2":
+            raise ValueError("CPU/RAM test overrides chỉ cho bios-stage2")
+        if config.test_stage2_memory_mib is not None:
+            if type(config.test_stage2_memory_mib) is not int or config.test_stage2_memory_mib not in (64, 256, 4608):
+                raise ValueError("RAM test profile không hợp lệ")
+            command[command.index("-m")+1] = f"{config.test_stage2_memory_mib}M"
+        if config.test_stage2_cpu is not None:
+            if config.test_stage2_cpu not in ("qemu64", "qemu64,-nx", "qemu64,-lm"):
+                raise ValueError("CPU test profile không hợp lệ")
+            command += ["-cpu", config.test_stage2_cpu]
     if config.profile == "bios":
         command += ["-bios", str(regular_file(config.bios))]
     else:
@@ -286,7 +299,7 @@ def run(config, command_factory=build_command):
     output = Path(config.output_root).resolve()
     output.mkdir(parents=True, exist_ok=True)
     directory = Path(tempfile.mkdtemp(prefix="run-", dir=output))
-    result = Result(config.profile, "launch-only" if config.launch_only else "bios-stage1" if config.purpose == "bios-stage1" else "boot", str(directory))
+    result = Result(config.profile, "launch-only" if config.launch_only else config.purpose if config.purpose in ("bios-stage1", "bios-stage2") else "boot", str(directory))
     if command_factory is not build_command:
         result.backend = "fixture"
     serial = directory / "serial.log"
@@ -296,12 +309,12 @@ def run(config, command_factory=build_command):
     process = qmp = scanner = None
     stderr = transcript = None
     try:
-        if config.purpose not in ("os", "bios-stage1"):
+        if config.purpose not in ("os", "bios-stage1", "bios-stage2"):
             raise ValueError("purpose không hợp lệ")
-        if config.purpose == "bios-stage1" and (config.profile != "bios" or config.launch_only or config.image is None):
-            raise ValueError("bios-stage1 cần BIOS, image và không launch-only")
-        if config.test_io_error_sector is not None and config.purpose != "bios-stage1":
-            raise ValueError("fault injection chỉ cho bios-stage1")
+        if config.purpose in ("bios-stage1", "bios-stage2") and (config.profile != "bios" or config.launch_only or config.image is None):
+            raise ValueError("BIOS stages cần BIOS, image và không launch-only")
+        if config.test_io_error_sector is not None and config.purpose not in ("bios-stage1", "bios-stage2"):
+            raise ValueError("fault injection chỉ cho BIOS stages")
         if config.profile not in ("bios", "uefi"):
             raise ValueError("profile phải là bios hoặc uefi")
         timeout = config.timeout if config.timeout is not None else (10 if config.launch_only else 30)

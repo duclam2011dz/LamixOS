@@ -1,12 +1,12 @@
 # BIOS Stage1 — M04
 
-Stage1 có guest smoke test trên QEMU pc/SeaBIOS, không phải Lamix OS boot. M05 Stage2, kernel/ELF/LBP handoff và UEFI loader chưa triển khai. Contract GPT/LBP M03 giữ nguyên; [image layout](IMAGE_LAYOUT.md) và [boot protocol](BOOT_PROTOCOL.md) là nguồn tương ứng.
+Stage1 có guest smoke test trên QEMU pc/SeaBIOS, không phải Lamix OS boot. M05 đã có [Stage2/ELF/LBP kernel probe](BIOS_STAGE2.md) đang kiểm chứng; UEFI loader chưa triển khai. Contract GPT/LBP M03 giữ nguyên; [image layout](IMAGE_LAYOUT.md) và [boot protocol](BOOT_PROTOCOL.md) là nguồn tương ứng.
 
 ## Vùng mã và phạm vi
 
 [stage1.asm](../boot/bios/stage1.asm) dùng BITS 16, ORG 7c00, flat binary NASM. Mã/data hữu ích hiện 436 byte, zero padding 4 byte, artifact 440 byte. Assertion `times 440 - ($ - $$) db 0` vẫn bắt buộc; host test chèn thêm bytes vào bản copy để xác nhận assembler thật sự từ chối vượt budget. Bytes 440–511 do fixture builder tạo Protective MBR, không thuộc source Stage1.
 
-Stage1 chỉ INT13 EDD 512, hard-disk DL>=80h; capacity phải <2^32 sectors, từ chối high dword, không truncate hoặc CHS fallback. Đọc GPT header LBA1 và array LBA2 (128 entries x128 byte), so GUID đầy đủ 16 byte và dùng partition đầu tiên khớp. Không guest CRC, backup comparison, overlap validation toàn bảng hoặc phát hiện BIOS GUID trùng; phần đó được để cho kế hoạch M05, không coi Stage1 là parser dữ liệu không đáng tin cậy hoàn chỉnh.
+Stage1 chỉ INT13 EDD 512, hard-disk DL>=80h; capacity phải <2^32 sectors, từ chối high dword, không truncate hoặc CHS fallback. Đọc GPT header LBA1 và array LBA2 (128 entries x128 byte), so GUID đầy đủ 16 byte và dùng partition đầu tiên khớp. Không guest CRC, backup comparison, overlap validation toàn bảng hoặc phát hiện BIOS GUID trùng; Stage2 M05 bổ sung phần đó, không coi Stage1 là parser dữ liệu không đáng tin cậy hoàn chỉnh.
 
 | Vùng | Physical range |
 |---|---|

@@ -41,6 +41,14 @@ jobs:
           cmake -S tests/boot -B build/m03-sanitize -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLAMIX_SANITIZERS=ON -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m03-sanitize
           ctest --test-dir build/m03-sanitize --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m03/ctest-sanitize.xml"
+      - name: M05 host parsers Debug/Release và sanitizers
+        run: |
+          for mode in Debug Release; do
+            cmake -S tests/bios_stage2 -B "build/m05-host-$mode" -G Ninja -DLAMIX_STAGE2_HOST_ONLY=ON -DCMAKE_BUILD_TYPE="$mode" -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+            ctest --test-dir "build/m05-host-$mode" --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m05/host-ctest-$mode.xml"
+          done
+          cmake -S tests/bios_stage2 -B build/m05-sanitize -G Ninja -DLAMIX_STAGE2_HOST_ONLY=ON -DLAMIX_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          ctest --test-dir build/m05-sanitize --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m05/host-ctest-sanitize.xml"
       - name: Kiểm tra tài liệu
         run: |
           python3 scripts/validate_docs.py
@@ -54,4 +62,14 @@ jobs:
             out/m03/*.xml
             out/m03/*.json
             build/m03-*/Testing/Temporary/*.log
+          if-no-files-found: warn
+      - name: Lưu M05 host evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m05-host-reports
+          path: |
+            out/m05/host*.xml
+            build/m05-host-*/native-host/host.log
+            build/m05-sanitize/native-host/host.log
           if-no-files-found: warn

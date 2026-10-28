@@ -1,52 +1,50 @@
-# Bàn giao đóng M04 — 2026-10-27
+# M05 — BIOS Stage2 chờ review, 2026-10-28
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=VERIFYING
 
-Người dùng đã xác nhận hoàn thành và duyệt tag/merge/bàn giao. M05 vẫn PLANNED, chưa được phép bắt đầu trong lượt đóng này. M04 là BIOS bootloader smoke, chưa chứng minh Lamix OS boot.
+Người dùng duyệt triển khai M05. Code/local/CI đã kiểm chứng, đang chờ review và xác nhận hoàn thành riêng; chưa DONE/tag/merge. M06/M07/M08 chưa triển khai. Đây là BIOS→ELF kernel probe, chưa phải kernel sản phẩm hoặc OS hoàn chỉnh.
 
 ## Git và phạm vi
 
-- Commit nghiệm thu: `1c2f001896327d06a3875fa5b7443f847ae2ad7f`; code M04 tại `72df89001b3787067fd27cb9dfc9c1bde8c1ab40`.
-- Annotated `milestone/M04`: tag object `90778d4b630c9fe5292f5d43c49cd6a91b8670b7`, peeled commit đúng SHA nghiệm thu; đã push. Không di chuyển sang commit tài liệu.
-- [PR #2](https://github.com/duclam2011dz/LamixOS/pull/2) đã merge, merge commit `78b5a60e54c5cdfb32f1ca32a4d4a42ece7fa78d`. Tags M00–M03 giữ nguyên.
-- Nhánh hiện hành main/origin; commit đóng thủ tục tiếp sau chỉ sửa tài liệu. Lấy HEAD thực bằng git rev-parse HEAD, không tạo vòng lặp ghi SHA của chính handoff.
+- Nhánh feat/m05-bios-stage2, base main/origin `ab2d1e524919f838dce6fbc5412fc70b58274562`.
+- Code hiện tại: `0a0f496496380f4bc34ce1536a6000f218cb1a77`, đã push vào [PR #3](https://github.com/duclam2011dz/LamixOS/pull/3), open/chưa merge. Commit đầu 68cbd48 có CI xanh nhưng được sửa tiếp sau review segment bounds, không dùng nó thay nghiệm thu revision mới.
+- Annotated M04 object `90778d4b630c9fe5292f5d43c49cd6a91b8670b7` giữ peeled `1c2f001896327d06a3875fa5b7443f847ae2ad7f`. Tags M00–M04 không đổi.
+- Bản handoff thuộc commit tài liệu tiếp sau code. Lấy HEAD thật bằng git rev-parse HEAD và [PR checks](https://github.com/duclam2011dz/LamixOS/pull/3/checks), không tạo vòng lặp ghi SHA của chính handoff. CI code dưới đây không thay CI HEAD tài liệu mới.
 
-Stage1/probe, sparse fixtures, harness bios-stage1 và CI theo [kế hoạch](../PLANS.md), [audit](BIOS_STAGE1.md), [TESTING](TESTING.md#bios-stage1-m04). Không đổi LBP/GPT M03 hoặc triển khai Stage2/kernel/UEFI loader.
+Stage2 bootstrap32 KiB/core C32, BIOS thunk/E820/A20, GPT/FAT32/ELF parser và allocator callback, loader reservations/page tables/LBP, probe64. Stage1 source/hash/440 byte và LBP/GPT M03 giữ nguyên. Xem [audit](BIOS_STAGE2.md), [kế hoạch](../PLANS.md), [lệnh tests](TESTING.md#bios-stage2-m05). Formatter sparse8 GiB chỉ test-only, không mount/device/overwrite/generator sản phẩm.
 
-## Gate và kiểm chứng local
+## Bằng chứng local
 
-Baseline 539 byte bị assembler chặn, chưa từng boot. Vòng A 494→B 467→C 436; binary 440 byte, padding 4. Sửa DL sau UART, bố trí error branches, REP full comparisons, EBP giữ capacity, DAP stack căn 4 và message data riêng. Không bỏ checks hoặc dùng external helper/self-modifying code. Baseline/group source/listings, logs và gate.json ở out/m04 ignored; listing cuối ở build/m04/stage1.lst.
-
-| Kiểm tra đã chạy | Kết quả |
+| Nhóm | Kết quả |
 |---|---|
-| Gate NASM và review tĩnh | PASS 436/440 byte; binary 440; matrix source ở BIOS_STAGE1 |
-| M04 CTest | PASS 2 suites; 15 host tests và 69 guest cases (3 positives, 66 expected PANIC negatives) |
-| Metadata/payload/probe | Header 32 bytes, GUID 16 bytes, high/bounds/window/trailer errors đúng reason |
-| QEMU EIO thật | PASS negative case, blkdebug sector payload+31 nhận R, không success marker |
-| Protected extents/firmware/cleanup | PASS; snapshot, hashes và no forced cleanup/reaped group |
-| Host regression | PASS 203 tests, 71 qemu cases deselected |
-| Validator/unittest | PASS validator và 30 tests |
-| M01 | PASS Debug/Release/ELF/provenance và SHA-256 giữa hai source roots |
-| M03 | PASS CTest 4/4, native ASan/UBSan 3/3 và cross compile-only |
-| M02 | PASS 33 fixtures, 2 BIOS/UEFI paused launches; 2 OS skeleton SKIPPED/77 |
-| OS boot BIOS/UEFI | SKIPPED/77, không có image OS mặc định |
-| Unsupported EDD/4Kn/DL ngoài profile, BIOS sai ABI, CF=0 short count giả lập, GDB, kernel/UEFI/A-B boot | NOT RUN |
+| Compile/link32/64 và Stage1 | PASS assertions/alignment, không runtime host/libgcc64/undefined; Stage1 SHA256 a63736f43692aa428de888e6fd10979f098be29084fa79a8e4ef7ca1449296c4 |
+| Budget | PASS bootstrap32768; core Debug44528 file/176128 memory, Release37128/172032; dưới256 KiB |
+| M05 Debug/Release | PASS CTest4/4 mỗi profile; host46/guest54 (9 positives,45 expected PANIC) |
+| ASan/UBSan native | PASS CTest1/1, parsers/division/load/BSS/mutations |
+| Global host | PASS252,125 qemu deselected |
+| Tài liệu | PASS validator/33 unittest |
+| M03 | PASS CTest4/4, sanitizer3/3, cross compile-only |
+| M04 | PASS suites2/2, gồm69 guest cases |
+| M02 | PASS33 fixtures,2 BIOS/UEFI paused launches;2 OS skeleton SKIPPED/77 |
+| M01 | Local không chạy lại; Toolchain CI đã chạy reproducibility PASS |
 
-Smoke đầu EXIT 1 vì snapshot mặc định không tạo được temporary filename trên /var/tmp read-only; đã sửa TMPDIR chỉ trong environment tiến trình con sang đúng run directory, vẫn giữ snapshot. Giữ logs failure cũ, không tính nó là guest PASS. Real runs sau sửa dùng default command builder nên backend=qemu; custom host factories vẫn backend=fixture.
+Bản sửa real-mode dùng segment:offset chuẩn cho CRC/BSS/E820, tránh phụ thuộc hidden limits BIOS. Adapter inject-segments đặt lại limits64 KiB trước/sau BIOS calls; large-core zero-extend file đến70000 byte (memory budget không đổi), CRC corruption byte cuối phải fail. RO/guard nhận #PF vector0e; EIO thật ở core/FAT/kernel payload nhận DISK. Test adapters E820/A20/LBP/map có nhãn riêng, không coi là firmware thật tạo lỗi đó.
 
-out/m04 có host.xml/guest.xml/ctest.xml/regression.xml, binary.json/gate.json, serial/QMP/stderr/result.json/case.json từng run; case.json ghi expected/actual/reason và hashes trước/sau. Negative testcase PASS nghĩa nhận PANIC dự kiến, không đổi result guest thành PASS. Image/probe/firmware không upload.
+Logs/reports ignored out/m05: XML, serial/QMP/result/case/layout JSON; compiler logs/listings/maps/build.json trong build/m05 và build/m05-release. Giữ guest failure logs cũ; không dùng failed runs làm PASS. Gate-only ELF không dùng trong image. Negative guests giữ PANIC, pytest PASS nghĩa khớp expected. Source/artifact hash guard chặn binary cũ sau source changes; fixture output và compiler adapter chỉ dùng file mới.
 
-## CI và next exact action
+## CI trên code revision đã sửa
 
-Bốn workflows SUCCESS trên đúng SHA nghiệm thu `1c2f001896327d06a3875fa5b7443f847ae2ad7f`:
+Bốn workflows SUCCESS trên đúng `0a0f496496380f4bc34ce1536a6000f218cb1a77`:
 
-- [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525737668).
-- [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525737404).
-- [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525737717).
-- [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525737687).
+- [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40692182135).
+- [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40692182246).
+- [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40692182117).
+- [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40692182030).
 
-Artifact m04-reports id 12743517058 của code 72df890 đã được đọc: host15/guest69, binary436/440/padding4, 3 PASS/66 PANIC đúng expected, hashes và cleanup đúng; không có image/firmware/binary trong ZIP.
+Đã đọc ZIP m05-target-reports id12818215770: host46/guest54 mỗi profile,108 case.json/result.json (18 PASS/90 PANIC đúng expected), strict-segment/cross-segment đạt; hashes source/binary Debug/Release khớp local, protected hashes/firmware/cleanup đúng. ZIP không có binary/image/firmware. Audit: out/m05/ci-artifact-audit-0a0f496.json. Host sanitizer thuộc Boot Contract CI; không dùng artifact68cbd48 thay revision mới.
 
-Lượt đóng chỉ chạy lại validator và 30 unittest tài liệu, không chạy lại toàn bộ build/QEMU local vì không sửa code. CI commit đóng thủ tục phải kiểm tra theo HEAD thực tế sau push; kết quả nghiệm thu không thay thế CI của SHA mới.
+## Giới hạn và next exact action
 
-Next exact action: kết thúc M04; chỉ khảo sát/lập kế hoạch M05 khi người dùng yêu cầu và bật Plan Mode thật. Không có code đang dở được biết. Không tự tạo version tag, Release hoặc bắt đầu M05.
+Xác minh CI HEAD tài liệu cuối sau push, rồi chờ người dùng review PR #3/xác nhận hoàn thành riêng trước DONE/merge/tag. Không còn code đang dở được biết. Không tự bắt đầu M06, tạo tag M05/version tag hoặc Release.
+
+OS boot skeleton BIOS/UEFI vẫn SKIPPED vì chưa có image sản phẩm mặc định. UEFI M06/parity M07/kernel M08, PC thật/4Kn/EDD không hỗ trợ/firmware vi phạm ABI, GDB và NMI/SMM stress NOT RUN. Không suy ra các kết quả đó từ kernel probe/launch-only.

@@ -53,6 +53,14 @@ jobs:
         run: .venv/bin/python scripts/smoke.py --reproducible
       - name: M03 cross compile-only, không target execution
         run: .venv/bin/python scripts/check_boot_cross.py
+      - name: M05 BIOS Stage2, ELF64 và LBP guest probe
+        timeout-minutes: 10
+        run: |
+          for mode in Debug Release; do
+            cmake -S tests/bios_stage2 -B "build/m05-$mode" -G Ninja -DCMAKE_BUILD_TYPE="$mode" -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+            cmake --build "build/m05-$mode"
+            ctest --test-dir "build/m05-$mode" --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m05/ctest-$mode.xml"
+          done
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -74,4 +82,22 @@ jobs:
             out/m01/*.log
             out/m01/bootstrap/bootstrap.log
             build/*/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+      - name: Lưu M05 target/guest evidence, không upload images/firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m05-target-reports
+          path: |
+            out/m05/*.xml
+            out/m05/**/result.json
+            out/m05/**/case.json
+            out/m05/**/layout.json
+            out/m05/**/*.log
+            build/m05-Debug/*.json
+            build/m05-Release/*.json
+            build/m05-*/*.map
+            build/m05-*/*.lst
+            build/m05-*/*.log
+            build/m05-*/native-host/host.log
           if-no-files-found: warn
