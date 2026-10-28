@@ -66,4 +66,4 @@ Stage1 NASM và fixture tests: [đặc tả/audit](docs/BIOS_STAGE1.md), [lệnh
 
 ## BIOS Stage2 M05
 
-BIOS loader nạp ELF64 từ ESP FAT32 và chuyển vào kernel probe qua LBP v1; [audit/giới hạn](docs/BIOS_STAGE2.md), [kiểm thử](docs/TESTING.md#bios-stage2-m05). M05 VERIFYING: local và bốn workflows code68cbd48 PASS; [PR #3](https://github.com/duclam2011dz/LamixOS/pull/3) chờ review/xác nhận nghiệm thu, chi tiết tại handoff. Chưa có kernel sản phẩm M08, UEFI M06 hoặc generator M07.
+BIOS loader nạp ELF64 từ ESP FAT32 và chuyển vào kernel probe qua LBP v1; [audit/giới hạn](docs/BIOS_STAGE2.md), [kiểm thử](docs/TESTING.md#bios-stage2-m05). M05 VERIFYING: local và bốn workflows code0a0f496 PASS; [PR #3](https://github.com/duclam2011dz/LamixOS/pull/3) chờ review/xác nhận nghiệm thu, chi tiết tại handoff. Chưa có kernel sản phẩm M08, UEFI M06 hoặc generator M07.
