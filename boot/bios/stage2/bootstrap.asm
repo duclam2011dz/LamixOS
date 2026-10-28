@@ -16,6 +16,9 @@ start:
     mov [fs:STATE], dl
     mov [fs:STATE+4], esi
     mov [fs:STATE+8], edi
+%ifdef LAMIX_TEST_SEGMENT_LIMITS
+    call clamp_limits
+%endif
     sti
     ; Header constants, reserved và CRC trước khi dùng sizes.
     cmp dword [HEADER], 'LAMI'
@@ -85,6 +88,9 @@ start:
     mov edx, 0x534d4150
     mov ecx, 24
     int 0x15
+%ifdef LAMIX_TEST_SEGMENT_LIMITS
+    call clamp_limits
+%endif
     jc bad_e820
 %ifdef LAMIX_TEST_E820_BAD
     xor eax, eax
@@ -151,15 +157,18 @@ start:
     mov ebx, 0x105000
     call safe_page
     push ds
-    xor ax, ax
+    push es
+    mov ax, 0x1200
     mov ds, ax
+    mov ax, 0x1800
     mov es, ax
-    mov esi, 0x12000
-    mov edi, 0x18000
-    mov ecx, [fs:STATE+16]
-    imul ecx, 24
+    xor si, si
+    xor di, di
+    mov cx, [fs:STATE+16]
+    imul cx, 24
     cld
-    a32 rep movsb
+    rep movsb
+    pop es
     pop ds
 %ifdef LAMIX_TEST_A20_FAIL
     jmp bad_a20
@@ -169,6 +178,9 @@ start:
     jnz .a20_ok
     mov ax, 0x2401
     int 0x15
+%ifdef LAMIX_TEST_SEGMENT_LIMITS
+    call clamp_limits
+%endif
     call a20_test
     test al, al
     jnz .a20_ok
@@ -189,6 +201,9 @@ start:
     mov dl, [STATE]
     mov ah, 0x48
     int 0x13
+%ifdef LAMIX_TEST_SEGMENT_LIMITS
+    call clamp_limits
+%endif
     pop ds
     jc bad_disk
     cmp word [fs:0x5118], 512
@@ -228,12 +243,23 @@ start:
     add edi, [HEADER+16]
     mov ecx, [HEADER+20]
     sub ecx, [HEADER+16]
-    xor eax, eax
     push es
-    xor dx, dx
-    mov es, dx
-    cld
-    a32 rep stosb
+    mov eax, edi
+    shr eax, 4
+    mov es, ax
+    and di, 15
+    jecxz .zero_done
+.zero_bss:
+    mov byte [es:di], 0
+    inc di
+    jnz .zero_next
+    mov ax, es
+    add ax, 0x1000
+    mov es, ax
+.zero_next:
+    dec ecx
+    jnz .zero_bss
+.zero_done:
     pop es
     mov eax, [HEADER+20]
     add eax, 0x20000
@@ -258,18 +284,21 @@ start:
 ; EBX=page physical. Mọi overlapping nonusable descriptor đều từ chối;
 ; yêu cầu ít nhất một usable descriptor bao phủ toàn page.
 safe_page:
+    push es
     pushad
-    mov esi, 0x12000
+    mov ax, 0x1200
+    mov es, ax
+    xor esi, esi
     mov ecx, [fs:STATE+16]
     xor edi, edi
 .next:
-    test dword [fs:esi+20], 1
+    test dword [es:esi+20], 1
     jz .skip
-    cmp dword [fs:esi+4], 0
+    cmp dword [es:esi+4], 0
     jne .skip
-    mov eax, [fs:esi]
-    mov edx, [fs:esi+8]
-    cmp dword [fs:esi+12], 0
+    mov eax, [es:esi]
+    mov edx, [es:esi+8]
+    cmp dword [es:esi+12], 0
     jne .long
     add edx, eax
     jc .long
@@ -283,9 +312,9 @@ safe_page:
     add ebp, 4096
     cmp eax, ebp
     jae .skip
-    cmp dword [fs:esi+16], 1
+    cmp dword [es:esi+16], 1
     jne bad_e820
-    test dword [fs:esi+20], 2
+    test dword [es:esi+20], 2
     jnz bad_e820
     cmp eax, ebx
     ja .skip
@@ -298,6 +327,7 @@ safe_page:
     test edi, edi
     jz bad_e820
     popad
+    pop es
     ret
 
 a20_test:
@@ -344,6 +374,9 @@ read_chunk:
     mov dl, [STATE]
     mov ah, 0x42
     int 0x13
+%ifdef LAMIX_TEST_SEGMENT_LIMITS
+    call clamp_limits
+%endif
     pop ds
     jc .failed
     mov ax, [read_count]
@@ -355,6 +388,9 @@ read_chunk:
     mov dl, [fs:STATE]
     xor ax, ax
     int 0x13
+%ifdef LAMIX_TEST_SEGMENT_LIMITS
+    call clamp_limits
+%endif
     jmp .retry
 .done:
     ret
@@ -362,12 +398,22 @@ read_chunk:
 ; EDI physical, ECX byte count, return EAX IEEE CRC32.
 crc32:
     push ds
-    xor ax, ax
-    mov ds, ax
+    mov edx, edi
+    shr edx, 4
+    mov ds, dx
+    mov si, di
+    and si, 15
     mov eax, 0xffffffff
 .byte:
-    xor al, [edi]
-    inc edi
+    xor al, [si]
+    inc si
+    jnz .same_segment
+    push ax
+    mov ax, ds
+    add ax, 0x1000
+    mov ds, ax
+    pop ax
+.same_segment:
     mov dx, 8
 .bit:
     shr eax, 1
@@ -420,6 +466,52 @@ puts:
     jmp puts
 .done: ret
 
+%ifdef LAMIX_TEST_SEGMENT_LIMITS
+; Adapter test-only: giữ GPR/flags/visible selectors, reset hidden limits64KiB
+; trước và sau firmware; SS=0 là invariant bootstrap/thunk.
+clamp_limits:
+    pushfd
+    cli
+    pushad
+    push ds
+    push es
+    push fs
+    push gs
+    in al, 0x70
+    mov [cs:limit_nmi], al
+    or al, 0x80
+    out 0x70, al
+    lgdt [cs:gdtr]
+    lidt [cs:protected_idtr]
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
+    jmp 0x18:limits_protected
+limits_protected:
+    mov ax, 0x20
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    mov eax, cr0
+    and eax, 0xfffffffe
+    mov cr0, eax
+    jmp 0x1000:limits_real
+limits_real:
+    xor ax, ax
+    mov ss, ax
+    lidt [cs:real_idtr]
+    mov al, [cs:limit_nmi]
+    out 0x70, al
+    pop gs
+    pop fs
+    pop es
+    pop ds
+    popad
+    popfd
+    ret
+%endif
 align 8
 gdt:
     dq 0, 0x00cf9a000000ffff, 0x00cf92000000ffff
@@ -436,6 +528,9 @@ read_count: dw 0
 load_segment: dw 0
 calls: dw 0
 attempts: db 0
+%ifdef LAMIX_TEST_SEGMENT_LIMITS
+limit_nmi: db 0
+%endif
 failure: db 'M05:FAIL',10,0
 reason_s2: db 'S2',10,0
 reason_e820: db 'E820',10,0
@@ -495,6 +590,9 @@ thunk_real:
     mov dl, [0x5000]
     mov ah, 0x42
     int 0x13
+%ifdef LAMIX_TEST_SEGMENT_LIMITS
+    call clamp_limits
+%endif
     jc .failed
     mov ax, [0x5044]
     cmp [0x5122], ax
@@ -507,6 +605,9 @@ thunk_real:
     mov dl, [0x5000]
     xor ax, ax
     int 0x13
+%ifdef LAMIX_TEST_SEGMENT_LIMITS
+    call clamp_limits
+%endif
     jmp .retry
 .done:
     cli

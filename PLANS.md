@@ -17,7 +17,8 @@ GPT được kiểm cả hai bản/CRC/overlap; ESP FAT32 chỉ đọc, kernel-o
 - [x] GPT/FAT32/ELF/allocation/BootInfo: host Debug/Release/sanitizer.
 - [x] Paging/transition/higher-half entry: probe kiểm contract thật.
 - [x] Guest positive/negative/EIO/fault probes và regression liên quan.
-- [ ] CI xanh đúng SHA, review và tài liệu; tag cần xác nhận riêng.
+- [x] Bốn CI SUCCESS trên code68cbd48; đã đọc/đối chiếu host/target artifacts và cập nhật tài liệu.
+- [ ] CI HEAD tài liệu cuối và review/người dùng xác nhận hoàn thành riêng; tag cần xác nhận riêng.
 
 ## Kiểm thử và rollback
 
@@ -29,4 +30,6 @@ Nếu vượt size, thiếu RAM bootstrap, không link ABI32 đúng hoặc cần
 
 ## Kết quả trước PR
 
-Local PASS: Debug/Release CTest4/4 (host45, guest51 mỗi profile), native ASan/UBSan1/1, global host251/122 qemu deselected, validator/33 unittest; M03 native4/4/sanitizer3/3/cross, M04 suites2/2 và M02 fixtures/paused launches. OS skeleton2 cases SKIPPED. CI M05 PENDING trước push; không dùng baseline CI thay SHA mới.
+Local PASS: Debug/Release CTest4/4 (host46, guest54 mỗi profile), native ASan/UBSan1/1, global host252/125 qemu deselected, validator/33 unittest; M03 native4/4/sanitizer3/3/cross, M04 suites2/2 và M02 fixtures/paused launches. OS skeleton2 cases SKIPPED. Bốn CI code68cbd48 SUCCESS; [PR #3](https://github.com/duclam2011dz/LamixOS/pull/3) chờ review. CI HEAD tài liệu cuối phải xác minh theo SHA thực, không lặp commit để tự ghi SHA handoff.
+
+Review sau CI đầu phát hiện real-mode offset32 vượt64 KiB; sửa trong cùng contract bằng segment:offset chuẩn. Bổ sung strict-limit/cross-segment fixtures; CI HEAD sửa phải được xác minh lại, không dùng CI68cbd48 làm nghiệm thu thay thế.

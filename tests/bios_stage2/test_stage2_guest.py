@@ -39,6 +39,8 @@ CASES += [(v,'kernel.elf',256,None,'GPT') for v in ('gpt-overlap','gpt-duplicate
 CASES += [(v,'kernel.elf',256,None,'ELF') for v in ('elf-paddr','elf-wx','elf-entry','elf-overlap','elf-wrap','elf-dynamic')]
 CASES += [(v,'kernel.elf',256,None,'FAT') for v in ('dir-loop','fat-free','fat-short')]
 
+CASES += [('inject-segments','kernel.elf',256,None,None),('large-core','kernel.elf',256,None,None),('large-core-crc','kernel.elf',256,None,'S2')]
+
 @pytest.mark.qemu
 @pytest.mark.parametrize('variant,kernel,ram,cpu,reason',CASES)
 def test_bios_stage2_contract(tmp_path,stage2_build,variant,kernel,ram,cpu,reason):
@@ -48,6 +50,7 @@ def test_bios_stage2_contract(tmp_path,stage2_build,variant,kernel,ram,cpu,reaso
         fault=variant.removeprefix('inject-');stage2_build=stage2_build/('fault-'+fault)
         subprocess.run([sys.executable,str(ROOT/'tests/bios_stage2/build_stage2.py'),'--build',str(stage2_build),'--test-fault',fault,'--profile',profile],check=True)
     manifest=create_stage2_image(image,stage2_build,kind,kernel);before=hashes(image,manifest)
+    if variant.startswith('large-core'):assert manifest['core_file_bytes']>65536
     firmware=Path('/usr/share/seabios/bios.bin');fw=hashlib.sha256(firmware.read_bytes()).hexdigest()
     error=manifest.get({'io-core':'core_sector','io-fat':'fat_sector','io-kernel':'kernel_sector'}.get(variant,''))
     result=run(Config(purpose='bios-stage2',image=image,success_marker='M05:PASS',panic_marker='M05:FAIL',timeout=15,output_root=ROOT/'out/m05',

@@ -4,6 +4,7 @@ import hashlib
 from pathlib import Path
 import struct
 import sys
+import tempfile
 import zlib
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'tests/boot'))
@@ -15,6 +16,7 @@ def create_stage2_image(path,build,variant='valid',kernel='kernel.elf'):
     path=Path(path);parent=path.parent.resolve(strict=True)
     if not any(parent.is_relative_to(p) for p in (ROOT/'build',ROOT/'out',Path('/tmp'))):raise ValueError('fixture path ngoài build/out/tmp')
     path=parent/path.name;build=Path(build)
+    if path.exists() or path.is_symlink():raise FileExistsError(path)
     p,b,entries,back,pmbr,size,block=fixtures()
     validate(p,b,entries,back,pmbr,size,block)
     stage1=(build/'stage1.bin').read_bytes()
@@ -29,6 +31,12 @@ def create_stage2_image(path,build,variant='valid',kernel='kernel.elf'):
         struct.pack_into('<I',stage,32704+36,0);struct.pack_into('<I',stage,32704+36,zlib.crc32(stage[32704:32768]))
     if variant=='header-crc':stage[32704+36]^=1
     if variant=='core-crc':stage[32768+4]^=1
+    if variant in ('large-core','large-core-crc'):
+        core=bytes(stage[32768:]).ljust(70000,b'\0');stage=stage[:32768]+core
+        struct.pack_into('<I',stage,32704+16,len(core));struct.pack_into('<I',stage,32704+32,zlib.crc32(core))
+        struct.pack_into('<I',stage,32704+36,0);struct.pack_into('<I',stage,32704+36,zlib.crc32(stage[32704:32768]))
+        if variant.endswith('-crc'):stage[-1]^=1
+
     if variant=='elf-magic':elf[0]=0
     if variant in ('note-required-nx','note-required-acpi'):
         phoff=struct.unpack_from('<Q',elf,32)[0];stride,count=struct.unpack_from('<HH',elf,54)
@@ -49,10 +57,12 @@ def create_stage2_image(path,build,variant='valid',kernel='kernel.elf'):
     if variant.startswith('inject-'):
         import subprocess
         flag={'inject-e820-bad':'LAMIX_TEST_E820_BAD','inject-e820-truncated':'LAMIX_TEST_E820_TRUNCATED',
-              'inject-e820-overflow':'LAMIX_TEST_E820_OVERFLOW','inject-a20':'LAMIX_TEST_A20_FAIL'}[variant]
-        artifact=path.with_suffix('.bootstrap.bin')
-        subprocess.run(['nasm','--reproducible','-f','bin','-D'+flag+'=1','-o',str(artifact),str(ROOT/'boot/bios/stage2/bootstrap.asm')],check=True)
-        prefix=bytearray(artifact.read_bytes());prefix[-64:]=stage[32704:32768];stage=prefix+stage[32768:]
+              'inject-e820-overflow':'LAMIX_TEST_E820_OVERFLOW','inject-a20':'LAMIX_TEST_A20_FAIL','inject-segments':'LAMIX_TEST_SEGMENT_LIMITS'}[variant]
+        with tempfile.TemporaryDirectory(prefix='m05-adapter-',dir=parent) as temporary:
+            artifact=Path(temporary)/'bootstrap.bin'
+            subprocess.run(['nasm','--reproducible','-f','bin','-D'+flag+'=1','-o',str(artifact),str(ROOT/'boot/bios/stage2/bootstrap.asm')],check=True)
+            prefix=bytearray(artifact.read_bytes())
+        prefix[-64:]=stage[32704:32768];stage=prefix+stage[32768:]
     if variant in ('gpt-overlap','gpt-duplicate','gpt-guid'):
         if variant=='gpt-overlap':struct.pack_into('<Q',entries,128+32,2048)
         if variant=='gpt-duplicate':entries[3*128:3*128+16]=entries[:16]
@@ -120,7 +130,7 @@ def create_stage2_image(path,build,variant='valid',kernel='kernel.elf'):
     first_load=next(phoff+i*stride for i in range(count) if struct.unpack_from('<I',elf,phoff+i*stride)[0]==1)
     payload_index=struct.unpack_from('<Q',elf,first_load+8)[0]//512
     if payload_index>=len(chain):raise ValueError('fixture ELF payload ngoài chain')
-    return dict(extents=manifest,core_sector=2048+64,fat_sector=esp+32,kernel_sector=esp+data_start+chain[payload_index]-2,
+    return dict(core_file_bytes=struct.unpack_from('<I',stage,32704+16)[0],extents=manifest,core_sector=2048+64,fat_sector=esp+32,kernel_sector=esp+data_start+chain[payload_index]-2,
                 allocated_bytes=path.stat().st_blocks*512)
 
 

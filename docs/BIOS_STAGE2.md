@@ -37,7 +37,7 @@ Lưu drive/start/end ngay entry. Thu E820 qua buffer trong cửa sổ Stage1 đ�
 
 A20 kiểm alias có save/restore bytes tại5000/105000, xác minh RAM vùng thử trước. Nếu chưa bật: INT15 AX2401, rồi port92 bảo vệ reset bit; kiểm lại, fail đóng, không 8042 wait vô hạn.
 
-Thunk C32→16 protected→real→32 dùng GDT/IDT phù hợp; BIOS IVT chỉ được nạp khi chuẩn bị real mode. Mask NMI trong cửa sổ đổi mode/table, khôi phục sau IDT hợp lệ; IF tắt trong core, BIOS được phép dùng IRQ trong real mode. DAP mới mỗi attempt, request tối đa64 sectors, CF/count mismatch fail, tối đa3 attempts/reset. Không dựa vào unreal mode. Firmware vi phạm BIOS register ABI chưa được chứng minh chịu đựng.
+Thunk C32→16 protected→real→32 dùng GDT/IDT phù hợp; BIOS IVT chỉ được nạp khi chuẩn bị real mode. Mask NMI trong cửa sổ đổi mode/table, khôi phục sau IDT hợp lệ; IF tắt trong core, BIOS được phép dùng IRQ trong real mode. DAP mới mỗi attempt, request tối đa64 sectors, CF/count mismatch fail, tối đa3 attempts/reset. Không dựa vào unreal mode: CRC/BSS advance segment khi offset16 wrap; raw E820 đọc qua ES:offset trong64 KiB. Không dùng DS=0 với physical offset32 vượt64 KiB ở real mode. Firmware vi phạm BIOS register ABI chưa được chứng minh chịu đựng.
 
 Allocator loader first-fit pages từ normalized USABLE, dưới4 GiB và từ1 MiB trở lên; ghi reservation trước khi dùng. Không cấp low1 MiB, holes/firmware/ACPI/runtime/nonvolatile. BootInfo1 MiB, stack64 KiB có guard4 KiB, pool page tables512 KiB và emergency stack8 KiB là giới hạn bootstrap, không phải kernel allocator. Low RAM được bảo vệ trong map cuối; reservations chỉ áp dụng vùng loader thật sự sở hữu, normalization xác minh provenance.
 
@@ -61,3 +61,7 @@ Kiểm magic/registers/flags/CR0/3/4/EFER/selectors/GDT descriptor, stack alignm
 Tham khảo lệnh, CI và giới hạn ở [TESTING](TESTING.md#bios-stage2-m05). Fixtures chỉ test-only sparse image mới, không mount/loop/device/overwrite. E820/A20 adapters và LBP/map corruption variants có macro test-only rõ; không coi chúng là lỗi firmware thật đã kiểm chứng. Guest negatives giữ PANIC trong JSON, pytest PASS chỉ nghĩa khớp expected.
 
 Nguồn kỹ thuật: [ACPI E820](https://uefi.org/specs/ACPI/6.6/15_System_Address_Map_Interfaces.html), [UEFI FAT/path](https://uefi.org/specs/UEFI/2.10/13_Protocols_Media_Access.html), [ELF gABI](https://www.sco.com/developers/gabi/latest/ch5.pheader.html), [Intel SDM](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html). Policy/limits/layout nội bộ Stage2 là lựa chọn Lamix được duyệt. Không nhập mã firmware hoặc compiler runtime bên thứ ba.
+
+## Review segment bounds
+
+Review sau CI đầu 68cbd48 phát hiện offset32 real-mode có thể phụ thuộc hidden segment state. Đã chuyển sang segment:offset chuẩn; test adapter inject-segments nạp tường minh các segment limits64 KiB qua protected16 rồi trở lại real mode trước và sau mỗi BIOS call. Fixture large-core zero-extend file core đến70000 byte (memory budget giữ nguyên), tính CRC lại để kiểm crossing64 KiB; large-core-crc làm hỏng byte cuối phải bị chặn. Các fixture này chỉ kiểm bootstrap, không thay compiler artifact/kernel ABI. CI68cbd48 là bằng chứng lịch sử, không thay nghiệm thu HEAD đã sửa.

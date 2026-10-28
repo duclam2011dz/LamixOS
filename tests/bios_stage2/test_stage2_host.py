@@ -148,3 +148,11 @@ def test_shared_elf_load_transaction(loader_lib,failure):
             s=plan.segments[i]
             assert b.raw[:s.filesz]==image[s.offset:s.offset+s.filesz]
             assert not any(b.raw[s.filesz:loaded[i].length])
+
+
+def test_adapter_refuses_existing_image_before_compilation(tmp_path,synthetic_build,monkeypatch):
+    def forbidden_compile(*args,**kwargs):raise AssertionError('không compile khi output đã tồn tại')
+    monkeypatch.setattr(subprocess,'run',forbidden_compile)
+    image=tmp_path/'existing.img';image.write_bytes(b'KEEP USER DATA')
+    with pytest.raises(FileExistsError):create_stage2_image(image,synthetic_build,'inject-segments')
+    assert image.read_bytes()==b'KEEP USER DATA'
