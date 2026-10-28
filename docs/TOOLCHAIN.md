@@ -66,3 +66,7 @@ Toolchain CI chạy trên ubuntu-22.04, Python 3.12; Documentation CI tiếp t�
 Host GCC/G++ chỉ dùng để chạy tests và shared library validation; không được dùng thay cross compiler cho target. M03 CMake độc lập tại tests/boot, không thay entry/linker script sample M01. `python scripts/check_boot_cross.py` dùng toolchain M01, compile static archive và kiểm tra undefined symbols; không yêu cầu i686 hoặc bootstrap lại toolchain.
 
 Flags target M03 gồm freestanding/no builtin/no stack protector/no red-zone/general-registers-only/no PIE, C++ không exceptions/RTTI. Headers dùng stdint/stddef do compiler cung cấp; không link libc/libstdc++. [TESTING](TESTING.md) có lệnh Debug/Release/sanitizer/cross cụ thể.
+
+## M05 C32 và kernel probe64
+
+Suite độc lập tests/bios_stage2 dùng cross GCC hiện có -m32 -malign-double và GNU LD elf_i386, không i686 bootstrap/libgcc64. Helpers unsigned division có oracle host và vectors thực thi core32. Kernel probe dùng -m64 -mcmodel=kernel -mno-red-zone -mgeneral-regs-only; linker checks và no undefined/runtime vẫn bắt buộc. Gate artifacts gate-core.elf/gate-probe.elf chỉ compile/link, không đưa vào image. Kernel.elf thực tế là probe khác, có entry-state/page-walk checks; [TESTING](TESTING.md#bios-stage2-m05) có lệnh target/host/sanitizer. Không thay sample/repro inputs M01.

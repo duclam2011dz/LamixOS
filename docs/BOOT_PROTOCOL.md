@@ -1,6 +1,6 @@
 # Lamix Boot Protocol v1.0
 
-Contract M03 được duyệt ngày 2026-10-26. Headers và thư viện validation/normalization đã triển khai; BIOS Stage1 M04 có smoke test riêng; Stage2/UEFI loader/kernel và kernel handoff **chưa triển khai**. Kết quả kiểm chứng ở [handoff](SESSION_HANDOFF.md); không coi host tests là OS boot.
+Contract M03 được duyệt ngày 2026-10-26. Headers và thư viện validation/normalization đã triển khai; BIOS Stage1 M04 có smoke test riêng; M05 có Stage2 BIOS và kernel probe handoff local; UEFI loader và kernel sản phẩm **chưa triển khai**. Kết quả kiểm chứng ở [handoff](SESSION_HANDOFF.md); không coi host tests là OS boot.
 
 ## Encoding và cấu trúc
 
@@ -65,7 +65,7 @@ Normalizer kiểm tra provenance trước overlay; validator BootInfo không th�
 
 ## Entry ABI và mappings
 
-Đây là nghĩa vụ producer/consumer cho M05–M07; chưa có boot test:
+Đây là nghĩa vụ producer/consumer cho M05–M07; BIOS probe M05 đã có local tests, UEFI/boot parity chưa kiểm chứng:
 
 - BSP x86_64 ring0/long mode, `CR0.PE=PG=WP=1`, `CR4.PAE=1`, LA57=0; paging 4 cấp. `EFER.LME/LMA=1`; NXE bật nếu provided NX=1, mọi mapping không executable được đặt NX khi khả dụng.
 - Kernel ELF64 ET_EXEC, virtual segments/entry trong `[0xffffffff80000000, 0xffffffffffffffff]`, range không wrap; chưa KASLR. Kernel load segments là page-disjoint để không tạo RWX page.
@@ -104,3 +104,7 @@ Status numeric: OK=0, INVALID=1, TRUNCATED=2, OVERFLOW=3, UNSUPPORTED=4, CONFLIC
 - [Intel SDM](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html): CPU/paging; [x86-64 psABI](https://gitlab.com/x86-psABIs/x86-64-ABI): quy ước gọi tham chiếu. Entry profile/register choices là contract Lamix riêng.
 
 Các bản mirror HTML/PDF có thể trả 403/404; không coi chúng là bằng chứng đã đọc hết CPU/psABI specification. Host assertions và mutation tests không chứng minh CPU state, firmware execution, ownership enforcement hoặc OS boot. Những điều đó phải kiểm chứng thật tại M05–M07.
+
+## Producer BIOS M05
+
+[Stage2](BIOS_STAGE2.md) tạo năm records bắt buộc và gọi validator trước handoff, kernel probe kiểm lại state CPU/mappings thật. ELF producer profile yêu cầu p_paddr0; loader cấp physical dưới4 GiB. Serial bootstrap không phát modules/framebuffer/ACPI; required ACPI/framebuffer bị từ chối, NX phản ánh khả năng và state thật. Đây là phần thực thi BIOS của contract, không đổi ABI v1 hoặc chứng minh UEFI parity.

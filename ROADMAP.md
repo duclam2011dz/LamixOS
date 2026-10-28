@@ -3,10 +3,10 @@
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
 > **Cập nhật:** 2026-10-26  
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05–M44 PLANNED; chưa có kernel hoặc OS boot
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 VERIFYING; M06–M44 PLANNED; chưa có kernel hoặc OS boot
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=VERIFYING
 
 ## 0. Tầm nhìn và giới hạn
 
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 VERIFYING; M06–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -93,7 +93,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M04 — BIOS Stage 1.** **Trạng thái: DONE (2026-10-27).** Vòng tối ưu đã được duyệt; gate 436/440 byte và guest SeaBIOS positives/negatives PASS local. Regression local và bốn workflows SUCCESS trên commit code; người dùng đã xác nhận hoàn thành, PR #2 đã merge và annotated milestone/M04 đã push; chưa có OS boot, xem handoff. Mã NASM boot sector phù hợp GPT, tải stage tiếp từ BIOS Boot Partition, thông báo lỗi qua cổng phù hợp/serial khi có thể. Nghiệm thu: QEMU SeaBIOS chạy stage xác định, không đụng GPT metadata.
 
-**M05 — BIOS Stage 2 và môi trường x86_64.** BIOS disk access, memory discovery (E820), A20 nếu cần, GDT, transition 16→32→64, page tables tối thiểu, kernel ELF64 load, BootInfo LBP. Nghiệm thu: cùng kernel entry, serial boot marker, kiểm tra memory map/reserved frames.
+**M05 — BIOS Stage 2 và môi trường x86_64.** **Trạng thái: VERIFYING (2026-10-28).** Kế hoạch đã được người dùng duyệt; BIOS→ELF64/LBP probe local Debug/Release và regression PASS, CI/review còn chờ; chưa xác nhận hoàn thành. BIOS disk access, memory discovery (E820), A20 nếu cần, GDT, transition 16→32→64, page tables tối thiểu, kernel ELF64 load, BootInfo LBP. Nghiệm thu: cùng kernel entry, serial boot marker, kiểm tra memory map/reserved frames.
 
 **M06 — UEFI EFI loader tự viết.** PE/COFF x64, firmware ABI, đọc FAT32 qua UEFI Boot Services trong boot phase, nạp ELF64, framebuffer/ACPI, lấy memory map, `ExitBootServices()` chính xác, LBP handoff. Nghiệm thu: QEMU OVMF vào cùng kernel, kernel nhận cùng cấu trúc LBP v1.
 

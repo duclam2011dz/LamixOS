@@ -58,8 +58,12 @@ Launch-only dùng TCG và -S, xác minh QMP rồi đóng tiến trình. Boot ske
 
 ## Contract M03
 
-LBP v1 có headers C11/C++17, thư viện validation/normalization freestanding và host GPT model; chưa có bootloader/kernel/image. Xem [BOOT_PROTOCOL](docs/BOOT_PROTOCOL.md), [IMAGE_LAYOUT](docs/IMAGE_LAYOUT.md) và [lệnh kiểm thử](docs/TESTING.md#boot-contract-m03). Host tests và cross compile không chứng minh OS boot. Trạng thái nghiệm thu thực tế tại handoff.
+LBP v1 có headers C11/C++17, thư viện validation/normalization freestanding và host GPT model; M05 bổ sung BIOS Stage2/kernel probe test-only, chưa có kernel sản phẩm/image generator. Xem [BOOT_PROTOCOL](docs/BOOT_PROTOCOL.md), [IMAGE_LAYOUT](docs/IMAGE_LAYOUT.md) và [lệnh kiểm thử](docs/TESTING.md#boot-contract-m03). Host tests và cross compile không chứng minh OS boot. Trạng thái nghiệm thu thực tế tại handoff.
 
 ## BIOS Stage1 M04
 
-Stage1 NASM và fixture tests: [đặc tả/audit](docs/BIOS_STAGE1.md), [lệnh kiểm thử](docs/TESTING.md#bios-stage1-m04). Fixture sparse 8 GiB là test-only, không phải image OS. Trạng thái local/CI thực tế ở handoff; milestone/M04 đã push; chưa bắt đầu M05.
+Stage1 NASM và fixture tests: [đặc tả/audit](docs/BIOS_STAGE1.md), [lệnh kiểm thử](docs/TESTING.md#bios-stage1-m04). Fixture sparse 8 GiB là test-only, không phải image OS. Trạng thái local/CI thực tế ở handoff; milestone/M04 đã push; M05 đang kiểm chứng theo kế hoạch được duyệt.
+
+## BIOS Stage2 M05
+
+BIOS loader nạp ELF64 từ ESP FAT32 và chuyển vào kernel probe qua LBP v1; [audit/giới hạn](docs/BIOS_STAGE2.md), [kiểm thử](docs/TESTING.md#bios-stage2-m05). Local guest PASS không thay CI/ nghiệm thu; trạng thái tại handoff. Chưa có kernel sản phẩm M08, UEFI M06 hoặc generator M07.

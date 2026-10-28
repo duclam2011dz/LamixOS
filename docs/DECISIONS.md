@@ -32,3 +32,9 @@ Higher-half ngay từ đầu tránh đổi entry ở M10; giới hạn allocatio
 Chọn GPT 128 entries, alignment1 MiB, profile tham chiếu8 GiB với BIOS Boot2 MiB/ESP256 MiB/System A/B2 GiB mỗi slot. Boot512 byte trước; mô hình4 KiB không phải cam kết BIOS4Kn. ESP boot bundle tránh buộc loader đầu tiên hiểu filesystem System A/B; update ESP/atomic A/B còn thuộc M39. Filesystem System/User chưa đóng băng. [IMAGE_LAYOUT](IMAGE_LAYOUT.md) tách yêu cầu chuẩn với policy Lamix. Không chọn GRUB/Limine hoặc thay baseline Hybrid Kernel/driver model.
 
 Thay đổi major ABI, mapping/profile hoặc partition policy cần kế hoạch và duyệt bổ sung. Không tự tạo tag M03 hoặc bắt đầu M04.
+
+## ADR-003 — BIOS Stage2 M05 và probe dùng chung
+
+Ngày 2026-10-28, người dùng duyệt kế hoạch: C32 + BIOS thunk thay cho C64 thunk nhiều mode; bootstrap32 KiB tải core có CRC trong BIOS Boot Partition, giữ Stage1440/ABI. FAT32 chỉ đọc slot A thay cho raw ELF tạm. Kernel probe dùng lại binary cho M06, kernel sản phẩm vẫn M08. Loader cấp physical, p_paddr0, không modules/ACPI/framebuffer, NX khi có; các giới hạn chi tiết ở [BIOS_STAGE2](BIOS_STAGE2.md).
+
+Hệ quả: cần -malign-double để giữ alignment LBP32, compiler helper unsigned division tự viết/kiểm thử; thêm formatter fixture chỉ trong tests, không generator M07 hoặc filesystem ghi sản phẩm. ELF/GPT/FAT parser thuần có thể dùng lại ở loader sau; LBP wire ABI không đổi. CPU/permissions cần guest probe thật, host/compile-only không đủ nghiệm thu.

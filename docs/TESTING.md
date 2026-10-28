@@ -158,3 +158,31 @@ Harness Config thêm purpose và test_io_error_sector ở cuối để giữ pos
 [Harness CI](../.github/workflows/harness-ci.yml) thêm NASM, build/CTest M04 và m04-reports (XML/JSON/serial/QMP/listing), không bootstrap cross hoặc upload binary/image/firmware. Summary tách M02 paused launch khỏi M04 Stage1, không tuyên bố OS boot. Logs/result.json/case.json và binary.json ở out/m04; baseline/group snapshots local ignored. [BIOS_STAGE1](BIOS_STAGE1.md) có matrix source checks/ABI; run URLs và counts tại handoff.
 
 Regression gồm validator/unittest, pytest -m 'not qemu', M03 CTest/sanitizer/cross, M01 smoke --reproducible và M02 CTest. M04 không gán image OS mặc định: boot-bios/boot-uefi vẫn SKIPPED/77. GDB, actual kernel/UEFI boot và A/B recovery vẫn NOT RUN.
+
+## BIOS Stage2 M05
+
+Đường thật: SeaBIOS → Stage1440 → Stage2 bootstrap/core → ESP FAT32 → ELF64 higher-half probe/LBP. Không phải kernel sản phẩm hoặc UEFI parity. Gate compile/link artifacts riêng không bao giờ dùng làm boot payload.
+
+```bash
+. .venv/bin/activate
+cmake -S tests/bios_stage2 -B build/m05 -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+cmake --build build/m05 --verbose
+ctest --test-dir build/m05 --no-tests=error --output-on-failure --output-junit "$PWD/out/m05/ctest-Debug.xml"
+cmake -S tests/bios_stage2 -B build/m05-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+cmake --build build/m05-release
+ctest --test-dir build/m05-release --no-tests=error --output-on-failure --output-junit "$PWD/out/m05/ctest-Release.xml"
+cmake -S tests/bios_stage2 -B build/m05-sanitize -G Ninja -DLAMIX_STAGE2_HOST_ONLY=ON -DLAMIX_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+ctest --test-dir build/m05-sanitize --no-tests=error --output-on-failure --output-junit "$PWD/out/m05/ctest-sanitize.xml"
+```
+
+Host-only CI dùng LAMIX_STAGE2_HOST_ONLY=ON, không compiler cross/NASM/QEMU. CTest native chạy oracle division, parser positive/negative và header mutations; sanitizers chạy native executable, không nạp ASan vào Python ctypes. Host pytest có golden ELF bytes độc lập linker và randomized division oracle. Native sanitizer fixture binaries chỉ tạm, không upload.
+
+Target suite có gate/compiler provenance/size/hash, host tests và guest tests riêng marker qemu. Source/artifact hashes phải khớp build.json PASS; artifact cũ sau build failure không dùng để báo PASS. Config chỉ thêm purpose bios-stage2 và test-only CPU/RAM overrides (64/256/4608 MiB; qemu64 và biến thể no-NX/no-LM); không thay M02/M04 defaults. Fault injection blkdebug được giới hạn BIOS stages; negative JSON giữ PANIC, pytest PASS nghĩa đúng expected reason.
+
+Cases: RAM64/256/>4 GiB, CPU no-NX, core>32 KiB, fragmented directories/kernel, active FAT; header bounds/CRC, GPT backup/array/mirror/profile, FAT loops/free/short/mismatch, ELF/note/features/entry/physical/WX; OOM; EIO thật ở core/FAT/kernel; RO/guard faults vector0e. E820/A20 và malformed BootInfo/map adapters có nhãn test-only, không phải firmware thật tạo lỗi đó.
+
+Mỗi run có result.json/serial/QMP/stderr, case.json expected/actual và protected hashes; positives có layout.json memory/reservations/mappings từ báo cáo serial. BIOS firmware và extents đã ghi của source image phải không đổi, snapshot bật, cleanup không cưỡng bức, process group được reap. Không hash toàn bộ sparse8 GiB hoặc tuyên bố PC thật đã tương thích.
+
+Toolchain CI build/guest Debug và Release dùng cross cache sẵn; Boot Contract CI host/sanitizer; Harness CI giữ M02/M04. Lưu JUnit/logs/maps/listings/JSON, không upload images/firmware hoặc dependencies. Các kết quả thật theo SHA ở [handoff](SESSION_HANDOFF.md).
+
+Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M06/M07/M08 NOT RUN. Không gán fixture M05 làm image OS sản phẩm mặc định.

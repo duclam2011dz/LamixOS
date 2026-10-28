@@ -1,52 +1,27 @@
-# Bàn giao đóng M04 — 2026-10-27
+# M05 — BIOS Stage2 đang kiểm chứng, 2026-10-28
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=VERIFYING
 
-Người dùng đã xác nhận hoàn thành và duyệt tag/merge/bàn giao. M05 vẫn PLANNED, chưa được phép bắt đầu trong lượt đóng này. M04 là BIOS bootloader smoke, chưa chứng minh Lamix OS boot.
+Người dùng duyệt triển khai kế hoạch M05 trong Default mode. Không triển khai M06/M07/M08, không có tag M05 hoặc quyền tự merge/Release. Đây là BIOS→ELF kernel probe, chưa có kernel sản phẩm.
 
 ## Git và phạm vi
 
-- Commit nghiệm thu: `1c2f001896327d06a3875fa5b7443f847ae2ad7f`; code M04 tại `72df89001b3787067fd27cb9dfc9c1bde8c1ab40`.
-- Annotated `milestone/M04`: tag object `90778d4b630c9fe5292f5d43c49cd6a91b8670b7`, peeled commit đúng SHA nghiệm thu; đã push. Không di chuyển sang commit tài liệu.
-- [PR #2](https://github.com/duclam2011dz/LamixOS/pull/2) đã merge, merge commit `78b5a60e54c5cdfb32f1ca32a4d4a42ece7fa78d`. Tags M00–M03 giữ nguyên.
-- Nhánh hiện hành main/origin; commit đóng thủ tục tiếp sau chỉ sửa tài liệu. Lấy HEAD thực bằng git rev-parse HEAD, không tạo vòng lặp ghi SHA của chính handoff.
+Nhánh feat/m05-bios-stage2, base main/origin `ab2d1e524919f838dce6fbc5412fc70b58274562`. SHA hiện hành lấy git rev-parse HEAD; chưa ghi SHA của chính handoff qua vòng lặp. M04 tag object90778d4b630c9fe5292f5d43c49cd6a91b8670b7 giữ peeled1c2f001896327d06a3875fa5b7443f847ae2ad7f; tags M00–M04 không đổi.
 
-Stage1/probe, sparse fixtures, harness bios-stage1 và CI theo [kế hoạch](../PLANS.md), [audit](BIOS_STAGE1.md), [TESTING](TESTING.md#bios-stage1-m04). Không đổi LBP/GPT M03 hoặc triển khai Stage2/kernel/UEFI loader.
+Stage2 bootstrap32 KiB + core C32, BIOS thunk/E820/A20, GPT/FAT32/ELF parser thuần, allocator/page tables/LBP và probe64. Audit [BIOS_STAGE2](BIOS_STAGE2.md), [kế hoạch](../PLANS.md), lệnh [TESTING](TESTING.md#bios-stage2-m05). Stage1 source/hash/440 và LBP/GPT M03 giữ nguyên. Fixture formatter chỉ tests, không mount/device/overwrite hoặc generator sản phẩm.
 
-## Gate và kiểm chứng local
+## Bằng chứng hiện có
 
-Baseline 539 byte bị assembler chặn, chưa từng boot. Vòng A 494→B 467→C 436; binary 440 byte, padding 4. Sửa DL sau UART, bố trí error branches, REP full comparisons, EBP giữ capacity, DAP stack căn 4 và message data riêng. Không bỏ checks hoặc dùng external helper/self-modifying code. Baseline/group source/listings, logs và gate.json ở out/m04 ignored; listing cuối ở build/m04/stage1.lst.
+- Gate compile/link32/64: PASS; LBP alignment32 bằng -malign-double; helpers không runtime host/libgcc64, Stage1 hash a63736f43692aa428de888e6fd10979f098be29084fa79a8e4ef7ca1449296c4.
+- Debug build: core44528 byte file/176128 memory; Release37128/172032, bootstrap32768 cả hai, dưới gate256 KiB. Size mới phải lấy build.json sau source changes.
+- M05 Debug/Release: CTest4/4, host45 và guest51 PASS mỗi profile. Guest positives7 và expected PANIC44; RAM64/256/4608, no-NX, fragmentation/active FAT; negatives/EIO/RO/guard/injections đúng reason, cleanup và protected hashes.
+- Host ASan/UBSan: CTest1/1 PASS. Regression PASS: host251/122 qemu deselected, validator/33 unittest, M03 CTest4/4/sanitizer3/3/cross, M04 suites2/2 và M02 fixture/paused launches. OS skeleton2 cases SKIPPED; M01 local không chạy lại. Chưa coi CI hoặc nghiệm thu PASS.
+- Reports ignored out/m05 có XML, per-run JSON/logs và layout.json. Gate-only ELF không dùng vào boot fixture. Negative guest vẫn PANIC, không đổi thành guest PASS.
 
-| Kiểm tra đã chạy | Kết quả |
-|---|---|
-| Gate NASM và review tĩnh | PASS 436/440 byte; binary 440; matrix source ở BIOS_STAGE1 |
-| M04 CTest | PASS 2 suites; 15 host tests và 69 guest cases (3 positives, 66 expected PANIC negatives) |
-| Metadata/payload/probe | Header 32 bytes, GUID 16 bytes, high/bounds/window/trailer errors đúng reason |
-| QEMU EIO thật | PASS negative case, blkdebug sector payload+31 nhận R, không success marker |
-| Protected extents/firmware/cleanup | PASS; snapshot, hashes và no forced cleanup/reaped group |
-| Host regression | PASS 203 tests, 71 qemu cases deselected |
-| Validator/unittest | PASS validator và 30 tests |
-| M01 | PASS Debug/Release/ELF/provenance và SHA-256 giữa hai source roots |
-| M03 | PASS CTest 4/4, native ASan/UBSan 3/3 và cross compile-only |
-| M02 | PASS 33 fixtures, 2 BIOS/UEFI paused launches; 2 OS skeleton SKIPPED/77 |
-| OS boot BIOS/UEFI | SKIPPED/77, không có image OS mặc định |
-| Unsupported EDD/4Kn/DL ngoài profile, BIOS sai ABI, CF=0 short count giả lập, GDB, kernel/UEFI/A-B boot | NOT RUN |
+Các lỗi trung gian đã sửa: thiếu Ninja khi chưa activate venv, thiếu helper Debug, higher-half code model/link, fixture note sửa nhầm rodata và typo GUID host oracle phát hiện. Logs guest lỗi còn trong out/m05; compiler logs trong build mô tả build cuối. Source/artifact hash guard chặn chạy guest với binary cũ. Không dùng failed runs làm PASS.
 
-Smoke đầu EXIT 1 vì snapshot mặc định không tạo được temporary filename trên /var/tmp read-only; đã sửa TMPDIR chỉ trong environment tiến trình con sang đúng run directory, vẫn giữ snapshot. Giữ logs failure cũ, không tính nó là guest PASS. Real runs sau sửa dùng default command builder nên backend=qemu; custom host factories vẫn backend=fixture.
+## Giới hạn và next exact action
 
-out/m04 có host.xml/guest.xml/ctest.xml/regression.xml, binary.json/gate.json, serial/QMP/stderr/result.json/case.json từng run; case.json ghi expected/actual/reason và hashes trước/sau. Negative testcase PASS nghĩa nhận PANIC dự kiến, không đổi result guest thành PASS. Image/probe/firmware không upload.
+CI M05 PENDING, chưa push/PR trong snapshot handoff này. Bốn workflows baseline M04 đã SUCCESS trên ab2d1e5, không dùng thay CI SHA M05. Tiếp theo: hoàn tất regression/review, commit/push branch và mở PR; xác minh bốn workflows đúng SHA, cập nhật handoff theo kết quả rồi chờ người dùng review/xác nhận hoàn thành riêng.
 
-## CI và next exact action
-
-Bốn workflows SUCCESS trên đúng SHA nghiệm thu `1c2f001896327d06a3875fa5b7443f847ae2ad7f`:
-
-- [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525737668).
-- [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525737404).
-- [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525737717).
-- [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40525737687).
-
-Artifact m04-reports id 12743517058 của code 72df890 đã được đọc: host15/guest69, binary436/440/padding4, 3 PASS/66 PANIC đúng expected, hashes và cleanup đúng; không có image/firmware/binary trong ZIP.
-
-Lượt đóng chỉ chạy lại validator và 30 unittest tài liệu, không chạy lại toàn bộ build/QEMU local vì không sửa code. CI commit đóng thủ tục phải kiểm tra theo HEAD thực tế sau push; kết quả nghiệm thu không thay thế CI của SHA mới.
-
-Next exact action: kết thúc M04; chỉ khảo sát/lập kế hoạch M05 khi người dùng yêu cầu và bật Plan Mode thật. Không có code đang dở được biết. Không tự tạo version tag, Release hoặc bắt đầu M05.
+OS boot skeleton BIOS/UEFI vẫn SKIPPED vì chưa có image sản phẩm mặc định. UEFI M06/parity M07/kernel M08, PC thật/4Kn/EDD không hỗ trợ/firmware vi phạm ABI NOT RUN. E820/A20 failure cases là adapters test-only. Không bắt đầu milestone tiếp theo, không tạo tag M05/Release hoặc tự merge.

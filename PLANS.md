@@ -1,32 +1,32 @@
-# Kế hoạch hiện hành — M04
+# Kế hoạch hiện hành — M05
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=VERIFYING
 
-Kế hoạch Stage1 và vòng tối ưu A/B/C đã được người dùng duyệt. Sau gate và review tĩnh PASS, được tiếp tục probe/fixture/guest/CI M04. Không mở rộng sang M05.
+Người dùng đã duyệt triển khai kế hoạch M05 trong phiên Default ngày 2026-10-28. M04 đã đóng; không triển khai M06/M07/M08.
 
-## Contract giữ nguyên
+## Contract và phạm vi đã duyệt
 
-Mã/data PMBR<=440 byte, EDD 512/disk<2 TiB, không CHS hoặc truncate. Primary GPT/header shape theo M03, GUID 16 byte/128 entries, bounds và 64-sector window; retry 3/partial-read rejection. COM1 bounded polling, diagnostics D/G/N/R và handoff real-mode đúng ABI. Không helper ngoài PMBR, code/data overlap, self-modifying code, disk write hoặc đổi LBP/GPT.
+BIOS Stage1 nguyên source/hash/ABI 440 byte. Stage2 bootstrap 32 KiB tại 0x10000, core C32 tại 0x20000, toàn memory core tối đa 256 KiB. Header LAMIXS2 có CRC32, bounded loading; E820/A20, BIOS thunk 32↔16. Cross GCC -m32 -malign-double, không runtime host/libgcc64.
 
-Gate ban đầu FAIL 539 byte, đã dừng. Vòng tối ưu đo A 494, B 467, C 436 byte; binary 440 với 4 byte padding. Baseline/group source/listings/logs ignored tại out/m04; source hash và binary.json/gate.json là bằng chứng, không suy ra guest correctness từ size. Audit từng invariant tại [BIOS_STAGE1](docs/BIOS_STAGE1.md).
+GPT được kiểm cả hai bản/CRC/overlap; ESP FAT32 chỉ đọc, kernel-only EFI/LAMIX/A/KERNEL.ELF, không fallback B. ELF64 ET_EXEC higher-half, p_paddr=0, loader cấp physical từ USABLE dưới 4 GiB. LBP v1 không đổi; đúng năm records bắt buộc; serial/NX, chưa ACPI/framebuffer/modules. Paging 4 KiB, W^X/RO/guard, kernel probe dùng lại M06.
 
-## Tiến độ và nghiệm thu
+## Gates theo thứ tự
 
-- [x] Lưu baseline 539 và đo ba nhóm A/B/C, giữ assertion budget.
-- [x] Review REP pointer/counter, EBP capacity lifetime, DAP 16 byte trên stack căn 4, flags và stack cleanup; sửa DL sau UART.
-- [x] Stage1/probe và sparse test-only GPT fixtures; không format filesystem hoặc tạo image OS.
-- [x] Local guest 69 cases PASS gồm relocation/exact-window, header/GUID/bounds, payload/trailer và EIO thật; backend=qemu/mode=bios-stage1, negative status không đổi thành guest PASS.
-- [x] Thêm host tests và harness purpose/fault/TMPDIR, giữ positional Config/default modes; mở rộng trạng thái validator M04 và Harness CI.
-- [x] Regression local PASS: 203 host tests, validator/30 unittest, M01 reproducibility, M02/M03 và M04 suites.
-- [x] Review staged/secrets và commit/push code 72df890; mở PR #2, artifact CI đã đọc.
-- [x] Bốn workflows SUCCESS trên code 72df890, binary size/hash và 69 guest results đúng expected.
-- [x] CI HEAD 1c2f001: bốn workflows SUCCESS; người dùng xác nhận hoàn thành, cho phép tag/merge/đóng bàn giao.
-- [x] Annotated milestone/M04 trỏ 1c2f001 đã push; PR #2 merge tại 78b5a60.
+- [x] C32/linker/helpers và probe ELF64: assertions LBP32/64, không undefined/runtime, Stage1 hash nguyên.
+- [x] Bootstrap/header/core, E820/A20 và BIOS thunk: budget32/256 KiB, CRC và read failures.
+- [x] GPT/FAT32/ELF/allocation/BootInfo: host Debug/Release/sanitizer.
+- [x] Paging/transition/higher-half entry: probe kiểm contract thật.
+- [x] Guest positive/negative/EIO/fault probes và regression liên quan.
+- [ ] CI xanh đúng SHA, review và tài liệu; tag cần xác nhận riêng.
 
-Commands và reports theo [TESTING](docs/TESTING.md#bios-stage1-m04), kết quả cuối tại [handoff](docs/SESSION_HANDOFF.md). Gate FAIL sau vòng này phải dừng xin kế hoạch, không hạ checks. Guest fixes trong contract phải qua gate lại trước test.
+## Kiểm thử và rollback
 
-## Ranh giới và rollback
+Suite độc lập tests/bios_stage2; host và guest tách marker. RAM64/256 MiB/>4 GiB, NX/no-NX, fragmentation, malformed metadata/ELF/note, EIO, RO/guard faults, cleanup và protected hashes. Giữ bốn workflows; Boot Contract CI chạy host/sanitizers, Toolchain CI build/guest cross, Harness giữ M02/M04. Không tự chạy toàn bộ M01 local.
 
-Fixtures chỉ metadata/Stage1/probe/sentinels trong sparse image test; snapshot và protected extent hashes bắt buộc. Full guest GPT CRC/backup, E820/A20, CPU mode transition, ELF/kernel/LBP handoff, UEFI và generator M07 ngoài phạm vi. OS boot skeleton vẫn SKIPPED; không suy ra tương thích PC thật từ SeaBIOS.
+Fixtures file mới sparse8 GiB, FAT32 test-only, không mount/device/overwrite; generator sản phẩm M07 chưa triển khai. Lưu reports ignored out/m05; không upload images/firmware. Chi tiết kết quả thật tại [handoff](docs/SESSION_HANDOFF.md).
 
-Rollback theo đúng diff/file task, giữ source/logs và chỉnh sửa người dùng; không reset/clean hàng loạt, đổi tags M00–M03 hoặc ghi disk thật. Đã merge/tag theo phê duyệt riêng; không tạo Release hoặc bắt đầu M05. Cuối lượt cập nhật trạng thái và CI đúng bằng chứng, không lặp commit để tự ghi SHA của handoff.
+Nếu vượt size, thiếu RAM bootstrap, không link ABI32 đúng hoặc cần đổi contract/profile thì dừng phần phụ thuộc, trình kế hoạch bổ sung; không giảm checks. Rollback bằng diff/commit tiếp nối; không reset/clean hoặc đổi tags M00–M04.
+
+## Kết quả trước PR
+
+Local PASS: Debug/Release CTest4/4 (host45, guest51 mỗi profile), native ASan/UBSan1/1, global host251/122 qemu deselected, validator/33 unittest; M03 native4/4/sanitizer3/3/cross, M04 suites2/2 và M02 fixtures/paused launches. OS skeleton2 cases SKIPPED. CI M05 PENDING trước push; không dùng baseline CI thay SHA mới.

@@ -50,3 +50,14 @@ LeakSanitizer báo không hoạt động dưới ptrace trong sandbox: suite M03
 Nếu NASM báo TIMES value âm, gate 440 byte FAIL; không xóa assertion hoặc viết qua PMBR metadata. Giữ listing/source hash và dừng theo gate/plan hiện hành. Vòng tối ưu539→436 byte đã giữ ở evidence local; xem BIOS_STAGE1 cho check matrix.
 
 QEMU snapshot báo Could not get temporary filename/Read-only file system: harness dùng TMPDIR riêng trong run directory. Không tắt snapshot hoặc đổi quyền /var/tmp. Guest M04:FAIL có reason D/G/N/R; probe dùng P. Expected PANIC ở negative tests không phải lỗi harness nếu reason và cleanup khớp, cũng không phải OS boot PASS. Đọc case.json cùng result.json/serial.log.
+
+## Stage2 M05
+
+- Không tìm Ninja: activate .venv trước CMake; không cài lại dependencies đang có. Build FAIL phải sửa trước CTest; build.json/hash guard chặn dùng artifact cũ.
+- C32 LBP alignment assertions: kiểm mọi translation unit có -m32 -malign-double; không sửa asserts/wire structs để tránh lỗi. Undefined __umoddi3 ở Debug là compiler helper remainder, không link libgcc64.
+- ELF64 higher-half relocation truncated: dùng -mcmodel=kernel cho code64; p_paddr phải zero theo profile sau link producer, không tắt linker checks hoặc sửa virtual addresses.
+- M05:FAIL có reason group; EXCEPTION/vector0e ở RO/guard negatives là expected PANIC. HANDOFF không phải PASS. EIO phải nhận DISK; malformed FAT/GPT/ELF không có I/O fault nhận đúng nhóm parser.
+- Headers/core CRC sai không chạy core. GPT hỏng không repair/fallback; slot A lỗi không tự boot B. Unsupported required ACPI/framebuffer/NX phải bị từ chối đúng note policy.
+- Fixture note mutations phải tìm PT_NOTE envelope; ELF có thể chứa chuỗi LAMIXREQ khác trong rodata validator. Không tìm chuỗi đầu tiên để suy ra descriptor.
+
+Audit/limits: [BIOS_STAGE2](BIOS_STAGE2.md). Không debug bằng cách bỏ snapshot, RWX mappings, guard hoặc validation; giữ logs failure cũ, phân biệt adapter với lỗi firmware thật.
