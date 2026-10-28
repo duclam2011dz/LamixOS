@@ -80,3 +80,8 @@ M02 đã kiểm chứng local và cả ba workflows trên GitHub; kết quả/UR
 - Review sau CI đầu sửa bootstrap để CRC/BSS/E820 dùng segment:offset real-mode chuẩn, loại phụ thuộc hidden segment limits. Thêm adapter64 KiB và core fixture70000 byte/corruption cuối file; giữ Stage1/LBP/GPT/budget. CI68cbd48 không thay nghiệm thu HEAD sửa.
 
 - Revision sửa0a0f496 đã có bốn workflows SUCCESS; artifact mới xác nhận host46/guest54 mỗi profile,108 guest results đúng expected (18 PASS/90 PANIC), source/binary hashes khớp local và cleanup/protected hashes đúng. M05 vẫn VERIFYING, PR #3 chờ review/xác nhận riêng.
+
+### Đóng M05 — 2026-10-28
+
+- Người dùng xác nhận hoàn thành, duyệt tag/merge/bàn giao. Annotated milestone/M05 object d42c14b41a52f25f0fa45fa24ccd253069d8eae5 trỏ SHA nghiệm thu4742e2d5a3eceb51193e470ed3d7fcdb0495c401; bốn workflows SUCCESS, đã push.
+- PR #3 đã merge tại c05b0b2435fef8bb5918befd99e5fcf2113365a1. Đồng bộ DONE/handoff, giữ tags M00–M04; không tạo version tag/Release hoặc bắt đầu M06.

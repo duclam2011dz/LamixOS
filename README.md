@@ -62,8 +62,8 @@ LBP v1 có headers C11/C++17, thư viện validation/normalization freestanding 
 
 ## BIOS Stage1 M04
 
-Stage1 NASM và fixture tests: [đặc tả/audit](docs/BIOS_STAGE1.md), [lệnh kiểm thử](docs/TESTING.md#bios-stage1-m04). Fixture sparse 8 GiB là test-only, không phải image OS. Trạng thái local/CI thực tế ở handoff; milestone/M04 đã push; M05 đang kiểm chứng theo kế hoạch được duyệt.
+Stage1 NASM và fixture tests: [đặc tả/audit](docs/BIOS_STAGE1.md), [lệnh kiểm thử](docs/TESTING.md#bios-stage1-m04). Fixture sparse 8 GiB là test-only, không phải image OS. Trạng thái local/CI thực tế ở handoff; milestone/M04 đã push; M05 đã DONE theo xác nhận của người dùng.
 
 ## BIOS Stage2 M05
 
-BIOS loader nạp ELF64 từ ESP FAT32 và chuyển vào kernel probe qua LBP v1; [audit/giới hạn](docs/BIOS_STAGE2.md), [kiểm thử](docs/TESTING.md#bios-stage2-m05). M05 VERIFYING: local và bốn workflows code0a0f496 PASS; [PR #3](https://github.com/duclam2011dz/LamixOS/pull/3) chờ review/xác nhận nghiệm thu, chi tiết tại handoff. Chưa có kernel sản phẩm M08, UEFI M06 hoặc generator M07.
+BIOS loader nạp ELF64 từ ESP FAT32 và chuyển vào kernel probe qua LBP v1; [audit/giới hạn](docs/BIOS_STAGE2.md), [kiểm thử](docs/TESTING.md#bios-stage2-m05). M05 DONE: local và bốn workflows code0a0f496 PASS; [PR #3](https://github.com/duclam2011dz/LamixOS/pull/3) đã merge theo phê duyệt của người dùng; annotated [milestone/M05](https://github.com/duclam2011dz/LamixOS/tree/milestone/M05) đã push, chi tiết tại handoff. Chưa có kernel sản phẩm M08, UEFI M06 hoặc generator M07.

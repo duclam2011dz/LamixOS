@@ -1,15 +1,15 @@
-# M05 — BIOS Stage2 chờ review, 2026-10-28
+# Bàn giao đóng M05 — 2026-10-28
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE
 
-Người dùng duyệt triển khai M05. Code/local/CI đã kiểm chứng, đang chờ review và xác nhận hoàn thành riêng; chưa DONE/tag/merge. M06/M07/M08 chưa triển khai. Đây là BIOS→ELF kernel probe, chưa phải kernel sản phẩm hoặc OS hoàn chỉnh.
+Người dùng đã xác nhận hoàn thành, duyệt tag/merge/bàn giao. M05 DONE. M06/M07/M08 chưa triển khai. Đây là BIOS→ELF kernel probe, chưa phải kernel sản phẩm hoặc OS hoàn chỉnh.
 
 ## Git và phạm vi
 
-- Nhánh feat/m05-bios-stage2, base main/origin `ab2d1e524919f838dce6fbc5412fc70b58274562`.
-- Code hiện tại: `0a0f496496380f4bc34ce1536a6000f218cb1a77`, đã push vào [PR #3](https://github.com/duclam2011dz/LamixOS/pull/3), open/chưa merge. Commit đầu 68cbd48 có CI xanh nhưng được sửa tiếp sau review segment bounds, không dùng nó thay nghiệm thu revision mới.
-- Annotated M04 object `90778d4b630c9fe5292f5d43c49cd6a91b8670b7` giữ peeled `1c2f001896327d06a3875fa5b7443f847ae2ad7f`. Tags M00–M04 không đổi.
-- Bản handoff thuộc commit tài liệu tiếp sau code. Lấy HEAD thật bằng git rev-parse HEAD và [PR checks](https://github.com/duclam2011dz/LamixOS/pull/3/checks), không tạo vòng lặp ghi SHA của chính handoff. CI code dưới đây không thay CI HEAD tài liệu mới.
+- Commit nghiệm thu: `4742e2d5a3eceb51193e470ed3d7fcdb0495c401`; code đã sửa tại `0a0f496496380f4bc34ce1536a6000f218cb1a77`.
+- Annotated milestone/M05 object `d42c14b41a52f25f0fa45fa24ccd253069d8eae5` trỏ đúng SHA nghiệm thu, đã push; không chuyển sang commit tài liệu. Tags M00–M04 giữ nguyên.
+- [PR #3](https://github.com/duclam2011dz/LamixOS/pull/3) đã merge tại `c05b0b2435fef8bb5918befd99e5fcf2113365a1`; main local đã fast-forward theo origin. Commit đóng thủ tục tiếp sau chỉ sửa tài liệu; HEAD thật lấy git rev-parse HEAD, không tạo vòng lặp tự ghi SHA handoff.
+- Review bot trên68cbd48 nêu real-mode segment bounds đã được xử lý tại0a0f496, có strict-limit/cross-segment tests; không dùng revision cũ thay nghiệm thu.
 
 Stage2 bootstrap32 KiB/core C32, BIOS thunk/E820/A20, GPT/FAT32/ELF parser và allocator callback, loader reservations/page tables/LBP, probe64. Stage1 source/hash/440 byte và LBP/GPT M03 giữ nguyên. Xem [audit](BIOS_STAGE2.md), [kế hoạch](../PLANS.md), [lệnh tests](TESTING.md#bios-stage2-m05). Formatter sparse8 GiB chỉ test-only, không mount/device/overwrite/generator sản phẩm.
 
@@ -32,9 +32,16 @@ Bản sửa real-mode dùng segment:offset chuẩn cho CRC/BSS/E820, tránh ph�
 
 Logs/reports ignored out/m05: XML, serial/QMP/result/case/layout JSON; compiler logs/listings/maps/build.json trong build/m05 và build/m05-release. Giữ guest failure logs cũ; không dùng failed runs làm PASS. Gate-only ELF không dùng trong image. Negative guests giữ PANIC, pytest PASS nghĩa khớp expected. Source/artifact hash guard chặn binary cũ sau source changes; fixture output và compiler adapter chỉ dùng file mới.
 
-## CI trên code revision đã sửa
+## CI trên commit nghiệm thu và code đã sửa
 
-Bốn workflows SUCCESS trên đúng `0a0f496496380f4bc34ce1536a6000f218cb1a77`:
+Bốn workflows SUCCESS trên commit nghiệm thu `4742e2d5a3eceb51193e470ed3d7fcdb0495c401`:
+
+- [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40693433277).
+- [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40693432969).
+- [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40693433015).
+- [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40693432931).
+
+Code revision `0a0f496496380f4bc34ce1536a6000f218cb1a77` cũng có bốn workflows SUCCESS:
 
 - [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40692182135).
 - [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40692182246).
@@ -45,6 +52,8 @@ Bốn workflows SUCCESS trên đúng `0a0f496496380f4bc34ce1536a6000f218cb1a77`:
 
 ## Giới hạn và next exact action
 
-Xác minh CI HEAD tài liệu cuối sau push, rồi chờ người dùng review PR #3/xác nhận hoàn thành riêng trước DONE/merge/tag. Không còn code đang dở được biết. Không tự bắt đầu M06, tạo tag M05/version tag hoặc Release.
+Lượt đóng chỉ chạy lại validator và33 unittest tài liệu; không chạy lại toàn bộ build/QEMU local vì không đổi code. Xác minh CI HEAD đóng thủ tục sau push; CI nghiệm thu không thay CI của SHA mới. Không còn code đang dở được biết.
+
+Next exact action: kết thúc M05. Chỉ khảo sát/lập kế hoạch M06 khi người dùng yêu cầu riêng và bật Plan Mode thật; không bắt đầu M06 trong lượt này, không tự tạo version tag hoặc Release.
 
 OS boot skeleton BIOS/UEFI vẫn SKIPPED vì chưa có image sản phẩm mặc định. UEFI M06/parity M07/kernel M08, PC thật/4Kn/EDD không hỗ trợ/firmware vi phạm ABI, GDB và NMI/SMM stress NOT RUN. Không suy ra các kết quả đó từ kernel probe/launch-only.
