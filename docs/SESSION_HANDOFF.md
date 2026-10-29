@@ -1,16 +1,30 @@
-# Bàn giao triển khai M06 — VERIFYING — 2026-10-28
+# Bàn giao M06 — DONE — 2026-10-29
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE
 
-## M06 hiện tại
+## Kết quả M06
 
-Local implementation thêm EFI loader PE/COFF x64, Clang+LLD, UEFI device/GPT/ESP path, FAT file reads, shared ELF load, GOP/ACPI optionals, UEFI memory map normalization, LBP v1/page tables và bounded `ExitBootServices()` retry. Assembly trampoline chuyển Microsoft x64 firmware ABI sang System V kernel entry. Cùng kernel probe chạy BIOS/UEFI, phân biệt `M05:PASS`/`M06:PASS`. LBP v1 wire layout và BIOS Stage1 440-byte gate/Stage2 budget không đổi; LBP semantic validation được mở rộng cho mapping framebuffer identity RW/NX, kể cả physical address trên4 GiB.
+EFI loader PE/COFF x64 tự viết bằng Clang+LLD. Loader tìm ESP/slot A qua UEFI Device Path, Block I/O và GPT; đọc ELF64 cùng contract LBP v1 với BIOS; thương lượng GOP/ACPI optionals, chuẩn hóa memory map và gọi `ExitBootServices()` với retry có giới hạn. Trampoline chuyển Microsoft x64 firmware ABI sang System V kernel entry. OVMF thực thi loader và cùng kernel probe BIOS phát `M06:PASS`. LBP v1 wire layout, BIOS Stage1 440-byte ABI/gate và Stage2 budget giữ nguyên.
 
-- Local: M06 CTest host retry/capacity policy + PE + 5 guest cases PASS; OVMF positive thật phát `M06:FRAMEBUFFER` và `M06:PASS`; negative thiếu kernel, ELF hỏng, required ACPI khi RSDP không hợp đồng, GPT GUID sai đều nhận expected failure. Image extents, firmware CODE/VARS hashes và cleanup được kiểm trong từng run.
-- Regression: BIOS M05 Debug/Release CTest 4/4 mỗi profile; host ASan/UBSan 1/1; M03 contract Debug/Release 4/4, sanitizer 3/3; M02 fixture/launch CTest 2 PASS, boot skeleton BIOS/UEFI SKIPPED; M04 CTest 2/2.
-- OVMF ACPI RSDP ở physical `0x0fb7e014`, không căn16 theo LBP v1 nên loader bỏ record; kernel test `note-required-acpi` bị từ chối. OVMF GOP được phát và kernel xác nhận mapping. PC thật/4Kn/firmware khác NOT RUN.
-- Local CTest ban đầu bắt lỗi probe marker debug ghi đè DX và regression marker còn sót; đã sửa và chạy lại BIOS Debug/Release PASS. Một lần M03 framebuffer test thất bại do test fixture memory map không sort; đã sửa fixture, sau đó suite PASS.
-- Git baseline trước triển khai `9a2a4671b4c48905c27994de3f3ecb806cb6673f`, branch `main`; thay đổi M06 hiện chưa commit. Vì chưa có SHA mới, CI đúng SHA là PENDING. Không push, tag hoặc merge; M06 chưa DONE, M07 chưa bắt đầu.
+- Local M06 CTest **3/3 PASS**, gồm policy, PE/COFF inspection và 5 guest cases OVMF. Guest positive phát `M06:FRAMEBUFFER`/`M06:PASS`; negative kernel thiếu/hỏng, ACPI required không hợp lệ và GPT identity sai trả đúng lỗi.
+- BIOS M05 Debug/Release CTest **4/4** mỗi profile; sanitizer **1/1**. M03 Debug/Release **4/4** mỗi profile, sanitizer **3/3**; M02 **2 PASS** (boot skeleton BIOS/UEFI SKIPPED); M04 **2/2**.
+- Host pytest **252 passed, 2 skipped, 130 deselected**; docs validator PASS, unittest tài liệu **34/34**.
+- Review phát hiện và đã sửa: ghi trường `count` 64-bit LBP không đọc quá biến; red/blue mask theo UEFI GOP; build `uefi-policy` trước CTest trên runner sạch. Các review threads đã resolve.
+- OVMF cung cấp RSDP ở physical `0x0fb7e014`, không căn 16 theo LBP v1 nên loader bỏ record ACPI optional và từ chối kernel yêu cầu ACPI. PC thật, 4Kn và firmware khác: NOT RUN.
+
+## Git, tag, PR và CI
+
+- Commit nghiệm thu M06: `b96c6ba3b0dbb5c60583e40bc83406e1b7eac10f`.
+- Annotated tag `milestone/M06`: object `c5e396f5d2e7a3f8d4d3ccdcbf2eb3c3ea75d9f3`, peeled commit `b96c6ba3b0dbb5c60583e40bc83406e1b7eac10f`.
+- PR [#4](https://github.com/duclam2011dz/LamixOS/pull/4) merge commit `74db2721c88eaccd22fd85dc26b1ddbd29bf4bef`; branch `main` đã fast-forward đến merge commit trước commit đóng tài liệu này.
+- Bốn workflows SUCCESS trên đúng commit nghiệm thu:
+  - [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40854640233)
+  - [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40854640194)
+  - [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40854640268)
+  - [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40854640232)
+- Trong quá trình đóng, hai lần Toolchain CI đầu FAIL do workflow thiếu `done` và thiếu build target policy; đã sửa bằng commit follow-up trên PR. SHA nghiệm thu cuối cùng có đủ bốn CI xanh.
+
+M06 đã kết thúc. M07 generator/parity chưa bắt đầu; chỉ triển khai sau yêu cầu và kế hoạch riêng được duyệt. Đây vẫn là BIOS/UEFI → kernel probe, không phải kernel sản phẩm M08 hoặc OS hoàn chỉnh.
 
 ## M05 accepted baseline
 
@@ -66,6 +80,6 @@ Code revision `0a0f496496380f4bc34ce1536a6000f218cb1a77` cũng có bốn workflo
 
 Lượt đóng chỉ chạy lại validator và33 unittest tài liệu; không chạy lại toàn bộ build/QEMU local vì không đổi code. Xác minh CI HEAD đóng thủ tục sau push; CI nghiệm thu không thay CI của SHA mới. Không còn code đang dở được biết.
 
-Các ghi chú trong phần đóng M05 bên dưới là lịch sử. Next exact action M06: review toàn bộ diff, chạy validator/docs tests sau cập nhật tài liệu, xác minh CTest cuối cùng, sau đó tạo commit theo quy ước để CI chạy trên SHA mới. Chờ CI xanh/review và xác nhận hoàn thành riêng trước khi đổi M06 thành DONE; không tạo/push tag hoặc bắt đầu M07.
+Các ghi chú đóng M05 bên dưới là lịch sử, được giữ để truy vết bằng chứng milestone trước. M06 đã được merge/tag và cập nhật DONE; không bắt đầu M07 trong phiên đóng này.
 
 OS boot skeleton BIOS/UEFI vẫn SKIPPED vì chưa có image sản phẩm mặc định. M07 generator/parity và kernel M08 chưa triển khai; PC thật/4Kn/firmware ngoài OVMF, GDB và NMI/SMM stress NOT RUN. Không suy ra các kết quả đó từ kernel probe/launch-only.

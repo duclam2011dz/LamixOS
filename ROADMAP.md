@@ -1,12 +1,12 @@
 # ROADMAP — Lamix OS
 
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
-> **Cập nhật:** 2026-10-26  
+> **Cập nhật:** 2026-10-29
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 VERIFYING; M07–M44 PLANNED; chưa có kernel sản phẩm hoặc OS hoàn chỉnh
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07–M44 PLANNED; chưa có kernel sản phẩm hoặc OS hoàn chỉnh
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE
 
 ## 0. Tầm nhìn và giới hạn
 
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 VERIFYING; M07–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -95,7 +95,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M05 — BIOS Stage 2 và môi trường x86_64.** **Trạng thái: DONE (2026-10-28).** Kế hoạch đã được người dùng duyệt; BIOS→ELF64/LBP probe local Debug/Release và regression PASS, bốn workflows SUCCESS trên code0a0f496, người dùng đã xác nhận hoàn thành, annotated milestone/M05 giữ SHA nghiệm thu4742e2d và PR #3 đã merge; xem handoff. BIOS disk access, memory discovery (E820), A20 nếu cần, GDT, transition 16→32→64, page tables tối thiểu, kernel ELF64 load, BootInfo LBP. Nghiệm thu: cùng kernel entry, serial boot marker, kiểm tra memory map/reserved frames.
 
-**M06 — UEFI EFI loader tự viết.** **Trạng thái: VERIFYING (2026-10-28).** Local OVMF guest đã boot cùng ELF probe BIOS và nhận LBP v1; CI trên SHA chứa thay đổi và review/acceptance còn chờ. PE/COFF x64 dùng Clang+LLD, firmware ABI Microsoft x64, đọc ESP/GPT/FAT32 qua UEFI, nạp ELF64, GOP/ACPI optional, memory map và `ExitBootServices()`. Chi tiết bằng chứng/giới hạn trong [handoff](docs/SESSION_HANDOFF.md) và [kế hoạch](PLANS.md). PC thật/4Kn chưa kiểm chứng.
+**M06 — UEFI EFI loader tự viết.** **Trạng thái: DONE (2026-10-29).** PR #4 merged; tag `milestone/M06` giữ commit nghiệm thu `b96c6ba3`; bốn workflows CI SUCCESS trên SHA nghiệm thu. OVMF thực thi loader và cùng ELF probe BIOS nhận LBP v1. PE/COFF x64 dùng Clang+LLD, firmware ABI Microsoft x64, đọc ESP/GPT/FAT32 qua UEFI, nạp ELF64, GOP/ACPI optional, memory map và `ExitBootServices()`. Xem [handoff](docs/SESSION_HANDOFF.md) và [kế hoạch](PLANS.md). PC thật/4Kn chưa kiểm chứng; M07 chưa bắt đầu.
 
 **M07 — Boot parity, disk image generator và lỗi khởi động.** Python tạo/check GPT/image, BIOS/UEFI boot test cùng kernel, LBP compatibility/negative tests, kiểm tra state CPU/paging/stack và phân vùng A/B. Nghiệm thu: hai boot path pass tự động, kernel không cần viết hai biến thể.
 

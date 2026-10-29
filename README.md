@@ -10,7 +10,7 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00–M05 đã nghiệm thu; M05 là BIOS Stage2 → cùng ELF64 kernel probe/LBP v1. M06 hiện VERIFYING: EFI PE/COFF loader local boot thật trên QEMU OVMF và kernel probe nhận cùng LBP v1; CI đúng SHA và review còn chờ. Chi tiết trạng thái, giới hạn và bằng chứng ở [handoff](docs/SESSION_HANDOFF.md). Đây chưa phải kernel sản phẩm hoặc OS boot; M07 generator/parity chưa triển khai. Chưa có bản phát hành và chưa đạt Playable.
+M00–M06 đã nghiệm thu; M06 là EFI PE/COFF loader tự viết chạy thật trên QEMU OVMF và cùng kernel ELF64 probe/LBP v1 với BIOS. Bốn workflow CI thành công trên commit nghiệm thu; xem [handoff](docs/SESSION_HANDOFF.md) để biết SHA, tag và giới hạn. Đây chưa phải kernel sản phẩm hoặc OS boot; M07 generator/parity chưa triển khai. Chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 

@@ -92,4 +92,9 @@ M02 đã kiểm chứng local và cả ba workflows trên GitHub; kết quả/UR
 - Thêm GOP framebuffer identity mapping và ACPI RSDP optional record, UEFI memory map decode/normalize, bounded map-buffer growth và retry `ExitBootServices()`. LBP wire layout không đổi; validator/probe kiểm mapping framebuffer kể cả physical trên4 GiB.
 - Mở rộng fixture/harness opt-in cho OVMF, PE inspection, guest fault cases và reports; Toolchain CI cài clang/lld và chạy M06 OVMF guest. M07 generator/parity không triển khai.
 - Local: M06 CTest host retry/capacity policy + PE + 5 guest cases PASS; M05 BIOS Debug/Release 4/4 mỗi profile, M05 sanitizer1/1; M03 Debug/Release4/4 và sanitizer3/3; M02 launch/fixture2 PASS, skeleton2 SKIPPED; M04 CTest2/2. OVMF positive xác nhận GOP; ACPI bị bỏ do RSDP không căn16; PC thật/4Kn NOT RUN.
-- M06 đang VERIFYING: source chưa commit nên GitHub CI đúng SHA PENDING; không tag/push/merge hoặc chuyển M06 DONE. Bằng chứng/next action trong handoff.
+
+### Đóng M06 — 2026-10-29
+
+- PR #4 đã merge tại `74db2721c88eaccd22fd85dc26b1ddbd29bf4bef`. Annotated tag `milestone/M06` object `c5e396f5d2e7a3f8d4d3ccdcbf2eb3c3ea75d9f3` trỏ commit nghiệm thu `b96c6ba3b0dbb5c60583e40bc83406e1b7eac10f`.
+- Documentation, Boot Contract, Harness và Toolchain CI đều SUCCESS trên commit nghiệm thu. Review findings về LBP count, GOP masks và build target CTest đã được sửa; local M06 CTest 3/3 PASS.
+- M06 DONE; M07 vẫn PLANNED và chưa bắt đầu. Không tạo version tag hoặc GitHub Release.
