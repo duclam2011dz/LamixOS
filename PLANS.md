@@ -1,8 +1,8 @@
 # Kế hoạch hiện hành — M09
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE
 
-Trạng thái M09: **VERIFYING (2026-10-29)**. Triển khai local trên nhánh `codex/m09-bitmap-pmm`, dựa trên `main` M08; chưa commit, PR, CI, tag hoặc merge. Host/sanitizer tests và BIOS/OVMF guest boot đã PASS local. Handoff ghi bằng chứng, giới hạn và bước tiếp theo. M09 chưa DONE; M10 chưa bắt đầu.
+Trạng thái M09: **DONE (2026-10-29)**. Commit nghiệm thu `b2ef8182e75fcf9665374fd20881ed0bfc3fbb8d`; PR [#7](https://github.com/duclam2011dz/LamixOS/pull/7) merge commit `49720af528af08d74cca8b1bc325eb9ea8ff6f84`. Annotated tag `milestone/M09` có tag object `bcb23b864eb20f4c71030816d7760066fe5e0d01`, peeled commit trùng SHA nghiệm thu. Bốn workflow SUCCESS trên đúng SHA; chi tiết ở [handoff](docs/SESSION_HANDOFF.md). M10 chưa bắt đầu.
 
 ## Phạm vi M09 — Bitmap PMM
 
@@ -17,7 +17,7 @@ Trạng thái M09: **VERIFYING (2026-10-29)**. Triển khai local trên nhánh `
 - Guest QEMU cleanup không bị cưỡng bức; image extents, BIOS/OVMF firmware, loader inputs và kernel được hash trước/sau, không đổi. Reports tại `out/m09/results/` (local, không commit/upload).
 - Build report xác minh compiler/linker, source hashes, ELF inspection và artifact hash. Host tests kiểm multiple extents/holes, giới hạn 4 GiB, storage/map lỗi, OOM, free lỗi và stress; sanitizer chạy implementation PMM thật.
 - Regression local: M02 harness 2 PASS/2 SKIPPED; M03 Debug/Release 4/4 mỗi cấu hình, sanitizer 3/3 và cross compile-only PASS; M04 **2/2**, M05 Debug/Release **4/4** mỗi cấu hình cùng sanitizer **1/1**, M06 **3/3**, M07 **2/2**, M08 **2/2** PASS. Host pytest `tests -m 'not qemu'`: **272 passed, 139 deselected**; docs validator PASS; unittest tài liệu **37/37 PASS**; `git diff --check` PASS.
-- GitHub CI trên SHA M09 **PENDING** (chưa push/PR); M01 bootstrap local **NOT RUN** theo phạm vi.
+- Bốn workflow GitHub Actions SUCCESS trên SHA nghiệm thu `b2ef8182e75fcf9665374fd20881ed0bfc3fbb8d`: [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40892095834), [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40892095745), [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40892096005), [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40892095752). M01 bootstrap local **NOT RUN**; Toolchain CI chạy bootstrap và regression theo workflow.
 
 ## Lệnh M09
 
@@ -28,7 +28,7 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m09-tests
 PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m09-tests --no-tests=error --output-on-failure
 ```
 
-M09 chưa được nghiệm thu cuối: cần hoàn tất hồi quy/docs, review, PR và CI trên đúng SHA; chờ người dùng xác nhận riêng trước bất kỳ đóng milestone/tag nào.
+Không đổi LBP v1, loader, BIOS Stage1 gate hoặc Stage2 budget. M09 đã được người dùng duyệt kết thúc và tag; M10 vẫn PLANNED, cần một yêu cầu/lượt kế hoạch riêng.
 
 ## Lịch sử M08 — DONE
 

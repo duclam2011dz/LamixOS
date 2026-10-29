@@ -4,11 +4,12 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
-### M09 — VERIFYING (2026-10-29)
+### M09 — DONE (2026-10-29)
 
 - Thêm bitmap PMM nội bộ 2-bit/frame trong kernel `.bss`; chỉ cấp frame 4 KiB thuộc `LBP_USABLE` dưới 4 GiB, loại reservations và không reclaim LOADER/ACPI.
 - Thêm M09 kernel build provenance, host tests, ASan/UBSan stress test và QEMU guest test thật trên cùng kernel qua SeaBIOS/OVMF; mở rộng image checker nhận `m09-kernel`, giữ mặc định M05 và profile M08.
-- Local: M09 CTest **3/3 PASS**, gồm host, sanitizer và guest BIOS/OVMF; GitHub CI trên SHA M09 **PENDING** vì chưa đẩy thay đổi. M09 chưa được nghiệm thu/đóng.
+- Local: M09 CTest **3/3 PASS**, host pytest **272 passed/139 deselected**, docs validator và unittest **37/37 PASS**; hồi quy M02–M08 như [handoff](docs/SESSION_HANDOFF.md). Bốn workflow GitHub Actions SUCCESS trên SHA `b2ef8182`.
+- PR #7 merge commit `49720af5`; annotated tag `milestone/M09` tag object `bcb23b86`, peeled commit nghiệm thu `b2ef8182`.
 
 ### M08 — DONE (2026-10-29)
 

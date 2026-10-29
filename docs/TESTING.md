@@ -185,7 +185,7 @@ Mỗi run có result.json/serial/QMP/stderr, case.json expected/actual và prote
 
 Toolchain CI build/guest Debug và Release dùng cross cache sẵn; Boot Contract CI host/sanitizer; Harness CI giữ M02/M04. Lưu JUnit/logs/maps/listings/JSON, không upload images/firmware hoặc dependencies. Các kết quả thật theo SHA ở [handoff](SESSION_HANDOFF.md).
 
-Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M08 DONE, M09 VERIFYING. Không gán probe M05–M09 làm image OS sản phẩm mặc định.
+Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M08/M09 DONE. Không gán probe M05–M09 làm image OS sản phẩm mặc định.
 
 ## Kernel tối thiểu M08
 
@@ -263,4 +263,4 @@ Host suite chạy cùng `kernel/pmm.c` với fixture LBP đã validate, kiểm n
 
 Guest test tạo image mới với cùng kernel ELF cho SeaBIOS/OVMF; yêu cầu `M08:PASS` và `M09:PASS`, tám frame duy nhất thuộc usable, free count trở lại sau free và free lỗi bị từ chối. QEMU dùng snapshot, OVMF CODE nguồn chỉ đọc, VARS riêng, serial/QMP, deadline/cleanup; hash image extents/firmware/build inputs trước/sau phải bằng nhau. Guest là boot thực, không phải launch-only. Reports tại `out/m09/`, không đưa image hoặc firmware vào artifact.
 
-M09 hiện **VERIFYING**: local M09 CTest 3/3 và hai firmware guest PASS; hồi quy/docs checks cho thay đổi hiện tại được ghi tại [handoff](SESSION_HANDOFF.md). CI chỉ được ghi SUCCESS khi workflow chạy trên SHA chứa M09. RAM trên 4 GiB, reclaim LOADER/ACPI, PC thật và firmware ngoài QEMU profile **NOT RUN/ngoài phạm vi**. VMM/mapping, zeroing, contiguous allocator, SMP và kernel sản phẩm thuộc phạm vi sau M09.
+M09 **DONE**: local CTest 3/3, hai firmware guest PASS và bốn workflow CI SUCCESS trên SHA nghiệm thu; kết quả chi tiết tại [handoff](SESSION_HANDOFF.md). RAM trên 4 GiB, reclaim LOADER/ACPI, PC thật và firmware ngoài QEMU profile **NOT RUN/ngoài phạm vi**. VMM/mapping, zeroing, contiguous allocator, SMP và kernel sản phẩm thuộc phạm vi sau M09.
