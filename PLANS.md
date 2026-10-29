@@ -1,8 +1,8 @@
 # Kế hoạch hiện hành — M08
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE
 
-Trạng thái M08: **VERIFYING**. Kế hoạch M08 đã được duyệt và triển khai local. QEMU SeaBIOS/OVMF chạy kernel bình thường, `#UD`, guard-page `#PF`; hồi quy local đạt. Chưa có commit/PR hoặc GitHub CI trên SHA chứa M08; chưa đánh dấu DONE.
+Trạng thái M08: **DONE (2026-10-29)**. PR #6 đã merge bằng `6b794a6c454dfab6cdcc79abf26d8f3844d87d64`. Annotated tag `milestone/M08` có tag object `ba5642cf9c2ae615c5b2687f6d7602b42a54fe54`, trỏ commit nghiệm thu `56cbc3bd290d6b76789a50a8c80762896b57f4d4`. Bốn GitHub workflows SUCCESS trên đúng SHA; chi tiết kết quả và giới hạn ở [handoff](docs/SESSION_HANDOFF.md). M09 vẫn PLANNED, chưa bắt đầu.
 
 ## Phạm vi triển khai M08
 
@@ -14,9 +14,10 @@ Trạng thái M08: **VERIFYING**. Kế hoạch M08 đã được duyệt và tri
 ## Kết quả local hiện có
 
 - Kernel build/provenance và host checks: **PASS**, 3/3. M08 guest: **PASS**, 6/6 thật trên BIOS/UEFI (normal, `#UD`, guard `#PF`); panic serial có vector mong đợi, PF có `CR2=guard`.
-- Hồi quy: M05 Debug và Release guest/host **PASS**; M06 **3/3 PASS**; M07 **2/2 PASS**; M03 Debug/Release **4/4 PASS**, ASan/UBSan **3/3 PASS**; M04 **2/2 PASS**; M02 **2 PASS, 2 SKIPPED**. Host pytest **264 passed, 2 skipped**.
-- Docs validator **PASS**, unittest tài liệu **36/36 PASS**. M01 bootstrap local **NOT RUN**; cần Toolchain CI trên SHA mới.
-- GitHub CI trên SHA chứa M08: **PENDING** (chưa commit/push). PC thật và phần cứng PIC/PIT: **NOT RUN**.
+- Hồi quy local: M05 Debug/Release, M06 **3/3**, M07 **2/2**, M03 Debug/Release **4/4** và ASan/UBSan **3/3**, M04 **2/2** đều **PASS**; M02 **2 PASS, 2 SKIPPED**. Host pytest sau sửa review: **266 passed, 137 deselected**; các guest được chạy qua CTest M08.
+- Docs validator **PASS**, unittest tài liệu **36/36 PASS**. M01 bootstrap local **NOT RUN**; Toolchain CI đã chạy bootstrap và toàn regression.
+- Bốn workflow SUCCESS trên SHA nghiệm thu `56cbc3bd290d6b76789a50a8c80762896b57f4d4`: [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40882457559), [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40882457555), [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40882457670), [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40882457776).
+- Review đã phát hiện thiếu ACPI span trước `lbp_validate()`; sửa ở `56cbc3b`, phản hồi và resolve thread. OVMF local bỏ RSDP không căn 16 byte nên guest path ACPI hợp lệ **NOT RUN**; M03 span tests và host structural test đã chạy. PC thật và PIC/PIT trên phần cứng **NOT RUN**.
 
 ## Lệnh chính
 
@@ -26,7 +27,7 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m08 -B build/m08-tests -G N
 PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m08-tests --no-tests=error --output-on-failure
 ```
 
-Không đổi BIOS Stage1 gate, Stage2 budget, LBP wire format hoặc kernel entry ABI. M09 chưa bắt đầu; không tạo tag M08 trong lượt này.
+Không đổi BIOS Stage1 gate, Stage2 budget, LBP wire format hoặc kernel entry ABI. M09 vẫn PLANNED, chưa bắt đầu.
 
 ---
 

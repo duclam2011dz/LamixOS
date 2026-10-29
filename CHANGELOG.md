@@ -4,11 +4,13 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
-### M08 — VERIFYING (2026-10-29)
+### M08 — DONE (2026-10-29)
 
 - Thêm kernel freestanding C/NASM, ELF build provenance, LBP v1 consumer, GDT/IDT/TSS+double-fault IST, COM1 panic context và PIC/PIT IRQ0 self-test.
 - M07 image generator nhận tùy chọn `--kernel-build`; mặc định tiếp tục dùng kernel M05. Thêm BIOS/OVMF guest tests cho normal, `#UD`, guard `#PF` và đưa M08 vào Toolchain CI.
-- Local M08: host 3/3, QEMU guest 6/6; regressions và giới hạn được ghi trong handoff. CI trên SHA chứa M08 chưa chạy; chưa xác nhận DONE/tag.
+- Bổ sung scratch mapping/span cho ACPI RSDP trước `lbp_validate()`; gỡ mapping sau validation. OVMF hiện không cung cấp RSDP căn 16 byte nên guest path ACPI hợp lệ ghi NOT RUN.
+- M08 local: host 3/3, QEMU guest 6/6; host pytest 266 passed/137 deselected, docs validator và unittest 36/36 PASS. Bốn workflow CI SUCCESS trên SHA `56cbc3bd`.
+- PR #6 merge commit `6b794a6c`; annotated tag `milestone/M08` trỏ commit nghiệm thu `56cbc3bd` (tag object `ba5642cf`). M09 vẫn PLANNED, chưa bắt đầu.
 
 ### M07 — DONE (2026-10-29)
 
