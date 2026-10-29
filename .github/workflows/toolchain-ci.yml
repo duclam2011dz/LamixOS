@@ -60,12 +60,12 @@ jobs:
             cmake -S tests/bios_stage2 -B "build/m05-$mode" -G Ninja -DCMAKE_BUILD_TYPE="$mode" -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
             cmake --build "build/m05-$mode"
             ctest --test-dir "build/m05-$mode" --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m05/ctest-$mode.xml"
+          done
       - name: M06 PE/COFF và guest UEFI OVMF thật
         timeout-minutes: 10
         run: |
           cmake -S tests/uefi -B build/m06-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           ctest --test-dir build/m06-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m06/ctest.xml"
-          done
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
