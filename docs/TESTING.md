@@ -202,6 +202,8 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m08-tests --no-test
 
 M08 mở rộng `scripts/m07_image.py` bằng `--kernel-build <dir>` cho create/check; nếu bỏ tùy chọn, image vẫn dùng kernel M05 như trước. CTest host kiểm provenance/layout và cấu trúc descriptor/vector/PIC/PIT; guest tạo image M07 có kernel M08 và chạy cùng image/kernel qua SeaBIOS/OVMF. Profile normal phải vào LBP v1, nhận IRQ0/PIT ba tick và phát `M08:PASS`; `ud`/`pf` phải dừng `M08:PANIC` đúng vector 6/14, PF báo CR2 guard. Expected PANIC không được đổi thành guest PASS.
 
+Khi LBP có ACPI RSDP, kernel ánh xạ vật lý RSDP vào scratch VA đọc-only, cung cấp `lbp_span` cho `lbp_validate()`, rồi gỡ ánh xạ trước khi kiểm tra các mapping cuối. Điều này không đổi LBP wire format. Profile OVMF local hiện bỏ ACPI vì RSDP không căn 16 byte; do đó guest path có ACPI hợp lệ **NOT RUN**. Host structural test kiểm tra đường tạo span và gỡ mapping; regression M03 kiểm tra validator/span.
+
 Harness dùng QEMU snapshot, OVMF CODE read-only, VARS riêng, QMP/serial/deadline/cleanup; test hash protected image extents, firmware sources và build artifacts trước/sau. Reports ở `out/m08/`; không lưu image/firmware trong CI. Host sanitizer được kế thừa từ M03 LBP library CTest; kernel target không chạy dưới host sanitizer. PC thật, phần cứng PIC/PIT và firmware ngoài profile ghi **NOT RUN**.
 
 M05 có thêm adapter inject-segments thiết lập hidden limits64 KiB và fixture large-core/large-core-crc xuyên biên64 KiB; xem [review segment bounds](BIOS_STAGE2.md#review-segment-bounds). Đây là kiểm tra real-mode bootstrap, không giả định BIOS để lại unreal-mode cache.

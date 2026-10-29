@@ -32,6 +32,9 @@ def test_kernel_build_has_valid_provenance(tmp_path,fault):
     assert "gdt[63]=b>>32" in src and "tss.ist1" in src and "KTSS" in src
     assert 'out8(PIC1+1,0x20)' in src and 'out8(PIC2+1,0x28)' in src
     assert '1193182/100' in src and 'out8(PIC1,0x20)' in src
+    assert "map_acpi_span(h,(const lbp_acpi*)raw_acpi,&span)" in src
+    assert "span->physical=physical" in src and "span->bytes=(const uint8_t*)(uintptr_t)(base+(physical-first))" in src
+    assert "unmap_acpi_span();" in src and "lbp_validate(h,h->total_size,spans,span_count,&view)" in src
     assert "%if i=8 || i=10 || i=11 || i=12 || i=13 || i=14 || i=17 || i=21 || i=29 || i=30" in asm
     assert asm.count("%rep 256")==2 and "section .rodata\ninterrupt_vectors:" in asm and "section .text\ninterrupt_common:" in asm
 
