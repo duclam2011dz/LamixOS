@@ -1,27 +1,31 @@
-# Bàn giao M09 — DONE — 2026-10-29
+# Bàn giao M10 — VERIFYING — 2026-10-29
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=VERIFYING
 
-## Kết quả và Git
+## Trạng thái và Git
 
-M09 Bitmap PMM đã nghiệm thu. PMM nội bộ quản lý frame 4 KiB dưới 4 GiB bằng bitmap 2-bit/frame trong kernel `.bss`; chỉ trang đầy đủ thuộc `LBP_USABLE` được cấp, reservations luôn bị loại. Không reclaim `LOADER_RECLAIM`/`ACPI_RECLAIM`, không zero frame, không đổi LBP v1, loader hoặc BIOS gate/budget.
+M10 đã được triển khai và kiểm chứng local theo kế hoạch. Checkout bắt đầu trên main tại SHA M09 closure 481efbcb3fa6e4144e9401e06f8745cee64de2f5; các thay đổi M10 hiện chưa commit. Không tạo commit, tag, PR hay merge. GitHub CI trên SHA chứa M10 NOT RUN vì chưa có commit/PR; trạng thái branch/remote cần xác minh lại trước thao tác Git tiếp theo.
 
-- Commit nghiệm thu `b2ef8182e75fcf9665374fd20881ed0bfc3fbb8d` (`feat(m09): add bitmap physical memory manager`).
-- PR [#7](https://github.com/duclam2011dz/LamixOS/pull/7) đã merge bằng merge commit `49720af528af08d74cca8b1bc325eb9ea8ff6f84`. `origin/main` sau merge trỏ SHA này; handoff được ghi ở commit đóng thủ tục, không tự ghi SHA của commit chứa nó.
-- Annotated tag `milestone/M09` đã push: tag object `bcb23b864eb20f4c71030816d7760066fe5e0d01`, peeled commit trùng SHA nghiệm thu.
+## Thay đổi
 
-## Kiểm chứng
+- Thêm VMM kernel BSP paging 4 cấp với root CR3 mới; map/unmap/protect trang 4 KiB và range, query, TLB invalidation, rollback range, thu hồi bảng trung gian rỗng và enforcement W^X/NX theo LBP feature.
+- Dựng lại kernel segments, BootInfo identity RO, stack identity RW, guard không map và framebuffer identity uncached. Page-table frames do PMM cấp và truy cập qua scratch data/control aliases; không tạo direct map. Leaf frames vẫn do caller sở hữu; TABLES cũ tiếp tục unavailable.
+- Thêm M10 build profile/provenance, host simulator/sanitizer, image checker support cho m10-kernel và BIOS/OVMF guest fault profiles. M05 default cùng M08/M09 profiles được giữ nguyên.
+- Sửa allocator scratch cũ để không tái sử dụng table page rỗng nhưng còn được CR3 hiện tại tham chiếu. Không đổi LBP v1, kernel entry ABI, loader, BIOS Stage1 gate hoặc Stage2 budget.
 
-- M09 CTest **PASS 3/3**: host pytest, native PMM ASan/UBSan và guest BIOS/UEFI. Cùng ELF SHA-256 `dafa8503e845ea8b59e46591dac0ed01ccdd78b3a50ac2fcd8c54662bbfe7f98` boot thật qua SeaBIOS và OVMF; cả hai phát `M08:PASS` và `M09:PASS`.
-- Guest kiểm tám frame khác nhau, usable, không reserved; invalid/double-free bị từ chối; free count khôi phục. Image extents, firmware và build inputs không đổi; QEMU cleanup không bị cưỡng bức. Reports local tại `out/m09/results/`, không commit/upload.
-- Toàn host pytest `tests -m 'not qemu'`: **272 passed, 139 deselected**. Docs validator **PASS**, unittest tài liệu **37/37 PASS**.
-- Regression local: M02 harness 2 PASS/2 SKIPPED; M03 Debug/Release 4/4 mỗi cấu hình, sanitizer 3/3 và cross compile-only PASS; M04 2/2; M05 Debug/Release 4/4 mỗi cấu hình, sanitizer 1/1; M06 3/3; M07 2/2; M08 2/2. M01 bootstrap local **NOT RUN**.
-- Bốn workflow **SUCCESS trên đúng SHA nghiệm thu**: [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40892095834), [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40892095745), [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40892096005), [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40892095752).
+## Kiểm chứng local
 
-## Giới hạn và tiếp tục
+- M10 CTest 3/3 PASS: VMM native ASan/UBSan, host build/image checks và BIOS/OVMF guest suite. Guest 8/8 PASS trên cùng kernel profiles: normal, ghi RO, execute NX và guard #PF trên cả hai firmware. Normal phát M08:PASS, M09:PASS, M10:PASS; fault profiles xác nhận vector 0e, error bits và CR2 mong đợi.
+- Normal M10 kernel ELF SHA-256 5a0d8ec3a9131b0de5fffe02ef23144ea59cace380f67d58d78db82094634ef6 khớp BIOS và UEFI reports.
+- Regression M08 CTest 2/2 PASS; M09 CTest 3/3 PASS; M07 CTest 2/2 PASS. Hash image extents, firmware và kernel trước/sau guest không đổi; QEMU cleanup không bị cưỡng bức.
+- Docs validator PASS; unittest tài liệu 38/38 PASS; diff/whitespace checks PASS cho tracked và file mới.
+- PC thật, CPU/firmware ngoài QEMU profiles, SMP, RAM trên 4 GiB, process address spaces và kernel sản phẩm NOT RUN/ngoài phạm vi. M10 chưa được xác nhận DONE.
 
-PC thật, RAM trên 4 GiB, thu hồi LOADER/ACPI reclaim và firmware ngoài QEMU profile **NOT RUN/ngoài phạm vi**. M09 chưa có VMM/mapping, zeroing, contiguous allocation hay đồng bộ SMP; đây vẫn là kernel bootstrap/probe, không phải kernel sản phẩm hoặc OS hoàn chỉnh.
+## Lệnh M10
 
-M10 chưa bắt đầu. Hành động tiếp theo chỉ sau yêu cầu riêng: vào Plan Mode thật để lập kế hoạch M10 và chờ duyệt. Không tạo tag/version release khác.
+    python tests/m10/build_kernel.py --build build/m10
+    PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m10 -B build/m10-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+    PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m10-tests
+    PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m10-tests --no-tests=error --output-on-failure
 
-Chi tiết lệnh tại [TESTING](TESTING.md#bitmap-pmm-m09), phạm vi và kết quả tại [PLANS](../PLANS.md), mục tiêu/thứ tự tại [ROADMAP](../ROADMAP.md).
+Bước tiếp theo: hoàn tất validator/unittest và diff review, sau đó để người dùng quyết định bước xác minh CI/PR và nghiệm thu milestone. Không bắt đầu M11.

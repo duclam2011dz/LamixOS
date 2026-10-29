@@ -85,6 +85,12 @@ jobs:
           cmake -S tests/m09 -B build/m09-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m09-tests
           ctest --test-dir build/m09-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m09/ctest.xml"
+      - name: M10 VMM, sanitizer, BIOS/UEFI và fault protection guest
+        timeout-minutes: 20
+        run: |
+          cmake -S tests/m10 -B build/m10-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m10-tests
+          ctest --test-dir build/m10-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m10/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -174,4 +180,18 @@ jobs:
             out/m09/**/qmp.log
             build/m09-*/build.json
             build/m09-*/kernel.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M10 VMM/guest reports, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m10-vmm-reports
+          path: |
+            out/m10/*.xml
+            out/m10/results/*.json
+            out/m10/**/result.json
+            out/m10/**/serial.log
+            out/m10/**/qmp.log
+            build/m10-*/build.json
+            build/m10-*/kernel.inspection.txt
           if-no-files-found: warn
