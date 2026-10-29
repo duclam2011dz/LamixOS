@@ -18,10 +18,10 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED
+Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED
 ```
 
-Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00/M01/M02/M03/M04 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
+Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M07 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
 
 [Unittest](../tests/test_validate_docs.py) dùng repository fixtures tạm cho positive/negative tests; không sửa tài liệu thật. Validator không trực tiếp chạy skill Codex. Kiểm tra metadata đơn giản trong Python không thay thế review hành vi skill.
 
@@ -185,7 +185,7 @@ Mỗi run có result.json/serial/QMP/stderr, case.json expected/actual và prote
 
 Toolchain CI build/guest Debug và Release dùng cross cache sẵn; Boot Contract CI host/sanitizer; Harness CI giữ M02/M04. Lưu JUnit/logs/maps/listings/JSON, không upload images/firmware hoặc dependencies. Các kết quả thật theo SHA ở [handoff](SESSION_HANDOFF.md).
 
-Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M07 đang VERIFYING, M08 chưa triển khai. Không gán probe M05/M06/M07 làm image OS sản phẩm mặc định.
+Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M07 DONE, M08 chưa triển khai. Không gán probe M05/M06/M07 làm image OS sản phẩm mặc định.
 
 M05 có thêm adapter inject-segments thiết lập hidden limits64 KiB và fixture large-core/large-core-crc xuyên biên64 KiB; xem [review segment bounds](BIOS_STAGE2.md#review-segment-bounds). Đây là kiểm tra real-mode bootstrap, không giả định BIOS để lại unreal-mode cache.
 

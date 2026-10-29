@@ -1,8 +1,8 @@
 # Kế hoạch hiện hành — M07
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE
 
-Trạng thái M07: **VERIFYING**. M06 tiếp tục DONE; không bắt đầu M08.
+Trạng thái M07: **DONE (2026-10-29)**. PR #5 đã merge; tag `milestone/M07` trỏ commit nghiệm thu. M08 chưa bắt đầu.
 
 ## Phạm vi đã triển khai
 
@@ -21,8 +21,9 @@ Trạng thái M07: **VERIFYING**. M06 tiếp tục DONE; không bắt đầu M08
 
 ## Git, CI và giới hạn
 
-- Checkout bắt đầu ở `main`, HEAD `573cb42f58cc0edebccea82a0719f60cae8660ae`, clean và bằng `origin/main`. Tạo nhánh local bị chặn bởi sandbox: `.git` chỉ đọc. Thay đổi M07 hiện chưa commit; không push, PR, merge hoặc tạo tag.
-- GitHub CI trên SHA chứa M07: **PENDING/NOT RUN**; chưa có commit/PR để chạy. M07 giữ VERIFYING tới khi code được đưa lên nhánh/PR hợp lệ, review và CI cần thiết xanh trên đúng SHA.
+- PR #5 merge ngày 2026-10-29; merge commit `93724991eadce0699258b22e7a37c209b6f1076b`. Commit nghiệm thu `1ece4235ca6827133081c9e4841e824bf6b05ae2`; commit triển khai ban đầu `ac9d6531540087463fa0a8ec15ad8722c69791f8`. Automated review tìm một race cleanup, đã sửa và thêm regression test; review lại trên SHA nghiệm thu không còn finding.
+- Annotated tag `milestone/M07` đã push: tag object `1bbda687ef355962a0d40acc44ffc73547a3a799`, peeled commit `1ece4235ca6827133081c9e4841e824bf6b05ae2`.
+- Bốn workflow CI SUCCESS trên SHA nghiệm thu `1ece4235…`: Documentation run `40871303801`, Boot Contract `40871303809`, Harness `40871303839`, Toolchain `40871303879`. Toolchain CI thực thi M05/M06 regression và M07 SeaBIOS/OVMF parity; không thay thế CI của SHA khác.
 - PC thật, 4Kn, firmware ngoài profile QEMU, slot B/fallback, filesystem System/User và kernel sản phẩm M08: **NOT RUN/ngoài phạm vi**.
 
 ## Lệnh chính
@@ -37,7 +38,7 @@ cmake -S tests/m07 -B build/m07-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/
 ctest --test-dir build/m07-tests --no-tests=error --output-on-failure
 ```
 
-Bước tiếp theo cụ thể: mở quyền Git metadata/branch trong môi trường triển khai, tạo branch cho thay đổi đã review, rồi mới chuẩn bị commit/PR và xác minh CI. Chỉ đánh dấu M07 DONE/tag sau acceptance CI và xác nhận hoàn tất riêng; chưa bắt đầu M08.
+Bước tiếp theo cụ thể: M07 đã đóng; milestone tiếp theo chỉ bắt đầu sau yêu cầu và kế hoạch riêng được duyệt. M08 chưa bắt đầu.
 
 ---
 
@@ -77,4 +78,4 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
 
 Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope M07/M08 thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M07 đã được duyệt và đang VERIFYING; M08 chưa bắt đầu.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope M07/M08 thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M07 DONE; M08 chưa bắt đầu.

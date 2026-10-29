@@ -1,19 +1,32 @@
-# Bàn giao M07 — VERIFYING — 2026-10-29
+# Bàn giao M07 — DONE — 2026-10-29
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE
 
-M07 đã có generator/checker GPT image và parity boot SeaBIOS/OVMF dùng cùng một kernel ELF M05. **Chưa đóng M07**: chưa commit/push/PR nên GitHub CI chưa chạy trên SHA chứa thay đổi. M08 chưa bắt đầu.
+M07 đã được nghiệm thu, merge PR #5 và push annotated tag `milestone/M07`. M08 chưa bắt đầu.
 
-## Kết quả và phạm vi
+## Git, review và CI
 
-- `scripts/m07_image.py`: tạo/check raw sparse 8 GiB theo GPT M03; ESP FAT32 256 MiB có `EFI/BOOT/BOOTX64.EFI` và `EFI/LAMIX/A/KERNEL.ELF`. B/User Data để trống; không mount/ghi device. GUID ngẫu nhiên mặc định, UUIDv5 theo seed tùy chọn.
-- `tests/m07/`: host image/GPT/GUID/FAT tests và QEMU boot parity. Cùng image boot thật bằng SeaBIOS và OVMF, cùng kernel hash. Probe phát `M07:LBP`; version, slot A, feature contract/NX hợp lệ ở cả hai. Negative kernel ELF hỏng bị cả hai đường boot từ chối đúng nhóm `ELF`.
-- Local: M07 CTest **2/2 PASS**; image create/check PASS, logical 8 GiB, allocated 268,562,432 byte. M05 Debug/Release **4/4** mỗi profile; M06 **3/3**; M03 Debug/Release **4/4** mỗi profile và sanitizer **3/3**; M02 **2 PASS, 2 SKIPPED** (boot skeleton); M04 **2/2**. Host pytest **258 PASS, 2 SKIPPED, 131 deselected**. Validator PASS; unittest **34/34**; doctor profile ci PASS.
-- Regression M05/M06/M03/M02/M04 và M07 guest đã dùng QEMU thật với snapshot; OVMF CODE/SeaBIOS firmware hash và protected image extents không đổi, cleanup đạt. PC thật/4Kn/firmware khác: NOT RUN.
+- Repo: `duclam2011dz/LamixOS`, nhánh chính `main`; merge commit `93724991eadce0699258b22e7a37c209b6f1076b`.
+- Commit nghiệm thu: `1ece4235ca6827133081c9e4841e824bf6b05ae2`; commit triển khai đầu `ac9d6531540087463fa0a8ec15ad8722c69791f8`.
+- PR [#5](https://github.com/duclam2011dz/LamixOS/pull/5) đã merge. Review tự động phát hiện race có thể xóa output của tiến trình khác; đã sửa, thêm regression test và review lại trên commit nghiệm thu không còn finding.
+- Annotated tag `milestone/M07`: object `1bbda687ef355962a0d40acc44ffc73547a3a799`; peeled commit `1ece4235ca6827133081c9e4841e824bf6b05ae2`.
+- Bốn workflow SUCCESS trên đúng commit nghiệm thu:
+  - [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40871303801)
+  - [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40871303809)
+  - [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40871303839)
+  - [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40871303879)
 
-## Git và next action
+## Kết quả nghiệm thu
 
-- HEAD lúc bắt đầu: `573cb42f58cc0edebccea82a0719f60cae8660ae`; `main` bằng `origin/main`, worktree ban đầu sạch. M06 tag `milestone/M06` vẫn trỏ acceptance commit `b96c6ba3b0dbb5c60583e40bc83406e1b7eac10f`; M06 DONE.
-- Sandbox cho phép sửa workspace nhưng `.git` chỉ đọc; tạo branch thất bại. M07 files đang chưa commit trên checkout `main`. Không tạo/push tag, không có PR/merge.
-- CI M07: PENDING/NOT RUN do chưa có commit/PR. **Next exact action:** cấp môi trường có quyền ghi Git metadata, đưa các thay đổi đã review lên branch M07, tạo PR và chờ review/CI xanh trên đúng SHA. Sau đó cập nhật handoff/trạng thái theo bằng chứng và chỉ tag M07 khi người dùng xác nhận hoàn thành riêng.
-- Không bắt đầu M08; không tuyên bố image này là OS sản phẩm. Xem [kế hoạch và lịch sử M06](../PLANS.md), [ROADMAP](../ROADMAP.md), [lệnh M07](TESTING.md#image-và-boot-parity-m07).
+- Tạo/check raw sparse GPT image 8 GiB; chỉ ESP FAT32 được format/populate với `BOOTX64.EFI` và kernel ELF M05 chung ở slot A. System A/B và User Data để trống.
+- M07 CTest **2/2 PASS** sau race-fix. Guest QEMU boot thật cùng image/kernel qua SeaBIOS và OVMF; probe xác nhận LBP v1, slot và nghĩa vụ CPU/mapping chung. ELF hỏng bị cả hai loader từ chối đúng nhóm `ELF`.
+- M07 host/guest reports và protected hashes xác nhận firmware, source image extents, cleanup; CI chỉ lưu reports, không upload image/firmware.
+- Local docs validator PASS, unittest tài liệu **34/34 PASS**. CI trên SHA nghiệm thu chạy regression M05 Debug/Release, M06, M03, M02/M04 và M07 guest parity.
+- Không thay LBP wire format, kernel entry ABI, BIOS Stage1 gate 440 byte hoặc Stage2 budget.
+
+## Giới hạn và next action
+
+- PC thật, 4Kn, firmware ngoài profile OVMF/SeaBIOS, slot B/fallback, filesystem System/User, Secure Boot và kernel sản phẩm: **NOT RUN/ngoài phạm vi**. Image này là probe kiểm parity, không phải image OS sản phẩm.
+- M07 đã đóng. Next exact action: chờ yêu cầu riêng để vào Plan Mode và lập kế hoạch M08; chưa triển khai M08.
+
+Chi tiết lệnh và phạm vi test: [TESTING](TESTING.md#image-và-boot-parity-m07), [ROADMAP](../ROADMAP.md), [kế hoạch và lịch sử milestone](../PLANS.md).
