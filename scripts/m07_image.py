@@ -178,8 +178,10 @@ def create_image(destination, bios_build, uefi_build, kernel=None, seed=None):
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="m07-esp-", dir=destination.parent) as temporary:
         esp = make_esp(efi, kernel, Path(temporary))
+        destination_created = False
         try:
             with destination.open("xb") as disk, esp.open("rb") as source:
+                destination_created = True
                 disk.truncate(DISK_SIZE)
                 def write(offset, data):
                     disk.seek(offset)
@@ -195,7 +197,8 @@ def create_image(destination, bios_build, uefi_build, kernel=None, seed=None):
                 disk.flush()
                 os.fsync(disk.fileno())
         except BaseException:
-            destination.unlink(missing_ok=True)
+            if destination_created:
+                destination.unlink(missing_ok=True)
             raise
     report = {
         "status": "PASS", "mode": "m07-image", "image_bytes": DISK_SIZE,

@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests/m07"))
 from scripts.m07_image import (DISK_SIZE, ESP_OFFSET, ESP_SIZE, check_image,
                                create_image, identities, metadata)
+import scripts.m07_image as m07_image_module
 from scripts.qemu_harness import Config, run
 from gpt_model import validate as validate_gpt
 
@@ -216,6 +217,23 @@ def test_generator_refuses_overwrite(m07_image):
     with pytest.raises(FileExistsError):
         create_image(image, bios, uefi, seed="m07-tests-v1")
     assert protected_hashes(image, bios, uefi) == before
+
+
+def test_generator_preserves_output_created_by_racing_process(m07_image, tmp_path, monkeypatch):
+    _, _, bios, uefi = m07_image
+    destination = tmp_path / "racing.img"
+    competitor = b"created by another process"
+
+    def race_create(path, _kernel, directory):
+        destination.write_bytes(competitor)
+        esp = Path(directory) / "esp.img"
+        esp.write_bytes(b"temporary FAT image")
+        return esp
+
+    monkeypatch.setattr(m07_image_module, "make_esp", race_create)
+    with pytest.raises(FileExistsError):
+        create_image(destination, bios, uefi, seed="race")
+    assert destination.read_bytes() == competitor
 
 
 def test_checker_rejects_truncated_image(tmp_path):
