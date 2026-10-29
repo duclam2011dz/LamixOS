@@ -1,6 +1,6 @@
 # Chỉ mục API và ABI
 
-LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader, M06 EFI loader, M07 parity probe; kernel bootstrap M08 đang VERIFYING. PMM/VMM, heap và kernel sản phẩm hoàn chỉnh chưa triển khai. On-wire structs khác với API native (`lbp_span`, `lbp_view`, status enum).
+LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader, M06 EFI loader, M07 parity probe; kernel bootstrap M08 đã DONE. PMM nội bộ M09 đang VERIFYING; VMM, heap và kernel sản phẩm hoàn chỉnh chưa triển khai. On-wire structs khác với API native (`lbp_span`, `lbp_view`, status enum).
 
 | Giao diện | Nguồn |
 |---|---|
@@ -23,4 +23,4 @@ API native [loader.h](../include/lamix/boot/loader.h): reader read_at, GPT/FAT32
 
 ## Kernel bootstrap M08
 
-Kernel dùng entry C/NASM qua LBP v1 và gọi `lbp_validate()` trước khi sử dụng BootInfo. GDT/IDT/TSS, serial panic và PIC/PIT self-test là chi tiết bootstrap M08; chưa có allocator, timer API, scheduler hay API kernel public. Build/guest interface và trạng thái nghiệm thu nằm trong [TESTING](TESTING.md#kernel-tối-thiểu-m08) và [handoff](SESSION_HANDOFF.md).
+Kernel dùng entry C/NASM qua LBP v1 và gọi `lbp_validate()` trước khi sử dụng BootInfo. GDT/IDT/TSS, serial panic và PIC/PIT self-test thuộc M08. M09 thêm API PMM nội bộ trong `kernel/pmm.h`: `pmm_init`, `pmm_alloc_frame`, `pmm_free_frame`; đây không phải ABI LBP hay API kernel public và trạng thái vẫn VERIFYING. Chưa có VMM, heap, timer API hoặc scheduler. Chi tiết nằm trong [quản lý bộ nhớ](MEMORY_MANAGEMENT.md), [TESTING](TESTING.md#bitmap-pmm-m09) và [handoff](SESSION_HANDOFF.md).

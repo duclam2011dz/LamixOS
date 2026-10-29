@@ -1,10 +1,36 @@
-# Kế hoạch hiện hành — M08
+# Kế hoạch hiện hành — M09
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=VERIFYING
 
-Trạng thái M08: **DONE (2026-10-29)**. PR #6 đã merge bằng `6b794a6c454dfab6cdcc79abf26d8f3844d87d64`. Annotated tag `milestone/M08` có tag object `ba5642cf9c2ae615c5b2687f6d7602b42a54fe54`, trỏ commit nghiệm thu `56cbc3bd290d6b76789a50a8c80762896b57f4d4`. Bốn GitHub workflows SUCCESS trên đúng SHA; chi tiết kết quả và giới hạn ở [handoff](docs/SESSION_HANDOFF.md). M09 vẫn PLANNED, chưa bắt đầu.
+Trạng thái M09: **VERIFYING (2026-10-29)**. Triển khai local trên nhánh `codex/m09-bitmap-pmm`, dựa trên `main` M08; chưa commit, PR, CI, tag hoặc merge. Host/sanitizer tests và BIOS/OVMF guest boot đã PASS local. Handoff ghi bằng chứng, giới hạn và bước tiếp theo. M09 chưa DONE; M10 chưa bắt đầu.
 
-## Phạm vi triển khai M08
+## Phạm vi M09 — Bitmap PMM
+
+- Thêm `kernel/pmm.c`/`kernel/pmm.h`: bitmap 2-bit cho 1,048,576 frame dưới 4 GiB; chỉ `LBP_USABLE` đầy đủ 4 KiB pages có thể cấp. Reservations được overlay thành unavailable. Không reclaim LOADER/ACPI, không zero, không cấp phát contiguous và không đổi LBP/loader ABI.
+- `pmm_init()` nhận view đã được `lbp_validate()` kiểm tra; validate memory/reservation table shape trước khi sửa bitmap. `pmm_alloc_frame()` dùng next-fit scan, báo OOM; `pmm_free_frame()` từ chối unaligned, ngoài giới hạn, chưa cấp hoặc double-free.
+- Kernel profile M09 tự khởi tạo PMM, cấp tám frame, kiểm tra usable/reservations/uniqueness, thử invalid/double-free, trả frame và xác minh free count khôi phục; phát `M09:PASS`. M08 marker và IRQ self-test vẫn chạy trước đó.
+- M09 build wrapper tạo provenance `m09-kernel`; `scripts/m07_image.py` chấp nhận M09 report khi chỉ định `kernel_build`, giữ mặc định M05 và profile M08.
+
+## Kết quả local hiện có
+
+- M09 CTest: **3/3 PASS** — host pytest, cùng mã PMM dưới ASan/UBSan, và BIOS/OVMF guest. Hai firmware boot cùng kernel ELF SHA-256 `dafa8503e845ea8b59e46591dac0ed01ccdd78b3a50ac2fcd8c54662bbfe7f98`; cả hai phát `M08:PASS` và `M09:PASS`. Free count được khôi phục thành `0xfd01` (BIOS) và `0xd1d5` (OVMF); memory map/reservations khác nhau theo firmware.
+- Guest QEMU cleanup không bị cưỡng bức; image extents, BIOS/OVMF firmware, loader inputs và kernel được hash trước/sau, không đổi. Reports tại `out/m09/results/` (local, không commit/upload).
+- Build report xác minh compiler/linker, source hashes, ELF inspection và artifact hash. Host tests kiểm multiple extents/holes, giới hạn 4 GiB, storage/map lỗi, OOM, free lỗi và stress; sanitizer chạy implementation PMM thật.
+- Regression local: M02 harness 2 PASS/2 SKIPPED; M03 Debug/Release 4/4 mỗi cấu hình, sanitizer 3/3 và cross compile-only PASS; M04 **2/2**, M05 Debug/Release **4/4** mỗi cấu hình cùng sanitizer **1/1**, M06 **3/3**, M07 **2/2**, M08 **2/2** PASS. Host pytest `tests -m 'not qemu'`: **272 passed, 139 deselected**; docs validator PASS; unittest tài liệu **37/37 PASS**; `git diff --check` PASS.
+- GitHub CI trên SHA M09 **PENDING** (chưa push/PR); M01 bootstrap local **NOT RUN** theo phạm vi.
+
+## Lệnh M09
+
+```bash
+python tests/m09/build_kernel.py --build build/m09
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m09 -B build/m09-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m09-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m09-tests --no-tests=error --output-on-failure
+```
+
+M09 chưa được nghiệm thu cuối: cần hoàn tất hồi quy/docs, review, PR và CI trên đúng SHA; chờ người dùng xác nhận riêng trước bất kỳ đóng milestone/tag nào.
+
+## Lịch sử M08 — DONE
 
 - Thêm `kernel/` với entry NASM, interrupt stubs và kernel C freestanding. Kernel kiểm tra register ABI và gọi `lbp_validate()` trực tiếp; không đổi LBP v1 hay ownership. Tạo GDT/IDT/TSS riêng, selector cũ được giữ hợp lệ trong đoạn chuyển; double fault dùng IST stack trong `.bss`.
 - COM1 115200 8N1; panic in vector/error/RIP/CS/RFLAGS/RSP/GPR và CR2 khi #PF. PIC remap, PIT 100 Hz, IRQ0 nhận ba tick/EOI rồi mask và phát `M08:PASS`; chưa có timer API.
@@ -27,7 +53,7 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m08 -B build/m08-tests -G N
 PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m08-tests --no-tests=error --output-on-failure
 ```
 
-Không đổi BIOS Stage1 gate, Stage2 budget, LBP wire format hoặc kernel entry ABI. M09 vẫn PLANNED, chưa bắt đầu.
+Không đổi BIOS Stage1 gate, Stage2 budget, LBP wire format hoặc kernel entry ABI trong M08. (Tại thời điểm lưu phần lịch sử này, M09 chưa bắt đầu.)
 
 ---
 
@@ -73,7 +99,7 @@ cmake -S tests/m07 -B build/m07-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/
 ctest --test-dir build/m07-tests --no-tests=error --output-on-failure
 ```
 
-Bước tiếp theo M07 khi đóng là M08; hiện M08 đang VERIFYING theo kế hoạch đã duyệt.
+Bước tiếp theo sau M08 là M09; triển khai M09 và bằng chứng hiện hành ở đầu file.
 
 ---
 
@@ -113,4 +139,4 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
 
 Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope M07/M08 thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M07 DONE; M08 chưa bắt đầu.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08 DONE; M09 VERIFYING; M10 chưa bắt đầu.
