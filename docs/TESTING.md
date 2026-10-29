@@ -185,7 +185,7 @@ Mỗi run có result.json/serial/QMP/stderr, case.json expected/actual và prote
 
 Toolchain CI build/guest Debug và Release dùng cross cache sẵn; Boot Contract CI host/sanitizer; Harness CI giữ M02/M04. Lưu JUnit/logs/maps/listings/JSON, không upload images/firmware hoặc dependencies. Các kết quả thật theo SHA ở [handoff](SESSION_HANDOFF.md).
 
-Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M07/M08 chưa triển khai. Không gán fixture M05/M06 làm image OS sản phẩm mặc định.
+Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M07 đang VERIFYING, M08 chưa triển khai. Không gán probe M05/M06/M07 làm image OS sản phẩm mặc định.
 
 M05 có thêm adapter inject-segments thiết lập hidden limits64 KiB và fixture large-core/large-core-crc xuyên biên64 KiB; xem [review segment bounds](BIOS_STAGE2.md#review-segment-bounds). Đây là kiểm tra real-mode bootstrap, không giả định BIOS để lại unreal-mode cache.
 
@@ -203,3 +203,28 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure --output-j
 PE inspection kiểm PE32+ x64, EFI application subsystem, entry, relocations và imports rỗng. Guest CTest tạo fixture mới; OVMF CODE read-only, VARS copy theo run, disk snapshot, serial/QMP, deadline, cleanup và hashes bảo vệ source extents/firmware. Guest dương phải thật sự chạy `BOOTX64.EFI`, gọi `ExitBootServices()` và phát `M06:PASS` từ kernel probe; launch-only không được tính. Negative cases gồm file thiếu, ELF/feature negotiation và GPT identity sai; các adapter không mô phỏng lỗi phần cứng. Reports tại `out/m06/`, không upload firmware hoặc disk images. ACPI bị bỏ nếu không hợp LBP v1; OVMF local hiện có RSDP không căn 16. PC thật, 4Kn, PixelBltOnly/firmware khác và lỗi ExitBootServices do firmware ngoài test profile ghi `NOT RUN`.
 
 Toolchain CI chạy PE + guest OVMF trên SHA của thay đổi; M05 BIOS Debug/Release, M03 contract tests/sanitizer và M02/M04 harness được chạy hồi quy riêng. Kiểm tra release vẫn cần CI xanh đúng commit, review và xác nhận hoàn thành; kết quả local không thành CI SUCCESS.
+
+
+## Image và boot parity M07
+
+Generator/checker cần artifact M05/M06 PASS, `mkfs.fat`, `mmd`, `mcopy`, `mdir`, QEMU, SeaBIOS và OVMF. Chúng không build compiler, không mount image và chỉ tạo image mới dưới `build/`, `out/` hoặc `/tmp`:
+
+```bash
+. .venv/bin/activate
+python tests/bios_stage2/build_stage2.py --build build/m07-input --profile Debug
+python tests/uefi/build_uefi.py --build build/m06
+python scripts/m07_image.py create --image out/m07/lamix.img \
+  --bios-build build/m07-input --uefi-build build/m06 --seed local-check
+python scripts/m07_image.py check --image out/m07/lamix.img \
+  --bios-build build/m07-input --uefi-build build/m06
+cmake -S tests/m07 -B build/m07-tests -G Ninja \
+  -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+ctest --test-dir build/m07-tests --no-tests=error --output-on-failure \
+  --output-junit "$PWD/out/m07/ctest.xml"
+```
+
+Profile giữ GPT 8 GiB, ESP FAT32 256 MiB; chỉ ESP có payload `BOOTX64.EFI` và `EFI/LAMIX/A/KERNEL.ELF`. GUID ngẫu nhiên nếu bỏ `--seed`, deterministic với seed; B/User Data không được format và loader tiếp tục chọn A tường minh. Checker đối chiếu GPT/CRC/layout, FAT32 paths, Stage1/Stage2, EFI và kernel hashes với build artifacts.
+
+Guest parity chạy **cùng raw image** qua SeaBIOS và OVMF, kiểm marker firmware thật và dòng `M07:LBP` do cùng kernel probe phát sau khi validator LBP v1, CPU/paging/stack/guard/mapping checks đạt. So sánh version, slot A, required features và NX; source boot device và optional feature records có thể khác giữa firmware. Negative guest dùng sparse clone làm hỏng ELF kernel, giữ nguyên FAT boot path, rồi yêu cầu cả BIOS/UEFI từ chối đúng nhóm `ELF`. M05/M06 CTest hồi quy tiếp tục chạy parser/GPT/ELF/feature negative cases đầy đủ. Protected extents gồm PMBR/GPT, BIOS Boot Partition và ESP; firmware hashes cùng cleanup được kiểm tra. Không hash cả disk sparse 8 GiB; không upload image/firmware.
+
+`out/m07/` giữ XML/JSON/serial/QMP/report cục bộ. CI chỉ upload reports và build manifest. Boot PASS ở OVMF/SeaBIOS không chứng minh tương thích PC thật; 4Kn, slot B, filesystem System/User, updates/fallback/modules sản phẩm và Secure Boot tiếp tục ngoài M07.

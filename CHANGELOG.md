@@ -4,6 +4,14 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M07 — triển khai và xác minh local, chưa đóng
+
+- Thêm Python generator/checker GPT image raw sparse 8 GiB; populate FAT32 ESP bằng `dosfstools`/`mtools`, giữ System A/B và User Data chưa format. GUID random mặc định, seed UUIDv5 tùy chọn.
+- Thêm host checks và QEMU parity tests; cùng image/kernel probe boot qua SeaBIOS và OVMF, so sánh LBP v1 contract, xác minh protected image/firmware và negative ELF.
+- Thêm dòng `M07:LBP` trong kernel probe, doctor dependency checks và Toolchain CI M07 guest job. Không đổi LBP wire layout, BIOS Stage1 gate hoặc Stage2 budget.
+- Local M07 2/2, M05 Debug/Release 4/4 mỗi profile, M06 3/3, M03 Debug/Release 4/4 và sanitizer 3/3, M02/M04, docs/host suites đều đạt; chi tiết ở handoff. GitHub CI đúng SHA chưa chạy; chưa commit/PR/tag. M07 VERIFYING, M08 chưa bắt đầu.
+
+
 ### Thêm
 
 - Hướng dẫn Codex, giới thiệu, mục tiêu, kế hoạch M00 và quy trình đóng góp bằng tiếng Việt.

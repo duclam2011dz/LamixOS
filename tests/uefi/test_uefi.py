@@ -52,6 +52,9 @@ def test_pe_application():
     assert pe["machine"] == 0x8664 and pe["magic"] == 0x20B
     assert pe["subsystem"] == 10 and pe["imports_rva"] == 0
     assert pe["relocations"]["size"] > 0 and pe["entry_rva"] > 0
+    assert report["hashes"]["BOOTX64.EFI"] == hashlib.sha256(
+        (Path(os.environ.get("LAMIX_UEFI_BUILD", ROOT / "build/m06")) /
+         "BOOTX64.EFI").read_bytes()).hexdigest()
 
 
 @pytest.mark.parametrize("variant,reason", [

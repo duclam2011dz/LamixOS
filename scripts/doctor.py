@@ -43,6 +43,8 @@ def diagnose(profile):
         "qemu-system-x86_64": ("--version", (6, 2)), "gdb": ("--version", (12, 1)),
         "clang-format": ("--version", (14, 0)), "clang-tidy": ("--version", (14, 0)),
         "cppcheck": ("--version", (2, 7)),
+        "mkfs.fat": ("--help", None), "mcopy": ("-V", None),
+        "mmd": ("-V", None), "mdir": ("-V", None),
     }
     for name, (flag, version) in specs.items():
         results.append(check_command(name, [shutil.which(name) or name, flag], version))

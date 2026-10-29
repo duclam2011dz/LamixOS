@@ -68,7 +68,7 @@ def test_bios_stage2_contract(tmp_path,stage2_build,variant,kernel,ram,cpu,reaso
     assert before==after and report['firmware_unchanged']
     if reason:assert 'M05:PASS' not in serial and serial[serial.index('M05:FAIL')+1]==reason
     else:
-        assert serial[-2:]==['M05:HANDOFF','M05:PASS']
+        assert serial[-3]=='M05:HANDOFF' and serial[-1]=='M05:PASS'
         maps=[[int(x,16) for x in line.split()[1:]] for line in serial if line.startswith('M05:MAP ')]
         memory=[[int(x,16) for x in line.split()[1:]] for line in serial if line.startswith('M05:MEMORY ')]
         reserves=[[int(x,16) for x in line.split()[1:]] for line in serial if line.startswith('M05:RESERVE ')]
