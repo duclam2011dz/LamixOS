@@ -23,6 +23,13 @@ static void serial(const char *s) {
     out8(0x3f8, (uint8_t)*s);
   }
 }
+static void serial_hex(uint64_t value) {
+  static const char digits[] = "0123456789abcdef";
+  for (int shift = 60; shift >= 0; shift -= 4) {
+    char c[2] = {digits[(value >> shift) & 15], 0};
+    serial(c);
+  }
+}
 __attribute__((noreturn)) static void fail(void) {
   serial("M05:FAIL\nENTRY\n");
   for (;;)
@@ -33,6 +40,9 @@ static uint64_t read64(const uint8_t *p) {
   for (unsigned i = 0; i < 8; i++)
     n |= (uint64_t)p[i] << (i * 8);
   return n;
+}
+static uint16_t read16(const uint8_t *p) {
+  return (uint16_t)p[0] | (uint16_t)((uint16_t)p[1] << 8);
 }
 static uint32_t read32(const uint8_t *p) { return (uint32_t)read64(p); }
 static const uint8_t *entry_record;
@@ -252,6 +262,21 @@ void probe_main(void) {
         fail();
     }
   }
+  serial("M07:LBP ");
+  serial_hex(read16(blob + 8));
+  serial(" ");
+  serial_hex(read16(blob + 10));
+  serial(" ");
+  serial_hex(read32(device + 16));
+  serial(" ");
+  serial_hex(read32(device + 72));
+  serial(" ");
+  serial_hex(read64(blob + 24));
+  serial(" ");
+  serial_hex(read64(blob + 32));
+  serial(" ");
+  serial_hex(read32(blob + 48));
+  serial("\n");
 #if PROBE_FAULT == 1
   *(volatile uint8_t *)(uintptr_t)blob = 0;
   fail();

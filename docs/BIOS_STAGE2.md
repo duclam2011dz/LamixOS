@@ -1,6 +1,6 @@
 # BIOS Stage2 — M05
 
-Triển khai theo kế hoạch đã duyệt ngày 2026-10-28. Stage2 BIOS đã có guest probe; trạng thái local/CI chính xác ở [handoff](SESSION_HANDOFF.md). Không phải kernel sản phẩm M08. EFI loader M06 dùng chung ELF/LBP và kernel probe; M06 đã DONE. Generator M07 chưa triển khai. [LBP](BOOT_PROTOCOL.md) và [GPT profile](IMAGE_LAYOUT.md) M03 giữ nguyên; Stage1 M04 giữ hash/440 byte/ABI.
+Triển khai theo kế hoạch đã duyệt ngày 2026-10-28. Stage2 BIOS đã có guest probe; trạng thái local/CI chính xác ở [handoff](SESSION_HANDOFF.md). Không phải kernel sản phẩm M08. EFI loader M06 dùng chung ELF/LBP và kernel probe; M06 đã DONE. Generator/checker và boot parity M07 hiện VERIFYING. [LBP](BOOT_PROTOCOL.md) và [GPT profile](IMAGE_LAYOUT.md) M03 giữ nguyên; Stage1 M04 giữ hash/440 byte/ABI.
 
 ## Build và storage
 

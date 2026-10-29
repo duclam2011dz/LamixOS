@@ -87,6 +87,7 @@ def build(output):
         "lld-link": subprocess.check_output([linker, "--version"], text=True).strip(),
         "nasm": subprocess.check_output([nasm, "-v"], text=True).strip()},
         "pe": inspect(image), "commands": commands,
+        "hashes": {"BOOTX64.EFI": hashlib.sha256(image.read_bytes()).hexdigest()},
         "source_hashes": {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
                           for name in SOURCES}}
     (output / "build.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

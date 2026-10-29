@@ -10,7 +10,7 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00–M06 đã nghiệm thu; M06 là EFI PE/COFF loader tự viết chạy thật trên QEMU OVMF và cùng kernel ELF64 probe/LBP v1 với BIOS. Bốn workflow CI thành công trên commit nghiệm thu; xem [handoff](docs/SESSION_HANDOFF.md) để biết SHA, tag và giới hạn. Đây chưa phải kernel sản phẩm hoặc OS boot; M07 generator/parity chưa triển khai. Chưa có bản phát hành và chưa đạt Playable.
+M00–M06 đã nghiệm thu; M06 là EFI PE/COFF loader tự viết chạy thật trên QEMU OVMF và cùng kernel ELF64 probe/LBP v1 với BIOS. M07 generator/checker và parity BIOS/UEFI hiện VERIFYING; xem [handoff](docs/SESSION_HANDOFF.md) để biết bằng chứng và Git/CI còn chờ. Đây chưa phải kernel sản phẩm hoặc OS hoàn chỉnh. Chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 
@@ -66,4 +66,4 @@ Stage1 NASM và fixture tests: [đặc tả/audit](docs/BIOS_STAGE1.md), [lệnh
 
 ## BIOS Stage2 M05
 
-BIOS loader nạp ELF64 từ ESP FAT32 và chuyển vào kernel probe qua LBP v1; [audit/giới hạn](docs/BIOS_STAGE2.md), [kiểm thử](docs/TESTING.md#bios-stage2-m05). M05 DONE: local và bốn workflows code0a0f496 PASS; [PR #3](https://github.com/duclam2011dz/LamixOS/pull/3) đã merge theo phê duyệt của người dùng; annotated [milestone/M05](https://github.com/duclam2011dz/LamixOS/tree/milestone/M05) đã push, chi tiết tại handoff. Chưa có kernel sản phẩm M08, UEFI M06 hoặc generator M07.
+BIOS loader nạp ELF64 từ ESP FAT32 và chuyển vào kernel probe qua LBP v1; [audit/giới hạn](docs/BIOS_STAGE2.md), [kiểm thử](docs/TESTING.md#bios-stage2-m05). M05 DONE: local và bốn workflows code0a0f496 PASS; [PR #3](https://github.com/duclam2011dz/LamixOS/pull/3) đã merge theo phê duyệt của người dùng; annotated [milestone/M05](https://github.com/duclam2011dz/LamixOS/tree/milestone/M05) đã push. M06 DONE; M07 VERIFYING; kernel sản phẩm M08 chưa triển khai.
