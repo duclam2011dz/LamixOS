@@ -3,10 +3,10 @@
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
 > **Cập nhật:** 2026-10-29
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08–M44 PLANNED; chưa có kernel sản phẩm hoặc OS hoàn chỉnh
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 VERIFYING; M09–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=VERIFYING
 
 ## 0. Tầm nhìn và giới hạn
 
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 VERIFYING; M09–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -97,11 +97,11 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M06 — UEFI EFI loader tự viết.** **Trạng thái: DONE (2026-10-29).** PR #4 merged; tag `milestone/M06` giữ commit nghiệm thu `b96c6ba3`; bốn workflows CI SUCCESS trên SHA nghiệm thu. OVMF thực thi loader và cùng ELF probe BIOS nhận LBP v1. PE/COFF x64 dùng Clang+LLD, firmware ABI Microsoft x64, đọc ESP/GPT/FAT32 qua UEFI, nạp ELF64, GOP/ACPI optional, memory map và `ExitBootServices()`. Xem [handoff](docs/SESSION_HANDOFF.md) và [kế hoạch](PLANS.md). PC thật/4Kn chưa kiểm chứng; M07 DONE.
 
-**M07 — Boot parity, disk image generator và lỗi khởi động.** **Trạng thái: DONE (2026-10-29).** PR #5 merged; annotated tag `milestone/M07` trỏ commit nghiệm thu `1ece4235`; bốn workflows CI SUCCESS trên đúng SHA. Generator/checker raw GPT profile 8 GiB và boot thật SeaBIOS/OVMF trên cùng image/kernel ELF; probe xác nhận nghĩa vụ LBP v1 chung và negative ELF bị từ chối. Xem [handoff](docs/SESSION_HANDOFF.md). PC thật, 4Kn, slot B, filesystem System/User và kernel sản phẩm chưa thuộc nghiệm thu; M08 chưa bắt đầu.
+**M07 — Boot parity, disk image generator và lỗi khởi động.** **Trạng thái: DONE (2026-10-29).** PR #5 merged; annotated tag `milestone/M07` trỏ commit nghiệm thu `1ece4235`; bốn workflows CI SUCCESS trên đúng SHA. Generator/checker raw GPT profile 8 GiB và boot thật SeaBIOS/OVMF trên cùng image/kernel ELF; probe xác nhận nghĩa vụ LBP v1 chung và negative ELF bị từ chối. Xem [handoff](docs/SESSION_HANDOFF.md). PC thật, 4Kn, slot B và filesystem System/User chưa thuộc nghiệm thu.
 
 ### P2 — Kernel foundation và quản lý bộ nhớ
 
-**M08 — Kernel tối thiểu, serial panic, exception.** C/ASM entry, C++ freestanding runtime nhỏ khi cần, IDT/GDT/TSS đủ dùng, exception vectors, panic dump rõ; PIC bootstrap cho external IRQ cơ bản. Nghiệm thu: serial logs ổn định, cố ý gây exception nhận đúng vector, không triple fault im lặng.
+**M08 — Kernel tối thiểu, serial panic, exception.** **Trạng thái: VERIFYING (2026-10-29).** Đã triển khai kernel C/NASM, LBP validation, GDT/IDT/TSS+IST, serial panic dump và PIC/PIT IRQ0 self-test; local QEMU BIOS/OVMF positive, `#UD` và guard `#PF` PASS. GitHub CI trên SHA chứa thay đổi chưa chạy; chi tiết/chưa xác nhận ở [handoff](docs/SESSION_HANDOFF.md). Mục tiêu milestone: C/ASM entry, C++ freestanding runtime nhỏ khi cần, IDT/GDT/TSS đủ dùng, exception vectors, panic dump rõ; PIC bootstrap cho external IRQ cơ bản. Nghiệm thu: serial logs ổn định, cố ý gây exception nhận đúng vector, không triple fault im lặng.
 
 **M09 — Bitmap PMM.** Parse memory map chuẩn LBP, đánh dấu vùng firmware/kernel/modules/ACPI/MMIO, cấp/trả 4KiB frames; unit tests và stress tests có kiểm tra. Nghiệm thu: không trả frame reserved, xử lý hết bộ nhớ an toàn.
 

@@ -81,3 +81,9 @@ Suite độc lập tests/bios_stage2 dùng cross GCC hiện có -m32 -malign-dou
 Generator [m07_image.py](../scripts/m07_image.py) nhận build reports M05/M06 đã PASS; không tự build hay cài dependencies. Cần `mkfs.fat` từ `dosfstools`, cùng `mmd`, `mcopy`, `mdir` từ `mtools`. Doctor chỉ kiểm tra hiện diện/version lệnh và không tự cài. Toolchain CI cài hai gói trên. Python dùng GUID ngẫu nhiên mặc định hoặc UUIDv5 ổn định theo `--seed`.
 
 Image raw sparse theo profile 8 GiB. Chỉ ESP 256 MiB được format FAT32 và populate; System A/B và User Data để nguyên. Checker dùng GPT validator M03, `mtools` đọc file trong ESP và đối chiếu nội dung với artifact M05/M06. QEMU đọc image với snapshot; CODE firmware chỉ đọc, VARS riêng mỗi run. Image và firmware không được đưa lên CI artifact.
+
+## M08 kernel ELF
+
+`tests/m08/build_kernel.py` dùng GCC cross, GNU LD/Binutils và NASM đã có; không cài hoặc bootstrap dependency mới. Cờ freestanding loại runtime host, PIE, stack protector, unwind tables, red zone và SIMD; ELF report xác minh ET_EXEC x86_64, higher-half entry, `p_paddr=0`, segments W^X, không dynamic/interpreter/undefined symbols, compiler/linker/NASM versions, commands, source hashes, ELF inspection và SHA-256. Thư viện LBP M03 được build lại với cùng target flags.
+
+`scripts/m07_image.py create/check --kernel-build build/m08` xác minh report/hash M08 trước khi dùng `kernel.elf`; nếu không truyền tùy chọn, vẫn dùng kernel M05 như M07 ban đầu. M08 CTest khởi chạy SeaBIOS và OVMF guest thật; report JSON lưu command/version/hash/status, serial/QMP paths và protected hash trước/sau. CI lưu reports, không lưu image hoặc firmware.

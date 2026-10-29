@@ -149,7 +149,7 @@ def make_esp(efi, kernel, directory):
     return image
 
 
-def create_image(destination, bios_build, uefi_build, kernel=None, seed=None):
+def create_image(destination, bios_build, uefi_build, kernel=None, seed=None, kernel_build=None):
     destination = Path(destination)
     if not within_allowed(destination):
         raise ValueError("image chỉ được tạo dưới build/, out/ hoặc /tmp")
@@ -161,13 +161,23 @@ def create_image(destination, bios_build, uefi_build, kernel=None, seed=None):
     uefi_build = Path(uefi_build).resolve(strict=True)
     bios_report = verify_build_report(bios_build, ("stage1.bin", "stage2.bin", "kernel.elf"))
     uefi_report = verify_build_report(uefi_build, ("BOOTX64.EFI",))
-    kernel = checked_artifact(kernel or bios_build / "kernel.elf", 16 * 1024**2)
+    if kernel is not None and kernel_build is not None:
+        raise ValueError("chỉ chọn --kernel hoặc --kernel-build")
+    kernel_report = None
+    if kernel_build is not None:
+        kernel_build = Path(kernel_build).resolve(strict=True)
+        kernel_report = verify_build_report(kernel_build, ("kernel.elf",))
+        if kernel_report.get("mode") != "m08-kernel":
+            raise ValueError("kernel build report không phải M08")
+        kernel = checked_artifact(kernel_build / "kernel.elf", 16 * 1024**2)
+    else:
+        kernel = checked_artifact(kernel or bios_build / "kernel.elf", 16 * 1024**2)
     stage1 = checked_artifact(bios_build / "stage1.bin", 440)
     stage2 = checked_artifact(bios_build / "stage2.bin", 2 * 1024**2)
     efi = checked_artifact(uefi_build / "BOOTX64.EFI", 16 * 1024**2)
     if stage1.stat().st_size != 440 or stage2.stat().st_size < 32768:
         raise ValueError("BIOS artifact M05 không đúng kích thước đã nghiệm thu")
-    if kernel != (bios_build / "kernel.elf").resolve(strict=True):
+    if kernel_build is None and kernel != (bios_build / "kernel.elf").resolve(strict=True):
         raise ValueError("M07 yêu cầu kernel.elf chung trực tiếp từ build M05")
     identities_used = identities(seed)
     spec, pmbr, primary, entries, backup = metadata(identities_used)
@@ -213,13 +223,14 @@ def create_image(destination, bios_build, uefi_build, kernel=None, seed=None):
                                                           text=True, stderr=subprocess.STDOUT,
                                                           timeout=15).splitlines()[0]},
         "artifact_tool_versions": {"m05": bios_report.get("tool_versions", {}),
-                                   "m06": uefi_report.get("tool_versions", {})},
+                                   "m06": uefi_report.get("tool_versions", {}),
+                                   "kernel": kernel_report.get("tool_versions", {}) if kernel_report else {}},
         "paths": list(ESP_PATHS), "system_partitions_formatted": False,
     }
     return report
 
 
-def check_image(path, bios_build=None, uefi_build=None, kernel=None, report=None):
+def check_image(path, bios_build=None, uefi_build=None, kernel=None, report=None, kernel_build=None):
     path = checked_artifact(path)
     if path.stat().st_size != DISK_SIZE:
         raise ValueError("kích thước image không đúng profile 8 GiB")
@@ -277,7 +288,16 @@ def check_image(path, bios_build=None, uefi_build=None, kernel=None, report=None
     if forbidden.returncode == 0:
         raise ValueError("ESP không được chứa payload slot B trong M07")
     extracted = {}
-    if bios_build or uefi_build or kernel:
+    if kernel is not None and kernel_build is not None:
+        raise ValueError("chỉ chọn --kernel hoặc --kernel-build")
+    kernel_report = None
+    if kernel_build is not None:
+        kernel_build = Path(kernel_build).resolve(strict=True)
+        kernel_report = verify_build_report(kernel_build, ("kernel.elf",))
+        if kernel_report.get("mode") != "m08-kernel":
+            raise ValueError("kernel build report không phải M08")
+        kernel = checked_artifact(kernel_build / "kernel.elf", 16 * 1024**2)
+    if bios_build or uefi_build or kernel or kernel_build:
         if not bios_build or not uefi_build:
             raise ValueError("checker cần cả --bios-build và --uefi-build")
         bios_build, uefi_build = Path(bios_build), Path(uefi_build)
@@ -328,18 +348,21 @@ def main():
     create.add_argument("--bios-build", type=Path, required=True)
     create.add_argument("--uefi-build", type=Path, required=True)
     create.add_argument("--kernel", type=Path)
+    create.add_argument("--kernel-build", type=Path)
     create.add_argument("--seed")
     check = sub.add_parser("check")
     check.add_argument("--image", type=Path, required=True)
     check.add_argument("--bios-build", type=Path, required=True)
     check.add_argument("--uefi-build", type=Path, required=True)
     check.add_argument("--kernel", type=Path)
+    check.add_argument("--kernel-build", type=Path)
     args = parser.parse_args()
     if args.command == "create":
         report = create_image(args.image, args.bios_build, args.uefi_build,
-                              args.kernel, args.seed)
+                              args.kernel, args.seed, args.kernel_build)
     else:
-        report = check_image(args.image, args.bios_build, args.uefi_build, args.kernel)
+        report = check_image(args.image, args.bios_build, args.uefi_build, args.kernel,
+                             kernel_build=args.kernel_build)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 

@@ -1,6 +1,6 @@
 # Lamix Boot Protocol v1.0
 
-Contract M03 được duyệt ngày 2026-10-26. Headers và thư viện validation/normalization đã triển khai; BIOS Stage1 M04 có smoke test riêng; M05 có Stage2 BIOS và kernel probe; M06 bổ sung EFI loader và boot OVMF local với cùng kernel probe. Kernel sản phẩm **chưa triển khai**. Kết quả kiểm chứng ở [handoff](SESSION_HANDOFF.md); không coi host tests là OS boot.
+Contract M03 được duyệt ngày 2026-10-26. Headers và thư viện validation/normalization đã triển khai; BIOS Stage1 M04 có smoke test riêng; M05 có Stage2 BIOS và kernel probe; M06 bổ sung EFI loader; M07 đã boot cùng kernel probe qua SeaBIOS/OVMF. Kernel M08 đang tiêu thụ LBP v1; chưa có PMM/VMM hay kernel sản phẩm hoàn chỉnh. Kết quả kiểm chứng ở [handoff](SESSION_HANDOFF.md); không coi host tests là OS boot.
 
 ## Encoding và cấu trúc
 
@@ -65,7 +65,7 @@ Normalizer kiểm tra provenance trước overlay; validator BootInfo không th�
 
 ## Entry ABI và mappings
 
-Đây là nghĩa vụ producer/consumer cho M05–M07; BIOS probe M05 đã có local tests, UEFI/boot parity chưa kiểm chứng:
+Đây là nghĩa vụ producer/consumer cho M05–M08; M07 đã kiểm chứng cùng probe qua SeaBIOS/OVMF, M08 đang kiểm chứng kernel entry:
 
 - BSP x86_64 ring0/long mode, `CR0.PE=PG=WP=1`, `CR4.PAE=1`, LA57=0; paging 4 cấp. `EFER.LME/LMA=1`; NXE bật nếu provided NX=1, mọi mapping không executable được đặt NX khi khả dụng.
 - Kernel ELF64 ET_EXEC, virtual segments/entry trong `[0xffffffff80000000, 0xffffffffffffffff]`, range không wrap; chưa KASLR. Kernel load segments là page-disjoint để không tạo RWX page.
