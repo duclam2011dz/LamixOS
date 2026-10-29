@@ -18,10 +18,10 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED
+Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED
 ```
 
-Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M08 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
+Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M09 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
 
 [Unittest](../tests/test_validate_docs.py) dùng repository fixtures tạm cho positive/negative tests; không sửa tài liệu thật. Validator không trực tiếp chạy skill Codex. Kiểm tra metadata đơn giản trong Python không thay thế review hành vi skill.
 
@@ -185,7 +185,7 @@ Mỗi run có result.json/serial/QMP/stderr, case.json expected/actual và prote
 
 Toolchain CI build/guest Debug và Release dùng cross cache sẵn; Boot Contract CI host/sanitizer; Harness CI giữ M02/M04. Lưu JUnit/logs/maps/listings/JSON, không upload images/firmware hoặc dependencies. Các kết quả thật theo SHA ở [handoff](SESSION_HANDOFF.md).
 
-Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M07 DONE, M08 chưa triển khai. Không gán probe M05/M06/M07 làm image OS sản phẩm mặc định.
+Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M08 DONE, M09 VERIFYING. Không gán probe M05–M09 làm image OS sản phẩm mặc định.
 
 ## Kernel tối thiểu M08
 
@@ -247,3 +247,20 @@ Profile giữ GPT 8 GiB, ESP FAT32 256 MiB; chỉ ESP có payload `BOOTX64.EFI` 
 Guest parity chạy **cùng raw image** qua SeaBIOS và OVMF, kiểm marker firmware thật và dòng `M07:LBP` do cùng kernel probe phát sau khi validator LBP v1, CPU/paging/stack/guard/mapping checks đạt. So sánh version, slot A, required features và NX; source boot device và optional feature records có thể khác giữa firmware. Negative guest dùng sparse clone làm hỏng ELF kernel, giữ nguyên FAT boot path, rồi yêu cầu cả BIOS/UEFI từ chối đúng nhóm `ELF`. M05/M06 CTest hồi quy tiếp tục chạy parser/GPT/ELF/feature negative cases đầy đủ. Protected extents gồm PMBR/GPT, BIOS Boot Partition và ESP; firmware hashes cùng cleanup được kiểm tra. Không hash cả disk sparse 8 GiB; không upload image/firmware.
 
 `out/m07/` giữ XML/JSON/serial/QMP/report cục bộ. CI chỉ upload reports và build manifest. Boot PASS ở OVMF/SeaBIOS không chứng minh tương thích PC thật; 4Kn, slot B, filesystem System/User, updates/fallback/modules sản phẩm và Secure Boot tiếp tục ngoài M07.
+
+## Bitmap PMM M09
+
+M09 kernel dùng GCC cross/Binutils và NASM hiện có; không bootstrap M01. Build report ghi compiler/linker, command, source hashes, ELF inspection và SHA-256. Image M07 nhận provenance `m09-kernel` qua `kernel_build`; đường mặc định tiếp tục dùng M05, profile M08 vẫn hợp lệ:
+
+```bash
+python tests/m09/build_kernel.py --build build/m09
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m09 -B build/m09-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m09-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m09-tests --no-tests=error --output-on-failure --output-junit "$PWD/out/m09/ctest.xml"
+```
+
+Host suite chạy cùng `kernel/pmm.c` với fixture LBP đã validate, kiểm nhiều usable extents và holes, giới hạn 4 GiB, lỗi map/storage, OOM, invalid/double-free và stress. CTest sanitizer chạy native PMM cùng `lib/boot/contract.c` dưới ASan/UBSan.
+
+Guest test tạo image mới với cùng kernel ELF cho SeaBIOS/OVMF; yêu cầu `M08:PASS` và `M09:PASS`, tám frame duy nhất thuộc usable, free count trở lại sau free và free lỗi bị từ chối. QEMU dùng snapshot, OVMF CODE nguồn chỉ đọc, VARS riêng, serial/QMP, deadline/cleanup; hash image extents/firmware/build inputs trước/sau phải bằng nhau. Guest là boot thực, không phải launch-only. Reports tại `out/m09/`, không đưa image hoặc firmware vào artifact.
+
+M09 hiện **VERIFYING**: local M09 CTest 3/3 và hai firmware guest PASS; hồi quy/docs checks cho thay đổi hiện tại được ghi tại [handoff](SESSION_HANDOFF.md). CI chỉ được ghi SUCCESS khi workflow chạy trên SHA chứa M09. RAM trên 4 GiB, reclaim LOADER/ACPI, PC thật và firmware ngoài QEMU profile **NOT RUN/ngoài phạm vi**. VMM/mapping, zeroing, contiguous allocator, SMP và kernel sản phẩm thuộc phạm vi sau M09.

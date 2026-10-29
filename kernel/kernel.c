@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "lamix/boot/contract.h"
+#if defined(LAMIX_M09_PMM)
+#include "pmm.h"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -40,6 +43,10 @@ static uint8_t df_stack[16384] __attribute__((aligned(16)));
 static volatile uint32_t ticks;
 static uint8_t serial_ready;
 static uint64_t acpi_scratch_base, acpi_scratch_pages;
+#if defined(LAMIX_M09_PMM)
+static pmm physical_memory;
+static uint8_t pmm_states[PMM_STATE_BYTES];
+#endif
 static __attribute__((noreturn)) void fail(void);
 
 static inline uint8_t in8(uint16_t p){uint8_t x;__asm__ volatile("inb %1,%0":"=a"(x):"Nd"(p));return x;}
@@ -74,6 +81,56 @@ static void gdt_init(uint16_t prior_cs){
 static void pic_pit_init(void){out8(0x21,0xff);out8(0xa1,0xff);out8(PIC1,0x11);out8(PIC2,0x11);out8(PIC1+1,0x20);out8(PIC2+1,0x28);out8(PIC1+1,4);out8(PIC2+1,2);out8(PIC1+1,1);out8(PIC2+1,1);out8(0x21,0xfe);out8(0xa1,0xff);uint16_t divisor=(uint16_t)(1193182/100);out8(PIT+3,0x36);out8(PIT,(uint8_t)divisor);out8(PIT,(uint8_t)(divisor>>8));}
 void interrupt_dispatch(interrupt_frame*f){if(f->vector==32){ticks++;serial("M08:TICK\n");out8(PIC1,0x20);return;}panic_frame(f);}
 static const uint8_t *record(const lbp_view*v,uint32_t type){for(uint32_t i=0;i<v->count;i++){uint64_t at;if(lbp_record_at(v,i,&at)!=LBP_OK) return 0;const uint8_t*p=v->bytes+at;if(*(const uint32_t*)p==type)return p;}return 0;}
+#if defined(LAMIX_M09_PMM)
+static int frame_usable(const lbp_view *view, uint64_t physical) {
+  const uint8_t *raw=record(view,LBP_MEMORY_MAP);
+  if(!raw||((const lbp_record*)raw)->size<32)return 0;
+  uint32_t stride=*(const uint32_t*)(raw+20);
+  uint64_t count=*(const uint64_t*)(raw+24),size=((const lbp_record*)raw)->size;
+  if(stride<32||count>(size-32)/stride)return 0;
+  for(uint64_t i=0;i<count;i++){
+    const uint8_t *entry=raw+32+i*stride;
+    uint64_t base=*(const uint64_t*)entry,length=*(const uint64_t*)(entry+8);
+    if(*(const uint32_t*)(entry+16)==LBP_USABLE&&physical>=base&&
+       physical-base<=length&&PMM_PAGE_SIZE<=length-(physical-base))return 1;
+  }
+  return 0;
+}
+static int frame_reserved(const lbp_view *view, uint64_t physical) {
+  const uint8_t *raw=record(view,LBP_RESERVATIONS);
+  if(!raw||((const lbp_record*)raw)->size<32)return 1;
+  uint32_t stride=*(const uint32_t*)(raw+20);
+  uint64_t count=*(const uint64_t*)(raw+24),size=((const lbp_record*)raw)->size;
+  if(stride<32||count>(size-32)/stride)return 1;
+  for(uint64_t i=0;i<count;i++){
+    const uint8_t *entry=raw+32+i*stride;
+    uint64_t base=*(const uint64_t*)entry,length=*(const uint64_t*)(entry+8);
+    if(physical>=base&&physical-base<length)return 1;
+  }
+  return 0;
+}
+static int pmm_self_test(const lbp_view *view,const lbp_entry *entry){
+  uint64_t frames[8],initial=0;
+  if(pmm_init(&physical_memory,view,pmm_states,sizeof(pmm_states))!=PMM_OK)return 0;
+  initial=physical_memory.free_frames;
+  if(initial<8)return 0;
+  for(unsigned i=0;i<8;i++){
+    if(pmm_alloc_frame(&physical_memory,&frames[i])!=PMM_OK||
+       frames[i]>=PMM_PHYSICAL_LIMIT||frames[i]%PMM_PAGE_SIZE||
+       !frame_usable(view,frames[i])||frame_reserved(view,frames[i]))return 0;
+    for(unsigned j=0;j<i;j++)if(frames[j]==frames[i])return 0;
+  }
+  if(pmm_free_frame(&physical_memory,frames[0])!=PMM_OK||
+     pmm_free_frame(&physical_memory,frames[0])!=PMM_NOT_ALLOCATED||
+     pmm_free_frame(&physical_memory,frames[1]+1)!=PMM_INVALID_ARGUMENT||
+     pmm_free_frame(&physical_memory,entry->cr3)!=PMM_NOT_ALLOCATED)return 0;
+  for(unsigned i=1;i<8;i++)
+    if(pmm_free_frame(&physical_memory,frames[i])!=PMM_OK)return 0;
+  if(physical_memory.free_frames!=initial||physical_memory.allocated_frames!=0)return 0;
+  serial("M09:PMM frames=8 free=");hex(initial);serial("\n");
+  return 1;
+}
+#endif
 static const uint8_t *raw_record(const lbp_header*h,uint32_t wanted){
   uint64_t total=h->total_size,at=h->records_offset;uint32_t count=h->record_count;
   if(total<sizeof(*h)||total>LBP_MAX_SIZE||count>LBP_MAX_RECORDS||at<sizeof(*h)||at>total)return 0;
@@ -160,6 +217,9 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
   if(validation!=LBP_OK)fail();
   const lbp_entry*e=(const lbp_entry*)record(&view,LBP_ENTRY);
   if(!e)fail();
+#if defined(LAMIX_M09_PMM)
+  if(!pmm_self_test(&view,e)){serial("M09:FAIL\n");fail();}
+#endif
   uint16_t prior_cs;__asm__ volatile("mov %%cs,%0":"=r"(prior_cs));
   idt_init(prior_cs,0);
   gdt_init(prior_cs);
@@ -171,5 +231,9 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
 #elif defined(LAMIX_FAULT_PF)
   *(volatile uint8_t*)(uintptr_t)e->guard=0x5a;
 #endif
-  pic_pit_init();__asm__ volatile("sti");while(ticks<3)__asm__ volatile("pause");__asm__ volatile("cli");out8(0x21,0xff);out8(0xa1,0xff);serial("M08:PASS\n");halt();
+  pic_pit_init();__asm__ volatile("sti");while(ticks<3)__asm__ volatile("pause");__asm__ volatile("cli");out8(0x21,0xff);out8(0xa1,0xff);serial("M08:PASS\n");
+#if defined(LAMIX_M09_PMM)
+  serial("M09:PASS\n");
+#endif
+  halt();
 }
