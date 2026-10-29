@@ -1,8 +1,20 @@
-# Bàn giao đóng M05 — 2026-10-28
+# Bàn giao triển khai M06 — VERIFYING — 2026-10-28
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=VERIFYING
 
-Người dùng đã xác nhận hoàn thành, duyệt tag/merge/bàn giao. M05 DONE. M06/M07/M08 chưa triển khai. Đây là BIOS→ELF kernel probe, chưa phải kernel sản phẩm hoặc OS hoàn chỉnh.
+## M06 hiện tại
+
+Local implementation thêm EFI loader PE/COFF x64, Clang+LLD, UEFI device/GPT/ESP path, FAT file reads, shared ELF load, GOP/ACPI optionals, UEFI memory map normalization, LBP v1/page tables và bounded `ExitBootServices()` retry. Assembly trampoline chuyển Microsoft x64 firmware ABI sang System V kernel entry. Cùng kernel probe chạy BIOS/UEFI, phân biệt `M05:PASS`/`M06:PASS`. LBP v1 wire layout và BIOS Stage1 440-byte gate/Stage2 budget không đổi; LBP semantic validation được mở rộng cho mapping framebuffer identity RW/NX, kể cả physical address trên4 GiB.
+
+- Local: M06 CTest host retry/capacity policy + PE + 5 guest cases PASS; OVMF positive thật phát `M06:FRAMEBUFFER` và `M06:PASS`; negative thiếu kernel, ELF hỏng, required ACPI khi RSDP không hợp đồng, GPT GUID sai đều nhận expected failure. Image extents, firmware CODE/VARS hashes và cleanup được kiểm trong từng run.
+- Regression: BIOS M05 Debug/Release CTest 4/4 mỗi profile; host ASan/UBSan 1/1; M03 contract Debug/Release 4/4, sanitizer 3/3; M02 fixture/launch CTest 2 PASS, boot skeleton BIOS/UEFI SKIPPED; M04 CTest 2/2.
+- OVMF ACPI RSDP ở physical `0x0fb7e014`, không căn16 theo LBP v1 nên loader bỏ record; kernel test `note-required-acpi` bị từ chối. OVMF GOP được phát và kernel xác nhận mapping. PC thật/4Kn/firmware khác NOT RUN.
+- Local CTest ban đầu bắt lỗi probe marker debug ghi đè DX và regression marker còn sót; đã sửa và chạy lại BIOS Debug/Release PASS. Một lần M03 framebuffer test thất bại do test fixture memory map không sort; đã sửa fixture, sau đó suite PASS.
+- Git baseline trước triển khai `9a2a4671b4c48905c27994de3f3ecb806cb6673f`, branch `main`; thay đổi M06 hiện chưa commit. Vì chưa có SHA mới, CI đúng SHA là PENDING. Không push, tag hoặc merge; M06 chưa DONE, M07 chưa bắt đầu.
+
+## M05 accepted baseline
+
+Người dùng đã xác nhận hoàn thành, duyệt tag/merge/bàn giao M05. Đây là BIOS→ELF kernel probe, chưa phải kernel sản phẩm hoặc OS hoàn chỉnh.
 
 ## Git và phạm vi
 
@@ -50,10 +62,10 @@ Code revision `0a0f496496380f4bc34ce1536a6000f218cb1a77` cũng có bốn workflo
 
 Đã đọc ZIP m05-target-reports id12818215770: host46/guest54 mỗi profile,108 case.json/result.json (18 PASS/90 PANIC đúng expected), strict-segment/cross-segment đạt; hashes source/binary Debug/Release khớp local, protected hashes/firmware/cleanup đúng. ZIP không có binary/image/firmware. Audit: out/m05/ci-artifact-audit-0a0f496.json. Host sanitizer thuộc Boot Contract CI; không dùng artifact68cbd48 thay revision mới.
 
-## Giới hạn và next exact action
+## Lịch sử đóng M05 và giới hạn hiện tại
 
 Lượt đóng chỉ chạy lại validator và33 unittest tài liệu; không chạy lại toàn bộ build/QEMU local vì không đổi code. Xác minh CI HEAD đóng thủ tục sau push; CI nghiệm thu không thay CI của SHA mới. Không còn code đang dở được biết.
 
-Next exact action: kết thúc M05. Chỉ khảo sát/lập kế hoạch M06 khi người dùng yêu cầu riêng và bật Plan Mode thật; không bắt đầu M06 trong lượt này, không tự tạo version tag hoặc Release.
+Các ghi chú trong phần đóng M05 bên dưới là lịch sử. Next exact action M06: review toàn bộ diff, chạy validator/docs tests sau cập nhật tài liệu, xác minh CTest cuối cùng, sau đó tạo commit theo quy ước để CI chạy trên SHA mới. Chờ CI xanh/review và xác nhận hoàn thành riêng trước khi đổi M06 thành DONE; không tạo/push tag hoặc bắt đầu M07.
 
-OS boot skeleton BIOS/UEFI vẫn SKIPPED vì chưa có image sản phẩm mặc định. UEFI M06/parity M07/kernel M08, PC thật/4Kn/EDD không hỗ trợ/firmware vi phạm ABI, GDB và NMI/SMM stress NOT RUN. Không suy ra các kết quả đó từ kernel probe/launch-only.
+OS boot skeleton BIOS/UEFI vẫn SKIPPED vì chưa có image sản phẩm mặc định. M07 generator/parity và kernel M08 chưa triển khai; PC thật/4Kn/firmware ngoài OVMF, GDB và NMI/SMM stress NOT RUN. Không suy ra các kết quả đó từ kernel probe/launch-only.

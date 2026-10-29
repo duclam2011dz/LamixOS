@@ -1,6 +1,6 @@
 # GPT image layout — profile Lamix v1
 
-M03 đặc tả layout và mô hình metadata host; **chưa có generator sản phẩm, FAT32 formatter hoặc image OS**. M05 có fixture ESP FAT32/kernel probe test-only, chưa có generator sản phẩm; M04 có sparse fixture bootable riêng cho Stage1/probe, xem [BIOS_STAGE1](BIOS_STAGE1.md). [GPT headers](../include/lamix/boot/gpt.h) dùng byte arrays alignment=1, assertions mọi offset; [mô hình host](../tests/boot/gpt_model.py) không file/disk I/O. Generator/checker thực tế thuộc M07.
+M03 đặc tả layout và mô hình metadata host; **chưa có generator sản phẩm, FAT32 formatter hoặc image OS**. M05 có fixture ESP FAT32/kernel probe test-only; M06 fixture này thêm EFI application để boot OVMF, nhưng vẫn chưa tạo image sản phẩm. M04 có sparse fixture riêng cho Stage1/probe, xem [BIOS_STAGE1](BIOS_STAGE1.md). [GPT headers](../include/lamix/boot/gpt.h) dùng byte arrays alignment=1, assertions mọi offset; [mô hình host](../tests/boot/gpt_model.py) không file/disk I/O. Generator/checker/parity thực tế thuộc M07.
 
 ## Metadata theo chuẩn và policy
 
@@ -34,7 +34,7 @@ Disk GUID và 5 unique partition GUIDs phải không zero, đôi một khác nha
 
 ## Boot payload và A/B
 
-ESP FAT32 dự kiến có `EFI/BOOT/BOOTX64.EFI`, `EFI/LAMIX/A/kernel.elf`, `EFI/LAMIX/B/kernel.elf` và modules của từng slot trong cùng thư mục. Bootstrap chọn A tường minh; không tự boot B nếu A lỗi. Cách enumerate/load modules và nội dung bundle cụ thể thuộc loader milestone, phải phù hợp LBP Modules.
+ESP FAT32 dự kiến có `EFI/BOOT/BOOTX64.EFI`, `EFI/LAMIX/A/KERNEL.ELF`, `EFI/LAMIX/B/KERNEL.ELF` và modules của từng slot trong cùng thư mục. M06 EFI loader đọc slot A tường minh, không tự boot B nếu A lỗi; BIOS M05 dùng cùng kernel ELF probe. Cách enumerate/load modules và nội dung bundle sản phẩm cụ thể thuộc M07, phải phù hợp LBP Modules.
 
 BIOS Boot Partition là raw stage storage, không filesystem. BIOS Stage1 phải tìm partition thay vì đọc gap; không ghi đè partition table. System A/B và User Data chưa có filesystem format được đóng băng. ESP chỉ chứa boot bundles, không coi là User Data. A/B layout hiện không chứng minh atomic updates, health check hoặc rollback; metadata giao dịch/recovery và bảo vệ ESP khi update thuộc M39.
 

@@ -44,6 +44,7 @@ def loader_lib(tmp_path_factory):
     lib.lamix_crc32.argtypes=[C.c_void_p,C.c_uint32];lib.lamix_crc32.restype=C.c_uint32
     lib.lamix_divmod64.argtypes=[C.c_uint64,C.c_uint64,C.POINTER(C.c_uint64)];lib.lamix_divmod64.restype=C.c_uint64
     lib.lamix_gpt_open.argtypes=[Reader,C.c_uint32,C.c_uint32,C.c_void_p,C.c_uint32,C.POINTER(Disk)]
+    lib.lamix_gpt_open_uefi.argtypes=[Reader,C.c_uint32,C.c_uint32,C.c_void_p,C.c_uint32,C.POINTER(Disk)]
     lib.lamix_fat_open.argtypes=[C.POINTER(Disk),C.POINTER(Fat)]
     lib.lamix_fat_read.argtypes=[C.c_void_p,C.c_uint64,C.c_void_p,C.c_uint32]
     lib.lamix_elf_inspect.argtypes=[Reader,C.c_uint64,C.POINTER(Plan)]
@@ -113,6 +114,13 @@ def test_host_image_pipeline(loader_lib,tmp_path,synthetic_build,variant,stage):
         if stage=='GPT':assert status!=0
         else:
             assert status==0 and d.esp_start==6144
+            uefi=Disk()
+            assert loader_lib.lamix_gpt_open_uefi(reader,d.esp_start,d.esp_sectors,
+                                                   scratch,len(scratch),C.byref(uefi))==0
+            assert bytes(uefi.disk)==bytes(d.disk) and bytes(uefi.esp)==bytes(d.esp)
+            wrong=Disk()
+            assert loader_lib.lamix_gpt_open_uefi(reader,d.esp_start+1,d.esp_sectors,
+                                                   scratch,len(scratch),C.byref(wrong))!=0
             f=Fat();C.memset(C.byref(f),0xa5,C.sizeof(f));before_fat=bytes(f)
             status=loader_lib.lamix_fat_open(C.byref(d),C.byref(f))
             if status:assert bytes(f)==before_fat

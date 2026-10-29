@@ -1,6 +1,6 @@
 # BIOS Stage1 — M04
 
-Stage1 có guest smoke test trên QEMU pc/SeaBIOS, không phải Lamix OS boot. M05 đã có [Stage2/ELF/LBP kernel probe](BIOS_STAGE2.md) đang kiểm chứng; UEFI loader chưa triển khai. Contract GPT/LBP M03 giữ nguyên; [image layout](IMAGE_LAYOUT.md) và [boot protocol](BOOT_PROTOCOL.md) là nguồn tương ứng.
+Stage1 có guest smoke test trên QEMU pc/SeaBIOS, không phải Lamix OS boot. M05 BIOS Stage2 và M06 UEFI EFI loader đều dùng [ELF/LBP kernel probe](BIOS_STAGE2.md); M06 đang VERIFYING theo [handoff](SESSION_HANDOFF.md). Contract GPT/LBP M03 giữ nguyên; [image layout](IMAGE_LAYOUT.md) và [boot protocol](BOOT_PROTOCOL.md) là nguồn tương ứng.
 
 ## Vùng mã và phạm vi
 

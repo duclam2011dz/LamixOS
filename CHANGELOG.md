@@ -85,3 +85,11 @@ M02 đã kiểm chứng local và cả ba workflows trên GitHub; kết quả/UR
 
 - Người dùng xác nhận hoàn thành, duyệt tag/merge/bàn giao. Annotated milestone/M05 object d42c14b41a52f25f0fa45fa24ccd253069d8eae5 trỏ SHA nghiệm thu4742e2d5a3eceb51193e470ed3d7fcdb0495c401; bốn workflows SUCCESS, đã push.
 - PR #3 đã merge tại c05b0b2435fef8bb5918befd99e5fcf2113365a1. Đồng bộ DONE/handoff, giữ tags M00–M04; không tạo version tag/Release hoặc bắt đầu M06.
+
+### Triển khai M06 theo kế hoạch được duyệt — 2026-10-28
+
+- Thêm EFI application PE/COFF x64 bằng Clang+LLD, runtime freestanding, UEFI ABI declarations và trampoline sang kernel ABI System V. Dùng chung GPT/ELF/LBP/memory code; xác định ESP từ Device Path/Block I/O/GPT; đọc slot A và không fallback B.
+- Thêm GOP framebuffer identity mapping và ACPI RSDP optional record, UEFI memory map decode/normalize, bounded map-buffer growth và retry `ExitBootServices()`. LBP wire layout không đổi; validator/probe kiểm mapping framebuffer kể cả physical trên4 GiB.
+- Mở rộng fixture/harness opt-in cho OVMF, PE inspection, guest fault cases và reports; Toolchain CI cài clang/lld và chạy M06 OVMF guest. M07 generator/parity không triển khai.
+- Local: M06 CTest host retry/capacity policy + PE + 5 guest cases PASS; M05 BIOS Debug/Release 4/4 mỗi profile, M05 sanitizer1/1; M03 Debug/Release4/4 và sanitizer3/3; M02 launch/fixture2 PASS, skeleton2 SKIPPED; M04 CTest2/2. OVMF positive xác nhận GOP; ACPI bị bỏ do RSDP không căn16; PC thật/4Kn NOT RUN.
+- M06 đang VERIFYING: source chưa commit nên GitHub CI đúng SHA PENDING; không tag/push/merge hoặc chuyển M06 DONE. Bằng chứng/next action trong handoff.

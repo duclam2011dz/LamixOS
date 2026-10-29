@@ -15,7 +15,8 @@ def segment(phys, virt, size, perms):
 def reservation(base, size, purpose, release):
     return S.pack('<QQIIQ', base, size, purpose, release, 0)
 
-def bootinfo(source=1, extras=(), features=0, memory=None, reservations=None):
+def bootinfo(source=1, extras=(), features=0, memory=None, reservations=None,
+             mapping_extras=()):
     # Allocations tách biệt theo page; không hề tạo entry code hoặc image.
     memory = memory if memory is not None else [(0x100000, 0x40000, 2, 0, 0),
                                                (0x200000, 0x10000, 1, 0, 0),
@@ -28,7 +29,7 @@ def bootinfo(source=1, extras=(), features=0, memory=None, reservations=None):
                table(3, reservations),
                table(4, [segment(0x100000, 0xffffffff80000000, 4096, 5),
                          segment(0x110000, 0x110000, 4096, 1),
-                         segment(0x120000, 0x120000, 65536, 3)],
+                         segment(0x120000, 0x120000, 65536, 3), *mapping_extras],
                      S.pack('<QQQQQ', 0x130000, 0x120000, 65536, 0x12fff8, 0x11f000)),
                record(5, S.pack('<II', source, 512)+bytes([1])*16+bytes([2])*16+bytes([3])*16+S.pack('<II', 1, 0))]
     records += list(extras)

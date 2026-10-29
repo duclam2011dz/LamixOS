@@ -1,6 +1,6 @@
 # Lamix Boot Protocol v1.0
 
-Contract M03 được duyệt ngày 2026-10-26. Headers và thư viện validation/normalization đã triển khai; BIOS Stage1 M04 có smoke test riêng; M05 có Stage2 BIOS và kernel probe handoff local; UEFI loader và kernel sản phẩm **chưa triển khai**. Kết quả kiểm chứng ở [handoff](SESSION_HANDOFF.md); không coi host tests là OS boot.
+Contract M03 được duyệt ngày 2026-10-26. Headers và thư viện validation/normalization đã triển khai; BIOS Stage1 M04 có smoke test riêng; M05 có Stage2 BIOS và kernel probe; M06 bổ sung EFI loader và boot OVMF local với cùng kernel probe. Kernel sản phẩm **chưa triển khai**. Kết quả kiểm chứng ở [handoff](SESSION_HANDOFF.md); không coi host tests là OS boot.
 
 ## Encoding và cấu trúc
 
@@ -27,11 +27,11 @@ Record header 16 byte: type:u32, flags:u32, size:u64. Bit flags 0 là REQUIRED, 
 
 Types 1–5 bắt buộc, REQUIRED=1, mỗi type đúng một record, các bảng không rỗng. Types 6–8 tùy chọn, tối đa một record/type; Modules có thể count=0. Trùng known type là CONFLICT. Unknown optional record được bỏ qua sau bounds validation; unknown REQUIRED record trả UNSUPPORTED. Version descriptor khác 1 bị từ chối. Bảng tối đa 4096 entries; stride mở rộng được chấp nhận; phần extension phải zero với minor=0, được bỏ qua với minor cao hơn. Không truyền EFI handles, BIOS callbacks hoặc runtime service pointers.
 
-`lbp_segment` là physical:u64, virtual:u64, length:u64, permissions:u32, reserved:u32. Kernel segments và mappings có base/length căn 4 KiB, physical không zero và kết thúc không vượt 4 GiB. Permissions: READ=1, WRITE=2, EXECUTE=4; READ bắt buộc, WRITE+EXECUTE không được đồng thời. Các kernel segments không chồng physical hoặc virtual; mappings không chồng virtual và không có writable/executable physical aliases. Mọi mapping phải thuộc một reservation, không được tự map MMIO/firmware ranges bằng entry contract này.
+`lbp_segment` là physical:u64, virtual:u64, length:u64, permissions:u32, reserved:u32. Kernel segments có base/length căn 4 KiB, physical không zero và kết thúc không vượt 4 GiB. Mappings cũng căn 4 KiB; loader BIOS M05 chỉ tạo mapping cho allocations thấp và chúng phải thuộc reservation. Mapping GOP framebuffer là ngoại lệ thiết bị: identity mapping READ|WRITE, non-executable, nằm trọn trong range record Framebuffer; vùng này không phải RAM allocation/reservation. Physical framebuffer được giới hạn theo địa chỉ vật lý x86-64 52 bit. Permissions: READ=1, WRITE=2, EXECUTE=4; READ bắt buộc, WRITE+EXECUTE không được đồng thời. Các kernel segments không chồng physical hoặc virtual; mappings không chồng virtual và không có writable/executable physical aliases.
 
 Modules descriptor: physical/length/name_offset:u64; name_length/reserved:u32. Physical bytes nằm trong MODULE reservation, không chồng module khác; tên không NUL terminator, không rỗng, UTF-8 hợp lệ, cấm NUL/control characters. Tên nằm sau toàn bộ descriptors trong chính record Modules, liên tục theo thứ tự descriptors; tổng tên và padding không vượt record. Module physical range không bắt buộc page aligned, nhưng reservation bao phủ nó phải page aligned.
 
-Framebuffer v1 hỗ trợ packed 32 bpp, pitch bội 4 và >= width*4, pitch*height <= length, dimensions không zero, range không overflow. RGB masks khác zero, liên tục và không giao nhau; reserved_mask zero hoặc liên tục, không giao RGB. Range không chồng reservations hoặc memory usable/loader reclaim. Không bắt buộc identity map framebuffer. Pixel masks là lựa chọn profile Lamix, không cam kết mọi mode firmware.
+Framebuffer v1 hỗ trợ packed 32 bpp, pitch bội 4 và >= width*4, pitch*height <= length, dimensions không zero, range không overflow. RGB masks khác zero, liên tục và không giao nhau; reserved_mask zero hoặc liên tục, không giao RGB. Range không chồng reservations hoặc memory usable/loader reclaim. Nếu phát record, Entry phải ánh xạ identity toàn bộ framebuffer bằng READ|WRITE, NX khi CPU hỗ trợ; host validator kiểm quan hệ này. Pixel masks là lựa chọn profile Lamix, không cam kết mọi mode firmware.
 
 ACPI bootstrap hỗ trợ RSDP revision 0/length 20 và revision 2/length 36, physical căn 16. Kiểm tra signature, revision, legacy checksum; revision 2 kiểm tra length, extended checksum và reserved bytes. Bytes được caller cung cấp qua span physical→host bytes; thiếu span trả TRUNCATED, không dereference physical address. RSDP không được nằm trong usable/loader reclaim hoặc chồng reservations. Duyệt XSDT/RSDT và ACPI tables thuộc M13.
 
@@ -105,6 +105,6 @@ Status numeric: OK=0, INVALID=1, TRUNCATED=2, OVERFLOW=3, UNSUPPORTED=4, CONFLIC
 
 Các bản mirror HTML/PDF có thể trả 403/404; không coi chúng là bằng chứng đã đọc hết CPU/psABI specification. Host assertions và mutation tests không chứng minh CPU state, firmware execution, ownership enforcement hoặc OS boot. Những điều đó phải kiểm chứng thật tại M05–M07.
 
-## Producer BIOS M05
+## Producer BIOS M05 và UEFI M06
 
-[Stage2](BIOS_STAGE2.md) tạo năm records bắt buộc và gọi validator trước handoff, kernel probe kiểm lại state CPU/mappings thật. ELF producer profile yêu cầu p_paddr0; loader cấp physical dưới4 GiB. Serial bootstrap không phát modules/framebuffer/ACPI; required ACPI/framebuffer bị từ chối, NX phản ánh khả năng và state thật. Đây là phần thực thi BIOS của contract, không đổi ABI v1 hoặc chứng minh UEFI parity.
+[Stage2](BIOS_STAGE2.md) tạo năm records bắt buộc và gọi validator trước handoff. EFI loader `boot/uefi/` dùng cùng ELF loader, decoder/normalizer và LBP validator, tạo page tables/LBP rồi thoát Boot Services; cùng kernel probe kiểm state CPU/mappings thật. Cả hai yêu cầu ELF `p_paddr=0` và cấp kernel pages dưới 4 GiB. UEFI có thể phát GOP/ACPI optional records; GOP được identity-map, ACPI chỉ phát khi pointer/structure hợp lệ theo v1. OVMF hiện cung cấp RSDP vật lý không căn 16 nên test profile bỏ ACPI; feature required sẽ bị từ chối. ABI wire v1 không đổi.

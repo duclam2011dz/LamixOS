@@ -1,6 +1,6 @@
 # BIOS Stage2 — M05
 
-Triển khai theo kế hoạch đã duyệt ngày 2026-10-28. Stage2 BIOS đã có guest probe local; trạng thái local/CI chính xác ở [handoff](SESSION_HANDOFF.md). Không phải kernel sản phẩm M08, chưa triển khai UEFI M06 hoặc generator M07. [LBP](BOOT_PROTOCOL.md) và [GPT profile](IMAGE_LAYOUT.md) M03 giữ nguyên; Stage1 M04 giữ hash/440 byte/ABI.
+Triển khai theo kế hoạch đã duyệt ngày 2026-10-28. Stage2 BIOS đã có guest probe; trạng thái local/CI chính xác ở [handoff](SESSION_HANDOFF.md). Không phải kernel sản phẩm M08. EFI loader M06 dùng chung ELF/LBP và kernel probe; M06 đang VERIFYING. Generator M07 chưa triển khai. [LBP](BOOT_PROTOCOL.md) và [GPT profile](IMAGE_LAYOUT.md) M03 giữ nguyên; Stage1 M04 giữ hash/440 byte/ABI.
 
 ## Build và storage
 
@@ -54,7 +54,7 @@ GDT/IDT fatal có cho protected32 và long64; TSS/IST emergency stack có reserv
 
 ## Kernel probe và kết quả
 
-Probe tại tests/bios_stage2/probe.asm/probe.c/linker script; C64 -mcmodel=kernel, no-red-zone/general-regs-only. ASM chụp entry state trước C. Probe không có nhánh BIOS-specific; nhận cùng LBP cho M06 tương lai. Physical table addresses được resolve qua mapping records trước khi dereference, không mặc định direct map.
+Probe tại tests/bios_stage2/probe.asm/probe.c/linker script; C64 -mcmodel=kernel, no-red-zone/general-regs-only. ASM chụp entry state trước C. Probe không có nhánh firmware-specific; cùng ELF dùng cho BIOS và UEFI, phát marker M05:PASS hoặc M06:PASS theo Boot Device. Physical table addresses được resolve qua mapping records trước khi dereference, không mặc định direct map; ACPI tạm ánh xạ scratch rồi gỡ trước mapping audit.
 
 Kiểm magic/registers/flags/CR0/3/4/EFER/selectors/GDT descriptor, stack alignment/sentinel, LBP validator, initialized data/BSS, actual page translations/permissions/NX, guard và số leaf mappings đúng records. Loader phát MEMORY/RESERVE/MAP reports bằng serial và HANDOFF trước jump; chỉ kernel probe sau toàn bộ checks phát M05:PASS. Failure có M05:FAIL và nhóm S2/CPU/E820/A20/DISK/GPT/FAT/ELF/NOTE/MEMORY/LBP/ENTRY/EXCEPTION. ISR64 báo vector hex; RO/guard fault probes nhận vector0e. Polling serial hữu hạn.
 

@@ -61,3 +61,12 @@ QEMU snapshot báo Could not get temporary filename/Read-only file system: harne
 - Fixture note mutations phải tìm PT_NOTE envelope; ELF có thể chứa chuỗi LAMIXREQ khác trong rodata validator. Không tìm chuỗi đầu tiên để suy ra descriptor.
 
 Audit/limits: [BIOS_STAGE2](BIOS_STAGE2.md). Không debug bằng cách bỏ snapshot, RWX mappings, guard hoặc validation; giữ logs failure cũ, phân biệt adapter với lỗi firmware thật.
+
+## EFI loader M06
+
+- Build thiếu `clang`, `lld-link` hoặc `nasm`: kiểm tra PATH; script không cài dependencies. Clang target PE/COFF riêng với GCC cross ELF. LLD unresolved symbol là thiếu runtime freestanding, không thêm CRT mặc định.
+- `GPT_IDENTITY`/`ESP_DEVICE_PATH`: loader chỉ chấp nhận GPT profile Lamix và phải khớp ESP HD node với whole-disk Block I/O path; không hard-code thiết bị hoặc mở slot B.
+- `ELF`: kiểm `build/m06/build.json`, source hashes và note `LAMIXREQ`. Feature required không có record hợp lệ phải bị từ chối; ACPI RSDP lệch alignment/checksum thì optional feature bị bỏ.
+- Nếu OVMF guest dừng sau `TABLES_OK`, xem `serial.log`/`case.json`; không coi PE build hoặc QEMU launch là boot thành công. `M06:PASS` chỉ do cùng kernel probe phát sau khi kiểm LBP/page tables.
+- `ExitBootServices()` chỉ retry một lần khi `EFI_INVALID_PARAMETER`; không gọi protocol, cấp phát hoặc ghi serial sau lần GetMemoryMap cuối. Buffer growth có một lần bounded, tối đa 2 MiB; vượt mức fail-stop.
+- OVMF CODE gốc read-only, mỗi run dùng VARS riêng; disk snapshot bật. Hash thay đổi hoặc cleanup bị cưỡng bức là FAIL. OVMF PASS không xác nhận PC thật, 4Kn, Secure Boot hay mọi GOP/ACPI firmware.

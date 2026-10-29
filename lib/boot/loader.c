@@ -63,9 +63,10 @@ static int gpt_header(uint8_t *p, uint32_t current, uint32_t alternate,
   copy(p + 16, saved, 4);
   return actual == expected;
 }
-lbp_status lamix_gpt_open(lamix_reader r, uint32_t bs, uint32_t be,
-                          uint8_t *scratch, uint32_t capacity,
-                          lamix_disk *out) {
+static lbp_status gpt_open(lamix_reader r, uint32_t bs, uint32_t be,
+                           uint32_t es, uint32_t ec, int uefi,
+                           uint8_t *scratch, uint32_t capacity,
+                           lamix_disk *out) {
   if (!scratch || capacity < 16384 || !out || !r.read || r.size % 512 ||
       r.size / 512 > UINT32_MAX || r.size / 512 < 68)
     return LBP_INVALID;
@@ -166,10 +167,21 @@ lbp_status lamix_gpt_open(lamix_reader r, uint32_t bs, uint32_t be,
     }
   }
   if (used != 5 || bios_count != 1 || esp_count != 1 || sys_count != 1 ||
-      d.bios_start != bs || d.bios_end != be)
+        (!uefi && (d.bios_start != bs || d.bios_end != be)) ||
+        (uefi && (d.esp_start != es || d.esp_sectors != ec)))
     return LBP_CONFLICT;
   *out = d;
   return LBP_OK;
+}
+lbp_status lamix_gpt_open(lamix_reader r, uint32_t bs, uint32_t be,
+                          uint8_t *scratch, uint32_t capacity,
+                          lamix_disk *out) {
+  return gpt_open(r, bs, be, 0, 0, 0, scratch, capacity, out);
+}
+lbp_status lamix_gpt_open_uefi(lamix_reader r, uint32_t es, uint32_t ec,
+                               uint8_t *scratch, uint32_t capacity,
+                               lamix_disk *out) {
+  return gpt_open(r, 0, 0, es, ec, 1, scratch, capacity, out);
 }
 
 static int sector(const lamix_fat *f, uint32_t relative, uint8_t *p) {

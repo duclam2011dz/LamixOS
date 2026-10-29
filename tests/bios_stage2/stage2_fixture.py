@@ -12,7 +12,7 @@ from gpt_fixture import fixtures
 from gpt_model import validate
 
 
-def create_stage2_image(path,build,variant='valid',kernel='kernel.elf'):
+def create_stage2_image(path,build,variant='valid',kernel='kernel.elf',efi_application=None):
     path=Path(path);parent=path.parent.resolve(strict=True)
     if not any(parent.is_relative_to(p) for p in (ROOT/'build',ROOT/'out',Path('/tmp'))):raise ValueError('fixture path ngoài build/out/tmp')
     path=parent/path.name;build=Path(build)
@@ -102,9 +102,12 @@ def create_stage2_image(path,build,variant='valid',kernel='kernel.elf'):
         write((esp+1)*512,fsinfo,'fsinfo')
         clusters=(len(elf)+511)//512
         chain=[10+i*(2 if variant=='fragmented' else 1) for i in range(clusters)]
-        fat=bytearray(((max(chain)+128)//128)*512)
-        for c,v in [(0,0x0ffffff8),(1,0x0fffffff),(2,0x0fffffff),(3,0x0fffffff),(4,0x0fffffff),(5,0x0fffffff)]:struct.pack_into('<I',fat,c*4,v)
+        efi=b'' if efi_application is None else Path(efi_application).read_bytes()
+        efi_chain=[4096+i for i in range((len(efi)+511)//512)]
+        fat=bytearray(((max(chain+efi_chain+[128])+128)//128)*512)
+        for c,v in [(0,0x0ffffff8),(1,0x0fffffff),(2,0x0fffffff),(3,0x0fffffff),(4,0x0fffffff),(5,0x0fffffff),(6,0x0fffffff)]:struct.pack_into('<I',fat,c*4,v)
         for i,c in enumerate(chain):struct.pack_into('<I',fat,c*4,chain[i+1] if i+1<len(chain) else 0x0fffffff)
+        for i,c in enumerate(efi_chain):struct.pack_into('<I',fat,c*4,efi_chain[i+1] if i+1<len(efi_chain) else 0x0fffffff)
         if variant=='fragmented-dir':struct.pack_into('<I',fat,2*4,6);struct.pack_into('<I',fat,6*4,0x0fffffff)
         if variant=='dir-loop':struct.pack_into('<I',fat,2*4,2)
         if variant=='fat-free':struct.pack_into('<I',fat,chain[0]*4,0)
@@ -124,6 +127,12 @@ def create_stage2_image(path,build,variant='valid',kernel='kernel.elf'):
                 directory=bytearray(512);c=6
             if not(variant=='missing-a' and c==4):directory[:32]=dirent(name,target,attr,length)
             write((esp+data_start+c-2)*512,directory,'directory'+str(c))
+        if efi_application is not None:
+            efi_dir=bytearray(512);efi_dir[:32]=dirent(b'LAMIX      ',4,16);efi_dir[32:64]=dirent(b'BOOT       ',6,16)
+            write((esp+data_start+1)*512,efi_dir,'efi-directory')
+            boot_dir=bytearray(512);boot_dir[:32]=dirent(b'BOOTX64 EFI',efi_chain[0],32,len(efi))
+            write((esp+data_start+4)*512,boot_dir,'uefi-boot-directory')
+            for i,c in enumerate(efi_chain):write((esp+data_start+c-2)*512,efi[i*512:(i+1)*512].ljust(512,b'\0'),'efi'+str(i))
         for i,c in enumerate(chain):write((esp+data_start+c-2)*512,elf[i*512:(i+1)*512].ljust(512,b'\0'),'kernel'+str(i))
         for lba in (259*2048,2307*2048,4355*2048):write(lba*512,b'LAMIX PROTECTED'.ljust(512,b'\xa5'),'sentinel')
     phoff=struct.unpack_from('<Q',elf,32)[0];stride,count=struct.unpack_from('<HH',elf,54)

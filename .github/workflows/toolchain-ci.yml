@@ -36,7 +36,7 @@ jobs:
             fi
           done
           sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends build-essential bison flex libgmp-dev libmpfr-dev libmpc-dev texinfo xz-utils nasm cmake ninja-build python3-venv qemu-system-x86 gdb ovmf seabios clang-format clang-tidy cppcheck
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends build-essential bison flex libgmp-dev libmpfr-dev libmpc-dev texinfo xz-utils nasm cmake ninja-build python3-venv qemu-system-x86 gdb ovmf seabios clang lld clang-format clang-tidy cppcheck
           python3 -m venv .venv
           .venv/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-dev.lock
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
@@ -61,6 +61,12 @@ jobs:
             cmake --build "build/m05-$mode"
             ctest --test-dir "build/m05-$mode" --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m05/ctest-$mode.xml"
           done
+      - name: M06 PE/COFF và guest UEFI OVMF thật
+        timeout-minutes: 10
+        run: |
+          cmake -S tests/uefi -B build/m06-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m06-tests
+          ctest --test-dir build/m06-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m06/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -100,4 +106,15 @@ jobs:
             build/m05-*/*.lst
             build/m05-*/*.log
             build/m05-*/native-host/host.log
+          if-no-files-found: warn
+      - name: Lưu M06 build/guest reports, không upload images/firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m06-uefi-reports
+          path: |
+            out/m06/*.xml
+            out/m06/**/result.json
+            out/m06/**/case.json
+            build/m06/build.json
           if-no-files-found: warn

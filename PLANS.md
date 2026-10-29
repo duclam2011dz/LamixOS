@@ -1,35 +1,37 @@
-# Kế hoạch hiện hành — M05
+# Kế hoạch hiện hành — M06
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=VERIFYING
 
-Người dùng đã duyệt triển khai kế hoạch M05 trong phiên Default ngày 2026-10-28. M04 đã đóng; không triển khai M06/M07/M08.
+Người dùng duyệt triển khai M06 ngày 2026-10-28. Phạm vi đã làm local: EFI application PE/COFF x64 bằng Clang+LLD; UEFI filesystem/GPT device identity, ELF load chung, GOP/ACPI optional, LBP v1 và handoff qua ExitBootServices; guest OVMF dùng cùng kernel probe M05. Chưa commit/push/tag/merge; CI trên SHA chứa thay đổi còn PENDING. Vì vậy M06 chưa DONE và không bắt đầu M07.
 
-## Contract và phạm vi đã duyệt
+## Contract được giữ
 
-BIOS Stage1 nguyên source/hash/ABI 440 byte. Stage2 bootstrap 32 KiB tại 0x10000, core C32 tại 0x20000, toàn memory core tối đa 256 KiB. Header LAMIXS2 có CRC32, bounded loading; E820/A20, BIOS thunk 32↔16. Cross GCC -m32 -malign-double, không runtime host/libgcc64.
+- `LBP v1`, BIOS Stage1 440 byte và Stage2 budget/ABI giữ nguyên. ELF ET_EXEC higher-half, `p_paddr=0`; kernel allocations vật lý dưới 4 GiB. EFI image/trampoline không giả định cùng giới hạn; trampoline/stack/tables được cấp riêng.
+- Firmware functions dùng Microsoft x64 ABI; kernel entry dùng System V theo LBP. Trampoline chuyển CR3/stack/registers; LA57 bật bị từ chối.
+- ESP xác định từ Loaded Image DeviceHandle, Device Path, Block I/O và GPT; đọc `EFI/LAMIX/A/KERNEL.ELF`, không fallback B.
+- LBP v1 hiện giữ nguyên wire layout. UEFI phát framebuffer identity mapping RW/NX khi GOP mode tương thích; ACPI chỉ khi RSDP rev0/2, checksum/span/alignment hợp lệ. OVMF local đưa RSDP không căn 16 nên optional ACPI bị bỏ; required ACPI bị từ chối.
+- GetMemoryMap dùng descriptor stride/version/key; 1 MiB buffer ban đầu, một lần tăng bounded nếu BUFFER_TOO_SMALL (tối đa 2 MiB). Không log/cấp phát/protocol sau map thành công trước ExitBootServices; retry Exit tối đa một lần cho key stale. Sau exit không dùng Boot Services.
 
-GPT được kiểm cả hai bản/CRC/overlap; ESP FAT32 chỉ đọc, kernel-only EFI/LAMIX/A/KERNEL.ELF, không fallback B. ELF64 ET_EXEC higher-half, p_paddr=0, loader cấp physical từ USABLE dưới 4 GiB. LBP v1 không đổi; đúng năm records bắt buộc; serial/NX, chưa ACPI/framebuffer/modules. Paging 4 KiB, W^X/RO/guard, kernel probe dùng lại M06.
+## Gates và kết quả local
 
-## Gates theo thứ tự
-
-- [x] C32/linker/helpers và probe ELF64: assertions LBP32/64, không undefined/runtime, Stage1 hash nguyên.
-- [x] Bootstrap/header/core, E820/A20 và BIOS thunk: budget32/256 KiB, CRC và read failures.
-- [x] GPT/FAT32/ELF/allocation/BootInfo: host Debug/Release/sanitizer.
-- [x] Paging/transition/higher-half entry: probe kiểm contract thật.
-- [x] Guest positive/negative/EIO/fault probes và regression liên quan.
-- [x] Bốn CI SUCCESS trên code0a0f496; đã đọc/đối chiếu host/target artifacts và cập nhật tài liệu.
-- [x] Người dùng xác nhận hoàn thành và duyệt tag/merge/bàn giao; annotated milestone/M05 trỏ4742e2d đã push, PR #3 merge tại c05b0b2.
+- [x] PE/COFF: EFI subsystem x64, entry, imports rỗng, relocations có; Clang/LLD/NASM version, lệnh và source hashes ghi trong build report.
+- [x] QEMU OVMF guest: positive cùng kernel ELF trả `M06:PASS`; negative thiếu kernel, ELF hỏng, ACPI required nhưng không có record hợp lệ, GPT identity lỗi nhận đúng failure.
+- [x] LBP/probe: kernel xác nhận feature/record, identity framebuffer mapping và toàn bộ entry mappings; cùng probe BIOS/UEFI.
+- [x] M06 CTest: PE, host retry/capacity policy và 5 guest cases PASS; guest positive kiểm marker GOP. BIOS M05 Debug/Release CTest 4/4; M05 host sanitizer 1/1; M03 Debug/Release 4/4, sanitizer 3/3; M02 fixtures/launch 2 PASS, skeleton BIOS/UEFI SKIPPED; M04 host+QEMU 2/2.
+- [x] GPT UEFI extent matching, framebuffer mapping above 4 GiB và mutational LBP mapping validation có host tests.
+- [ ] Chạy CI trên commit/SHA chứa toàn bộ M06; review diff và quyết định nghiệm thu riêng. Chưa kiểm PC thật/4Kn.
 
 ## Kiểm thử và rollback
 
-Suite độc lập tests/bios_stage2; host và guest tách marker. RAM64/256 MiB/>4 GiB, NX/no-NX, fragmentation, malformed metadata/ELF/note, EIO, RO/guard faults, cleanup và protected hashes. Giữ bốn workflows; Boot Contract CI chạy host/sanitizers, Toolchain CI build/guest cross, Harness giữ M02/M04. Không tự chạy toàn bộ M01 local.
+Lệnh chính sau khi activate `.venv`:
 
-Fixtures file mới sparse8 GiB, FAT32 test-only, không mount/device/overwrite; generator sản phẩm M07 chưa triển khai. Lưu reports ignored out/m05; không upload images/firmware. Chi tiết kết quả thật tại [handoff](docs/SESSION_HANDOFF.md).
+```bash
+python3 tests/uefi/build_uefi.py --build build/m06
+cmake -S tests/uefi -B build/m06-tests -G Ninja
+cmake --build build/m06-tests
+ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
+```
 
-Nếu vượt size, thiếu RAM bootstrap, không link ABI32 đúng hoặc cần đổi contract/profile thì dừng phần phụ thuộc, trình kế hoạch bổ sung; không giảm checks. Rollback bằng diff/commit tiếp nối; không reset/clean hoặc đổi tags M00–M04.
+Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-## Kết quả trước PR
-
-Local PASS: Debug/Release CTest4/4 (host46, guest54 mỗi profile), native ASan/UBSan1/1, global host252/125 qemu deselected, validator/33 unittest; M03 native4/4/sanitizer3/3/cross, M04 suites2/2 và M02 fixtures/paused launches. OS skeleton2 cases SKIPPED. Bốn CI code0a0f496 SUCCESS; [PR #3](https://github.com/duclam2011dz/LamixOS/pull/3) đã merge theo phê duyệt riêng. CI HEAD tài liệu cuối phải xác minh theo SHA thực, không lặp commit để tự ghi SHA handoff.
-
-Review sau CI đầu phát hiện real-mode offset32 vượt64 KiB; sửa trong cùng contract bằng segment:offset chuẩn. Bổ sung strict-limit/cross-segment fixtures; CI revision sửa0a0f496 đã SUCCESS, artifact108 guests/hashes/cleanup đã đọc; CI của HEAD tài liệu mới phải xác minh theo SHA thực.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope M07/M08 thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert sau khi có commit; không reset/clean, force-push hoặc di chuyển tags. Không tạo/push `milestone/M06` cho đến khi đủ CI/review và người dùng xác nhận hoàn thành riêng.

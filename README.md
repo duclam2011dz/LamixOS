@@ -10,13 +10,13 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00 đã đạt nghiệm thu tài liệu, GitHub Public, GPL và Documentation CI. Người dùng đã xác nhận hoàn thành; annotated tag [milestone/M00](https://github.com/duclam2011dz/LamixOS/tree/milestone/M00) ghi nhận commit nghiệm thu. Skill `docs-consistency` đã cài và được kiểm tra. M01 đã đạt kiểm chứng local và Toolchain CI cho build sample freestanding; annotated tag [milestone/M01](https://github.com/duclam2011dz/LamixOS/tree/milestone/M01) đã được người dùng duyệt và push; chưa có bootchain hoàn chỉnh, kernel, game hoặc kết quả OS boot. M02 đã có annotated tag nghiệm thu harness. M03 đã đạt nghiệm thu LBP/GPT contract, thư viện freestanding và host tests local/CI; người dùng xác nhận hoàn thành, PR #1 đã merge và annotated tag [milestone/M03](https://github.com/duclam2011dz/LamixOS/tree/milestone/M03) đã push. CI và SHA tại handoff. M04 đã DONE: Stage1 436/440 byte đã chạy probe và negative tests trên SeaBIOS local/CI, người dùng xác nhận hoàn thành, PR #2 đã merge và annotated tag [milestone/M04](https://github.com/duclam2011dz/LamixOS/tree/milestone/M04) đã push; đây là bootloader smoke, chưa phải OS boot. Chưa có bản phát hành và chưa đạt Playable.
+M00–M05 đã nghiệm thu; M05 là BIOS Stage2 → cùng ELF64 kernel probe/LBP v1. M06 hiện VERIFYING: EFI PE/COFF loader local boot thật trên QEMU OVMF và kernel probe nhận cùng LBP v1; CI đúng SHA và review còn chờ. Chi tiết trạng thái, giới hạn và bằng chứng ở [handoff](docs/SESSION_HANDOFF.md). Đây chưa phải kernel sản phẩm hoặc OS boot; M07 generator/parity chưa triển khai. Chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 
 Đọc [mục tiêu](GOALS.md), [roadmap](ROADMAP.md), [kế hoạch hiện hành](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md). Người đóng góp xem [CONTRIBUTING.md](CONTRIBUTING.md); Codex đọc [AGENTS.md](AGENTS.md).
 
-Host mục tiêu là Windows + WSL2, ưu tiên workspace trên filesystem Linux. Toolchain dùng GCC cross-compiler, Binutils, NASM, CMake/Ninja/Python; hướng dẫn local và CI ở [TOOLCHAIN](docs/TOOLCHAIN.md). Chưa có lệnh run/boot OS. Các kiểm tra tài liệu có trong [TESTING](docs/TESTING.md).
+Host mục tiêu là Windows + WSL2, ưu tiên workspace trên filesystem Linux. BIOS/kernel ELF dùng GCC cross-compiler và Binutils; EFI PE/COFF build dùng Clang+LLD; NASM, CMake/Ninja/Python dùng cho cả suites. Hướng dẫn local và CI ở [TOOLCHAIN](docs/TOOLCHAIN.md). Chưa có lệnh run/boot OS sản phẩm; M05/M06 guest probes là kiểm thử bootloader. Các kiểm tra tài liệu có trong [TESTING](docs/TESTING.md).
 
 ## Repository và giấy phép
 

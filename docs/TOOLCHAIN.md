@@ -8,7 +8,7 @@ Chỉ build sample NASM/C11/C++17 để kiểm chứng toolchain, không phải 
 
 Dùng cross-toolchain đang có nếu doctor và sample đạt. Nếu đặt LAMIX_CROSS_ROOT, prefix phải chứa bin/x86_64-elf-gcc cùng G++ và Binutils; nếu không đặt, tìm x86_64-elf-gcc trong PATH. Không fallback GCC host.
 
-APT chỉ cài gói thiếu khi có quyền: build-essential, bison, flex, libgmp-dev, libmpfr-dev, libmpc-dev, texinfo, xz-utils, nasm, cmake, ninja-build, python3-pip, python3-venv, qemu-system-x86, gdb, ovmf, seabios, clang-format, clang-tidy và cppcheck. Không cần cài lại công cụ đã có.
+APT chỉ cài gói thiếu khi có quyền: build-essential, bison, flex, libgmp-dev, libmpfr-dev, libmpc-dev, texinfo, xz-utils, nasm, cmake, ninja-build, python3-pip, python3-venv, qemu-system-x86, gdb, ovmf, seabios, clang, lld, clang-format, clang-tidy và cppcheck. Không cần cài lại công cụ đã có.
 
 Môi trường local hiện tại không có sudo không mật khẩu nên dùng .venv thay vì thay hệ thống. Dependencies Python/CMake/Ninja Linux x86_64 ghim cùng hash trong [requirements-dev.lock](../requirements-dev.lock). Khi host có venv/pip:
 
@@ -70,3 +70,7 @@ Flags target M03 gồm freestanding/no builtin/no stack protector/no red-zone/ge
 ## M05 C32 và kernel probe64
 
 Suite độc lập tests/bios_stage2 dùng cross GCC hiện có -m32 -malign-double và GNU LD elf_i386, không i686 bootstrap/libgcc64. Helpers unsigned division có oracle host và vectors thực thi core32. Kernel probe dùng -m64 -mcmodel=kernel -mno-red-zone -mgeneral-regs-only; linker checks và no undefined/runtime vẫn bắt buộc. Gate artifacts gate-core.elf/gate-probe.elf chỉ compile/link, không đưa vào image. Kernel.elf thực tế là probe khác, có entry-state/page-walk checks; [TESTING](TESTING.md#bios-stage2-m05) có lệnh target/host/sanitizer. Không thay sample/repro inputs M01.
+
+## M06 EFI application
+
+`tests/uefi/build_uefi.py` dùng Clang `--target=x86_64-pc-win32-coff`, NASM `win64` và `lld-link` subsystem `efi_application`, `/nodefaultlib`, `/dynamicbase`, `/nxcompat`. Runtime C freestanding do dự án sở hữu; PE report ghi compiler/linker/NASM version, commands, source SHA-256 và inspection. `clang`/`lld` là gói host build-time; không thay GCC cross cho BIOS/kernel ELF. EFI firmware function pointers và entry dùng Microsoft x64 ABI; kernel entry chuyển theo System V LBP qua assembly trampoline. CMake/test runner nằm trong `tests/uefi`; test guest yêu cầu OVMF và QEMU.
