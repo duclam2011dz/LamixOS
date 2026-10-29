@@ -74,6 +74,11 @@ jobs:
         run: |
           cmake -S tests/m07 -B build/m07-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           ctest --test-dir build/m07-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m07/ctest.xml"
+      - name: M08 kernel ELF, serial panic/exception và PIC/PIT qua BIOS/UEFI
+        timeout-minutes: 15
+        run: |
+          cmake -S tests/m08 -B build/m08-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          ctest --test-dir build/m08-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m08/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -135,4 +140,18 @@ jobs:
             out/m07/*.json
             out/m07/**/*.log
             build/m07-input/build.json
+          if-no-files-found: warn
+      - name: Lưu M08 build/guest reports, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m08-kernel-reports
+          path: |
+            out/m08/*.xml
+            out/m08/results/*.json
+            out/m08/**/result.json
+            out/m08/**/serial.log
+            out/m08/**/qmp.log
+            build/m08-guest-*/build.json
+            build/m08-guest-*/kernel.inspection.txt
           if-no-files-found: warn

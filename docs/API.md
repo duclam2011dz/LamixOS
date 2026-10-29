@@ -1,6 +1,6 @@
 # Chỉ mục API và ABI
 
-LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader và M06 có EFI loader/probe chạy local. Kernel sản phẩm chưa triển khai. On-wire structs khác với API native (`lbp_span`, `lbp_view`, status enum).
+LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader, M06 EFI loader, M07 parity probe; kernel bootstrap M08 đang VERIFYING. PMM/VMM, heap và kernel sản phẩm hoàn chỉnh chưa triển khai. On-wire structs khác với API native (`lbp_span`, `lbp_view`, status enum).
 
 | Giao diện | Nguồn |
 |---|---|
@@ -20,3 +20,7 @@ API native [loader.h](../include/lamix/boot/loader.h): reader read_at, GPT/FAT32
 ## Bổ sung GPT identity M06
 
 `lamix_gpt_open_uefi(reader, esp_start, esp_sectors, scratch, capacity, out)` dùng chung GPT parser nhưng đối chiếu ESP extent tìm từ Device Path/Loaded Image với bảng GPT. `lamix_gpt_open` BIOS tiếp tục đối chiếu BIOS Boot extent; cả hai kiểm tra cùng metadata/GUID/layout. API không nhận firmware handles và không đưa chúng vào LBP. EFI implementation nằm trong [boot/uefi](../boot/uefi/loader.c); PE/COFF được build độc lập với Clang+LLD.
+
+## Kernel bootstrap M08
+
+Kernel dùng entry C/NASM qua LBP v1 và gọi `lbp_validate()` trước khi sử dụng BootInfo. GDT/IDT/TSS, serial panic và PIC/PIT self-test là chi tiết bootstrap M08; chưa có allocator, timer API, scheduler hay API kernel public. Build/guest interface và trạng thái nghiệm thu nằm trong [TESTING](TESTING.md#kernel-tối-thiểu-m08) và [handoff](SESSION_HANDOFF.md).

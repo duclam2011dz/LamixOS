@@ -1,8 +1,42 @@
-# Kế hoạch hiện hành — M07
+# Kế hoạch hiện hành — M08
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=VERIFYING
 
-Trạng thái M07: **DONE (2026-10-29)**. PR #5 đã merge; tag `milestone/M07` trỏ commit nghiệm thu. M08 chưa bắt đầu.
+Trạng thái M08: **VERIFYING**. Kế hoạch M08 đã được duyệt và triển khai local. QEMU SeaBIOS/OVMF chạy kernel bình thường, `#UD`, guard-page `#PF`; hồi quy local đạt. Chưa có commit/PR hoặc GitHub CI trên SHA chứa M08; chưa đánh dấu DONE.
+
+## Phạm vi triển khai M08
+
+- Thêm `kernel/` với entry NASM, interrupt stubs và kernel C freestanding. Kernel kiểm tra register ABI và gọi `lbp_validate()` trực tiếp; không đổi LBP v1 hay ownership. Tạo GDT/IDT/TSS riêng, selector cũ được giữ hợp lệ trong đoạn chuyển; double fault dùng IST stack trong `.bss`.
+- COM1 115200 8N1; panic in vector/error/RIP/CS/RFLAGS/RSP/GPR và CR2 khi #PF. PIC remap, PIT 100 Hz, IRQ0 nhận ba tick/EOI rồi mask và phát `M08:PASS`; chưa có timer API.
+- `tests/m08/build_kernel.py` tạo ELF64 ET_EXEC higher-half, `p_paddr=0`, không undefined/dynamic runtime, kèm compiler/linker/commands/source+ELF hashes và inspection. `scripts/m07_image.py` nhận `--kernel-build`; đường mặc định M05 giữ nguyên.
+- QEMU tests boot cùng artifact kernel/image qua SeaBIOS và OVMF; fault profile `ud` và `pf` yêu cầu đúng panic vector. Reports nằm dưới `out/m08/`; image/firmware nguồn được hash trước/sau run.
+
+## Kết quả local hiện có
+
+- Kernel build/provenance và host checks: **PASS**, 3/3. M08 guest: **PASS**, 6/6 thật trên BIOS/UEFI (normal, `#UD`, guard `#PF`); panic serial có vector mong đợi, PF có `CR2=guard`.
+- Hồi quy: M05 Debug và Release guest/host **PASS**; M06 **3/3 PASS**; M07 **2/2 PASS**; M03 Debug/Release **4/4 PASS**, ASan/UBSan **3/3 PASS**; M04 **2/2 PASS**; M02 **2 PASS, 2 SKIPPED**. Host pytest **264 passed, 2 skipped**.
+- Docs validator **PASS**, unittest tài liệu **36/36 PASS**. M01 bootstrap local **NOT RUN**; cần Toolchain CI trên SHA mới.
+- GitHub CI trên SHA chứa M08: **PENDING** (chưa commit/push). PC thật và phần cứng PIC/PIT: **NOT RUN**.
+
+## Lệnh chính
+
+```bash
+python tests/m08/build_kernel.py --build build/m08
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m08 -B build/m08-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m08-tests --no-tests=error --output-on-failure
+```
+
+Không đổi BIOS Stage1 gate, Stage2 budget, LBP wire format hoặc kernel entry ABI. M09 chưa bắt đầu; không tạo tag M08 trong lượt này.
+
+---
+
+## Lịch sử M07 — DONE
+
+M07 đã được nghiệm thu, PR #5 merge và tag `milestone/M07` trỏ commit nghiệm thu. Nội dung/kết quả lịch sử xem handoff M07 trong Git trước khi M08 bắt đầu.
+
+---
+
+## Ghi chú lưu trữ M07
 
 ## Phạm vi đã triển khai
 
@@ -38,7 +72,7 @@ cmake -S tests/m07 -B build/m07-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/
 ctest --test-dir build/m07-tests --no-tests=error --output-on-failure
 ```
 
-Bước tiếp theo cụ thể: M07 đã đóng; milestone tiếp theo chỉ bắt đầu sau yêu cầu và kế hoạch riêng được duyệt. M08 chưa bắt đầu.
+Bước tiếp theo M07 khi đóng là M08; hiện M08 đang VERIFYING theo kế hoạch đã duyệt.
 
 ---
 

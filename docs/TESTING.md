@@ -18,10 +18,10 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED
+Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED
 ```
 
-Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M07 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
+Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M08 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
 
 [Unittest](../tests/test_validate_docs.py) dùng repository fixtures tạm cho positive/negative tests; không sửa tài liệu thật. Validator không trực tiếp chạy skill Codex. Kiểm tra metadata đơn giản trong Python không thay thế review hành vi skill.
 
@@ -186,6 +186,25 @@ Mỗi run có result.json/serial/QMP/stderr, case.json expected/actual và prote
 Toolchain CI build/guest Debug và Release dùng cross cache sẵn; Boot Contract CI host/sanitizer; Harness CI giữ M02/M04. Lưu JUnit/logs/maps/listings/JSON, không upload images/firmware hoặc dependencies. Các kết quả thật theo SHA ở [handoff](SESSION_HANDOFF.md).
 
 Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M07 DONE, M08 chưa triển khai. Không gán probe M05/M06/M07 làm image OS sản phẩm mặc định.
+
+## Kernel tối thiểu M08
+
+Build ELF M08 dùng GCC cross, GNU LD/Binutils và NASM hiện có; không bootstrap lại M01. Build report xác minh ELF ET_EXEC x86_64, entry higher-half, load segments `p_paddr=0`, không PT_DYNAMIC/PT_INTERP hoặc undefined symbols, cùng hashes nguồn/artifact:
+
+```bash
+python tests/m08/build_kernel.py --build build/m08
+python tests/m08/build_kernel.py --build build/m08-ud --fault ud
+python tests/m08/build_kernel.py --build build/m08-pf --fault pf
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m08 -B build/m08-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m08-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m08-tests --no-tests=error --output-on-failure --output-junit "$PWD/out/m08/ctest.xml"
+```
+
+M08 mở rộng `scripts/m07_image.py` bằng `--kernel-build <dir>` cho create/check; nếu bỏ tùy chọn, image vẫn dùng kernel M05 như trước. CTest host kiểm provenance/layout và cấu trúc descriptor/vector/PIC/PIT; guest tạo image M07 có kernel M08 và chạy cùng image/kernel qua SeaBIOS/OVMF. Profile normal phải vào LBP v1, nhận IRQ0/PIT ba tick và phát `M08:PASS`; `ud`/`pf` phải dừng `M08:PANIC` đúng vector 6/14, PF báo CR2 guard. Expected PANIC không được đổi thành guest PASS.
+
+Khi LBP có ACPI RSDP, kernel ánh xạ vật lý RSDP vào scratch VA đọc-only, cung cấp `lbp_span` cho `lbp_validate()`, rồi gỡ ánh xạ trước khi kiểm tra các mapping cuối. Điều này không đổi LBP wire format. Profile OVMF local hiện bỏ ACPI vì RSDP không căn 16 byte; do đó guest path có ACPI hợp lệ **NOT RUN**. Host structural test kiểm tra đường tạo span và gỡ mapping; regression M03 kiểm tra validator/span.
+
+Harness dùng QEMU snapshot, OVMF CODE read-only, VARS riêng, QMP/serial/deadline/cleanup; test hash protected image extents, firmware sources và build artifacts trước/sau. Reports ở `out/m08/`; không lưu image/firmware trong CI. Host sanitizer được kế thừa từ M03 LBP library CTest; kernel target không chạy dưới host sanitizer. PC thật, phần cứng PIC/PIT và firmware ngoài profile ghi **NOT RUN**.
 
 M05 có thêm adapter inject-segments thiết lập hidden limits64 KiB và fixture large-core/large-core-crc xuyên biên64 KiB; xem [review segment bounds](BIOS_STAGE2.md#review-segment-bounds). Đây là kiểm tra real-mode bootstrap, không giả định BIOS để lại unreal-mode cache.
 

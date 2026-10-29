@@ -4,12 +4,18 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M08 — VERIFYING (2026-10-29)
+
+- Thêm kernel freestanding C/NASM, ELF build provenance, LBP v1 consumer, GDT/IDT/TSS+double-fault IST, COM1 panic context và PIC/PIT IRQ0 self-test.
+- M07 image generator nhận tùy chọn `--kernel-build`; mặc định tiếp tục dùng kernel M05. Thêm BIOS/OVMF guest tests cho normal, `#UD`, guard `#PF` và đưa M08 vào Toolchain CI.
+- Local M08: host 3/3, QEMU guest 6/6; regressions và giới hạn được ghi trong handoff. CI trên SHA chứa M08 chưa chạy; chưa xác nhận DONE/tag.
+
 ### M07 — DONE (2026-10-29)
 
 - Thêm Python generator/checker GPT image raw sparse 8 GiB; populate FAT32 ESP bằng `dosfstools`/`mtools`, giữ System A/B và User Data chưa format. GUID random mặc định, seed UUIDv5 tùy chọn.
 - Thêm host checks và QEMU parity tests; cùng image/kernel probe boot qua SeaBIOS và OVMF, so sánh LBP v1 contract, xác minh protected image/firmware và negative ELF.
 - Thêm dòng `M07:LBP` trong kernel probe, doctor dependency checks và Toolchain CI M07 guest job. Không đổi LBP wire layout, BIOS Stage1 gate hoặc Stage2 budget.
-- Local M07 CTest 2/2 sau race-fix; regression và host/docs suites đạt theo handoff. PR #5 merge commit `93724991`; tag annotated `milestone/M07` trỏ commit nghiệm thu `1ece4235`. Bốn workflow CI SUCCESS trên SHA nghiệm thu; M08 chưa bắt đầu.
+- Local M07 CTest 2/2 sau race-fix; regression và host/docs suites đạt theo handoff. PR #5 merge commit `93724991`; tag annotated `milestone/M07` trỏ commit nghiệm thu `1ece4235`. Bốn workflow CI SUCCESS trên SHA nghiệm thu.
 
 
 ### Thêm

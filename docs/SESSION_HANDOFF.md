@@ -1,32 +1,28 @@
-# Bàn giao M07 — DONE — 2026-10-29
+# Bàn giao M08 — VERIFYING — 2026-10-29
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=VERIFYING
 
-M07 đã được nghiệm thu, merge PR #5 và push annotated tag `milestone/M07`. M08 chưa bắt đầu.
+## Trạng thái
 
-## Git, review và CI
+M08 đã được duyệt triển khai. Local implementation và QEMU boot thực đã chạy; chưa commit/PR/push, vì vậy GitHub CI trên SHA chứa M08 còn **PENDING**. Chưa tạo tag `milestone/M08`; M09 chưa bắt đầu.
 
-- Repo: `duclam2011dz/LamixOS`, nhánh chính `main`; merge commit `93724991eadce0699258b22e7a37c209b6f1076b`.
-- Commit nghiệm thu: `1ece4235ca6827133081c9e4841e824bf6b05ae2`; commit triển khai đầu `ac9d6531540087463fa0a8ec15ad8722c69791f8`.
-- PR [#5](https://github.com/duclam2011dz/LamixOS/pull/5) đã merge. Review tự động phát hiện race có thể xóa output của tiến trình khác; đã sửa, thêm regression test và review lại trên commit nghiệm thu không còn finding.
-- Annotated tag `milestone/M07`: object `1bbda687ef355962a0d40acc44ffc73547a3a799`; peeled commit `1ece4235ca6827133081c9e4841e824bf6b05ae2`.
-- Bốn workflow SUCCESS trên đúng commit nghiệm thu:
-  - [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40871303801)
-  - [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40871303809)
-  - [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40871303839)
-  - [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40871303879)
+## Thay đổi
 
-## Kết quả nghiệm thu
+- `kernel/`: freestanding C/NASM ELF64, LBP v1 validation, GDT/IDT/TSS, double-fault IST, COM1 panic context, PIC remap và PIT IRQ0 three-tick self-test.
+- `tests/m08/`: build report/provenance và host/guest CTest. Fault images `#UD`/guard `#PF` phát panic đúng vector; positive phát `M08:PASS`.
+- `scripts/m07_image.py`: tùy chọn `--kernel-build` cho create/check; mặc định M05 và API `--kernel` cũ vẫn giữ.
+- Toolchain CI có job M08 guest và report paths.
 
-- Tạo/check raw sparse GPT image 8 GiB; chỉ ESP FAT32 được format/populate với `BOOTX64.EFI` và kernel ELF M05 chung ở slot A. System A/B và User Data để trống.
-- M07 CTest **2/2 PASS** sau race-fix. Guest QEMU boot thật cùng image/kernel qua SeaBIOS và OVMF; probe xác nhận LBP v1, slot và nghĩa vụ CPU/mapping chung. ELF hỏng bị cả hai loader từ chối đúng nhóm `ELF`.
-- M07 host/guest reports và protected hashes xác nhận firmware, source image extents, cleanup; CI chỉ lưu reports, không upload image/firmware.
-- Local docs validator PASS, unittest tài liệu **34/34 PASS**. CI trên SHA nghiệm thu chạy regression M05 Debug/Release, M06, M03, M02/M04 và M07 guest parity.
-- Không thay LBP wire format, kernel entry ABI, BIOS Stage1 gate 440 byte hoặc Stage2 budget.
+## Kết quả local
 
-## Giới hạn và next action
+- M08 host/provenance **PASS 3/3**; BIOS/UEFI guest **PASS 6/6** (normal, vector 6, vector 14). Logs ghi `M08:LBP`, marker/fault đúng; page fault có `CR2` bằng guard. QEMU OVMF dùng CODE read-only, VARS bản riêng; QEMU snapshot và cleanup được harness quản lý. Hash protected extents, firmware và boot artifacts không đổi trước/sau run.
+- Regression: M05 Debug/Release host+guest **PASS**; M06 **3/3 PASS**; M07 **2/2 PASS**; M03 Debug/Release **4/4 PASS**, sanitizer **3/3 PASS**; M04 **2/2 PASS**; M02 **2 PASS, 2 SKIPPED**; pytest host **264 PASS, 2 SKIPPED**.
+- M05 Release và M03 host suite lần đầu dùng build dirs stale; provenance/mismatch phát hiện trước guest. Rebuild từ source hiện hành và chạy lại thành công.
+- Docs validator **PASS**, unittest tài liệu **36/36 PASS**. M01 bootstrap local **NOT RUN**. PC thật/PIC/PIT trên phần cứng **NOT RUN**. GitHub CI **PENDING** do chưa commit/push.
 
-- PC thật, 4Kn, firmware ngoài profile OVMF/SeaBIOS, slot B/fallback, filesystem System/User, Secure Boot và kernel sản phẩm: **NOT RUN/ngoài phạm vi**. Image này là probe kiểm parity, không phải image OS sản phẩm.
-- M07 đã đóng. Next exact action: chờ yêu cầu riêng để vào Plan Mode và lập kế hoạch M08; chưa triển khai M08.
+## Git và next action
 
-Chi tiết lệnh và phạm vi test: [TESTING](TESTING.md#image-và-boot-parity-m07), [ROADMAP](../ROADMAP.md), [kế hoạch và lịch sử milestone](../PLANS.md).
+- Checkout lúc bắt đầu: `main` tại `27ac1fb3d676bb1a6fade16b6a6a6371987cfd6b`, sạch và tracking `origin/main`; remote `origin` trỏ repo chính thức. M08 hiện là diff chưa commit.
+- Next exact action: hoàn tất docs validation/diff review, sau đó giao người dùng review và tạo PR theo quy trình. Chỉ báo M08 DONE sau review/CI xanh trên SHA nghiệm thu và xác nhận hoàn thành riêng; chỉ tạo/push annotated tag sau xác nhận đó.
+
+Chi tiết lệnh và test ở [TESTING](TESTING.md#kernel-tối-thiểu-m08), kế hoạch/hồi quy ở [PLANS](../PLANS.md), mục tiêu roadmap ở [ROADMAP](../ROADMAP.md).
