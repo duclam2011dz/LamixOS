@@ -6,11 +6,12 @@ int main(void) {
   lbp_framebuffer fb = {0};
   if (!lamix_uefi_framebuffer(640, 480, 0, 0, 640, 0xe0000000, 640 * 480 * 4,
                               &fb) ||
-      fb.red_mask != 0xff0000 || fb.reserved_mask != 0xff000000)
+      fb.red_mask != 0x000000ff || fb.blue_mask != 0x00ff0000 ||
+      fb.reserved_mask != 0xff000000)
     return 1;
   if (!lamix_uefi_framebuffer(640, 480, 1, 0, 800, 0xe0000000, 800 * 480 * 4,
                               &fb) ||
-      fb.blue_mask != 0xff0000)
+      fb.red_mask != 0x00ff0000 || fb.blue_mask != 0x000000ff)
     return 2;
   if (!lamix_uefi_framebuffer(640, 480, 2, bit_masks, 640, 0x200000000,
                               640 * 480 * 4, &fb) ||

@@ -27,14 +27,14 @@ static inline int lamix_uefi_framebuffer(uint32_t width, uint32_t height,
       length > (UINT64_C(1) << 52) - base || format > 2)
     return 0;
   if (format == 0) {
-    red = 0x00ff0000;
-    green = 0x0000ff00;
-    blue = 0x000000ff;
-    reserved = 0xff000000;
-  } else if (format == 1) {
     red = 0x000000ff;
     green = 0x0000ff00;
     blue = 0x00ff0000;
+    reserved = 0xff000000;
+  } else if (format == 1) {
+    red = 0x00ff0000;
+    green = 0x0000ff00;
+    blue = 0x000000ff;
     reserved = 0xff000000;
   } else if (masks) {
     red = masks[0];

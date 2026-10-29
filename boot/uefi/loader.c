@@ -426,14 +426,15 @@ static void discover_fb(EFI_SYSTEM_TABLE *st) {
 }
 
 static uint32_t record(uint8_t *p, uint32_t type, uint32_t len, uint32_t prefix,
-                       uint32_t count) {
+                       uint64_t count) {
   zero(p, len);
   lbp_record *r = (void *)p;
   *r = (lbp_record){type, LBP_REQUIRED, len};
   uint32_t v = 1, stride = 32;
+  uint64_t count64 = count;
   __builtin_memcpy(p + prefix - 16, &v, 4);
   __builtin_memcpy(p + prefix - 12, &stride, 4);
-  __builtin_memcpy(p + prefix - 8, &count, 8);
+  __builtin_memcpy(p + prefix - 8, &count64, 8);
   return prefix;
 }
 static void set_mapping(uint64_t physical, uint64_t virt, uint64_t length,
