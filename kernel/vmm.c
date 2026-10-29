@@ -373,7 +373,8 @@ vmm_status vmm_query(vmm_space *space, uint64_t virtual_address,
   *physical_address = (entry & PTE_ADDRESS) |
                       (virtual_address & (VMM_PAGE_SIZE - 1));
   *permissions = VMM_READ | ((entry & PTE_WRITE) ? VMM_WRITE : 0) |
-                 ((space->nx_enabled && !(entry & PTE_NX)) ? VMM_EXECUTE : 0);
+                 ((!space->nx_enabled || !(entry & PTE_NX)) ? VMM_EXECUTE
+                                                             : 0);
   *entry_flags = entry & ~PTE_ADDRESS;
   return VMM_OK;
 }

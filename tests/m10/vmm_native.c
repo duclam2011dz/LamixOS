@@ -169,7 +169,12 @@ int main(void) {
   assert(vmm_init(&space, &operations, 0) == VMM_OK);
   assert(vmm_map_range(&space, va, pa, VMM_PAGE_SIZE, VMM_READ, 0) == VMM_OK);
   assert(vmm_query(&space, va, &physical, &permissions, &flags) == VMM_OK);
+  assert(permissions == (VMM_READ | VMM_EXECUTE));
   assert(!(flags & PTE_NX));
+  assert(vmm_protect_range(&space, va, VMM_PAGE_SIZE,
+                           VMM_READ | VMM_EXECUTE) == VMM_OK);
+  assert(vmm_query(&space, va, &physical, &permissions, &flags) == VMM_OK);
+  assert(permissions == (VMM_READ | VMM_EXECUTE));
   assert(vmm_protect_range(&space, va, VMM_PAGE_SIZE,
                            VMM_READ | VMM_WRITE | VMM_EXECUTE) ==
          VMM_INVALID_ARGUMENT);
