@@ -88,11 +88,22 @@ def test_note_versions_features_and_truncation(lib):
 
 
 def test_optional_framebuffer(lib):
-    fb = record(7,S.pack('<QQIIIIIIII',0xe0000000,640*480*4,640,480,2560,32,0xff0000,0xff00,0xff,0xff000000),False)
-    assert validate(lib,bootinfo(extras=[fb],features=1))[0] == OK
+    fb = record(7,S.pack('<QQIIIIIIII',0x200000000,640*480*4,640,480,2560,32,0xff0000,0xff00,0xff,0xff000000),False)
+    assert validate(lib,bootinfo(extras=[fb],features=1))[0] == INVALID
     assert validate(lib,bootinfo(extras=[fb]))[0] == INVALID
+    mapped_memory = [(0x100000,0x40000,2,0,0),(0x200000,0x10000,1,0,0),
+                     (0x100000000,0x1000,1,0,0),(0x200000000,0x12c000,2,0,0)]
+    mapped_fb = bootinfo(extras=[fb],features=1,memory=mapped_memory,
+                         mapping_extras=[segment(0x200000000,0x200000000,0x12c000,3)])
+    assert validate(lib,mapped_fb)[0] == OK
+    bad_mapping = bootinfo(extras=[fb],features=1,memory=mapped_memory,
+                           mapping_extras=[segment(0x200000000,0x200000000,0x12c000,7)])
+    assert validate(lib,bad_mapping)[0] != OK
+    bad_identity = bootinfo(extras=[fb],features=1,memory=mapped_memory,
+                            mapping_extras=[segment(0x200000000,0x200001000,0x12c000,3)])
+    assert validate(lib,bad_identity)[0] != OK
     for rel, val in [(32,0),(40,4),(44,24),(48,0xff),(24,1)]:
-        b=bootinfo(extras=[fb],features=1);S.pack_into('<I',b,offsets(b)[7]+rel,val)
+        b=bytearray(mapped_fb);S.pack_into('<I',b,offsets(b)[7]+rel,val)
         assert validate(lib,b)[0] != OK
 
 

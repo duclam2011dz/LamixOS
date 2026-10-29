@@ -4,6 +4,7 @@ section .text.entry
 global probe_entry
 extern probe_snapshot, probe_main
 probe_entry:
+    db 0xf3,0x0f,0x1e,0xfa
     mov [rel probe_snapshot], rdi
     mov [rel probe_snapshot+8], rsi
     mov [rel probe_snapshot+16], rsp

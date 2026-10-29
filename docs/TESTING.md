@@ -185,6 +185,21 @@ Mỗi run có result.json/serial/QMP/stderr, case.json expected/actual và prote
 
 Toolchain CI build/guest Debug và Release dùng cross cache sẵn; Boot Contract CI host/sanitizer; Harness CI giữ M02/M04. Lưu JUnit/logs/maps/listings/JSON, không upload images/firmware hoặc dependencies. Các kết quả thật theo SHA ở [handoff](SESSION_HANDOFF.md).
 
-Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M06/M07/M08 NOT RUN. Không gán fixture M05 làm image OS sản phẩm mặc định.
+Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M07/M08 chưa triển khai. Không gán fixture M05/M06 làm image OS sản phẩm mặc định.
 
 M05 có thêm adapter inject-segments thiết lập hidden limits64 KiB và fixture large-core/large-core-crc xuyên biên64 KiB; xem [review segment bounds](BIOS_STAGE2.md#review-segment-bounds). Đây là kiểm tra real-mode bootstrap, không giả định BIOS để lại unreal-mode cache.
+
+## UEFI loader M06
+
+Build PE/COFF cần Clang, `lld-link`, NASM; GCC cross vẫn build BIOS/kernel ELF. Script chỉ ghi trong `build/`, không cài dependency:
+
+```bash
+python3 tests/uefi/build_uefi.py --build build/m06
+cmake -S tests/uefi -B build/m06-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+cmake --build build/m06-tests
+ctest --test-dir build/m06-tests --no-tests=error --output-on-failure --output-junit "$PWD/out/m06/ctest.xml"
+```
+
+PE inspection kiểm PE32+ x64, EFI application subsystem, entry, relocations và imports rỗng. Guest CTest tạo fixture mới; OVMF CODE read-only, VARS copy theo run, disk snapshot, serial/QMP, deadline, cleanup và hashes bảo vệ source extents/firmware. Guest dương phải thật sự chạy `BOOTX64.EFI`, gọi `ExitBootServices()` và phát `M06:PASS` từ kernel probe; launch-only không được tính. Negative cases gồm file thiếu, ELF/feature negotiation và GPT identity sai; các adapter không mô phỏng lỗi phần cứng. Reports tại `out/m06/`, không upload firmware hoặc disk images. ACPI bị bỏ nếu không hợp LBP v1; OVMF local hiện có RSDP không căn 16. PC thật, 4Kn, PixelBltOnly/firmware khác và lỗi ExitBootServices do firmware ngoài test profile ghi `NOT RUN`.
+
+Toolchain CI chạy PE + guest OVMF trên SHA của thay đổi; M05 BIOS Debug/Release, M03 contract tests/sanitizer và M02/M04 harness được chạy hồi quy riêng. Kiểm tra release vẫn cần CI xanh đúng commit, review và xác nhận hoàn thành; kết quả local không thành CI SUCCESS.

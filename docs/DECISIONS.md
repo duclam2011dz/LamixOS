@@ -38,3 +38,13 @@ Thay đổi major ABI, mapping/profile hoặc partition policy cần kế hoạc
 Ngày 2026-10-28, người dùng duyệt kế hoạch: C32 + BIOS thunk thay cho C64 thunk nhiều mode; bootstrap32 KiB tải core có CRC trong BIOS Boot Partition, giữ Stage1440/ABI. FAT32 chỉ đọc slot A thay cho raw ELF tạm. Kernel probe dùng lại binary cho M06, kernel sản phẩm vẫn M08. Loader cấp physical, p_paddr0, không modules/ACPI/framebuffer, NX khi có; các giới hạn chi tiết ở [BIOS_STAGE2](BIOS_STAGE2.md).
 
 Hệ quả: cần -malign-double để giữ alignment LBP32, compiler helper unsigned division tự viết/kiểm thử; thêm formatter fixture chỉ trong tests, không generator M07 hoặc filesystem ghi sản phẩm. ELF/GPT/FAT parser thuần có thể dùng lại ở loader sau; LBP wire ABI không đổi. CPU/permissions cần guest probe thật, host/compile-only không đủ nghiệm thu.
+
+## ADR-004 — EFI PE/COFF M06
+
+**Trạng thái:** được duyệt cùng kế hoạch triển khai M06 ngày 2026-10-28; local OVMF/host suites PASS, CI đúng SHA và nghiệm thu tổng thể còn chờ.
+
+EFI application x86-64 build bằng Clang COFF + LLD, tách toolchain khỏi GCC cross ELF dùng cho BIOS/kernel. C runtime freestanding do dự án sở hữu; không CRT/imports. Firmware calls dùng Microsoft x64 ABI, còn kernel entry giữ System V LBP v1 qua trampoline. File kernel cố định ở `EFI/LAMIX/A/KERNEL.ELF`; identity lấy từ Loaded Image DeviceHandle/Device Path/Block I/O/GPT, không fallback B.
+
+Trước ExitBootServices loader dựng LBP/page tables, hoàn tất protocol calls và lấy memory map mới nhất; chỉ retry Exit một lần khi key stale. GOP/ACPI là optional; không đổi LBP wire layout. GOP được identity-map theo record framebuffer; RSDP chỉ phát nếu LBP v1 alignment/checksum hợp lệ. OVMF profile hiện bỏ RSDP không căn16; kernel yêu cầu ACPI sẽ fail negotiation. Các policy này không khẳng định mọi PC firmware.
+
+Hệ quả: LBP validator/probe dùng chung kiểm tra framebuffer mapping, UEFI memory records và firmware handoff; cùng ELF probe chạy BIOS/UEFI. Build PE hoặc launch-only không đủ nghiệm thu; cần OVMF guest `M06:PASS`, regression BIOS và CI trên đúng SHA. Generator/parity M07, kernel sản phẩm M08, Secure Boot, updates và PC thật nằm ngoài ADR/phạm vi này.

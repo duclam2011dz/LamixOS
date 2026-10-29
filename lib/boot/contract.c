@@ -14,6 +14,10 @@ static int permissions(uint32_t p) {
 static int pages(uint64_t b, uint64_t n) {
   return low_range(b, n) && !(b % PAGE) && !(n % PAGE);
 }
+static int fb_pages(uint64_t b, uint64_t n) {
+  return range(b, n) && b < (UINT64_C(1) << 52) &&
+         n <= (UINT64_C(1) << 52) - b && !(b % PAGE) && !(n % PAGE);
+}
 static int vrange(uint64_t b, uint64_t n) {
   return range(b, n) && canonical(b) && canonical(b + n - 1) &&
          ((b >> 47) == ((b + n - 1) >> 47));
@@ -275,7 +279,13 @@ lbp_status lbp_validate(const void *bytes, uint64_t size, const lbp_span *sp,
     const uint8_t *q = e + 72 + i * rd32(e + 60);
     uint64_t b = rd64(q), v = rd64(q + 8), l = rd64(q + 16);
     uint32_t perms = rd32(q + 24);
-    if (!pages(b, l) || !vrange(v, l) || v % PAGE || !permissions(perms) ||
+    const uint8_t *fb = records[7];
+    int framebuffer_map =
+        fb && rd64(fb + 8) >= 64 && b == v &&
+        perms == (LBP_READ | LBP_WRITE) && fb_pages(b, l) &&
+        contains(rd64(fb + 16), rd64(fb + 24), b, l);
+    if ((!pages(b, l) && !framebuffer_map) || !vrange(v, l) || v % PAGE ||
+        !permissions(perms) ||
         rd32(q + 28) || (v < guard + PAGE && guard < v + l))
       return LBP_INVALID;
     for (uint64_t j = 0; j < i; j++) {
@@ -296,6 +306,8 @@ lbp_status lbp_validate(const void *bytes, uint64_t size, const lbp_span *sp,
       if (contains(rd64(a), rd64(a + 8), b, l))
         owner = 1;
     }
+    if (framebuffer_map)
+      owner = 1;
     if (!owner)
       return LBP_INVALID;
   }
@@ -378,7 +390,8 @@ lbp_status lbp_validate(const void *bytes, uint64_t size, const lbp_span *sp,
     if (!range(b, l) || !w || !h || bpp != 32 || pitch % 4 ||
         pitch < (uint64_t)w * 4 || (uint64_t)pitch * h > l || !mask(red) ||
         !mask(green) || !mask(blue) || (res && !mask(res)) || (red & green) ||
-        (red & blue) || (green & blue) || (res & (red | green | blue)))
+        (red & blue) || (green & blue) || (res & (red | green | blue)) ||
+        !fb_pages(b, l) || !mapped(e, b, b, l, LBP_READ | LBP_WRITE))
       return LBP_INVALID;
     for (uint64_t i = 0; i < rd64(rs + 24); i++) {
       const uint8_t *q = rs + 32 + i * rd32(rs + 20);

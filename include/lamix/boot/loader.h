@@ -45,6 +45,11 @@ uint32_t lamix_crc32(const void *bytes, uint32_t size);
 lbp_status lamix_gpt_open(lamix_reader reader, uint32_t bios_start,
                           uint32_t bios_end, uint8_t *array_scratch,
                           uint32_t capacity, lamix_disk *output);
+/* UEFI dùng cùng GPT checks nhưng nhận extent ESP từ device path, không từ
+ * Stage1. Output chứa disk/ESP/System A GUID; không thay đổi gate BIOS. */
+lbp_status lamix_gpt_open_uefi(lamix_reader reader, uint32_t esp_start,
+                               uint32_t esp_sectors, uint8_t *array_scratch,
+                               uint32_t capacity, lamix_disk *output);
 lbp_status lamix_fat_open(const lamix_disk *disk, lamix_fat *output);
 int lamix_fat_read(void *context, uint64_t offset, void *bytes, uint32_t size);
 lbp_status lamix_elf_inspect(lamix_reader file, uint64_t features,

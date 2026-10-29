@@ -16,7 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=("bios", "uefi"), required=True)
     parser.add_argument("--launch-only", action="store_true")
-    parser.add_argument("--purpose", choices=("os", "bios-stage1", "bios-stage2"), default="os")
+    parser.add_argument("--purpose", choices=("os", "bios-stage1", "bios-stage2", "uefi-loader"), default="os")
     parser.add_argument("--image", type=Path)
     parser.add_argument("--success-marker")
     parser.add_argument("--panic-marker")

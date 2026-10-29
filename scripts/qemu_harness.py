@@ -299,7 +299,7 @@ def run(config, command_factory=build_command):
     output = Path(config.output_root).resolve()
     output.mkdir(parents=True, exist_ok=True)
     directory = Path(tempfile.mkdtemp(prefix="run-", dir=output))
-    result = Result(config.profile, "launch-only" if config.launch_only else config.purpose if config.purpose in ("bios-stage1", "bios-stage2") else "boot", str(directory))
+    result = Result(config.profile, "launch-only" if config.launch_only else config.purpose if config.purpose in ("bios-stage1", "bios-stage2", "uefi-loader") else "boot", str(directory))
     if command_factory is not build_command:
         result.backend = "fixture"
     serial = directory / "serial.log"
@@ -309,10 +309,12 @@ def run(config, command_factory=build_command):
     process = qmp = scanner = None
     stderr = transcript = None
     try:
-        if config.purpose not in ("os", "bios-stage1", "bios-stage2"):
+        if config.purpose not in ("os", "bios-stage1", "bios-stage2", "uefi-loader"):
             raise ValueError("purpose không hợp lệ")
         if config.purpose in ("bios-stage1", "bios-stage2") and (config.profile != "bios" or config.launch_only or config.image is None):
             raise ValueError("BIOS stages cần BIOS, image và không launch-only")
+        if config.purpose == "uefi-loader" and (config.profile != "uefi" or config.launch_only or config.image is None):
+            raise ValueError("uefi-loader cần OVMF, image và boot guest thật")
         if config.test_io_error_sector is not None and config.purpose not in ("bios-stage1", "bios-stage2"):
             raise ValueError("fault injection chỉ cho BIOS stages")
         if config.profile not in ("bios", "uefi"):

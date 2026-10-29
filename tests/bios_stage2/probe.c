@@ -36,6 +36,7 @@ static uint64_t read64(const uint8_t *p) {
 }
 static uint32_t read32(const uint8_t *p) { return (uint32_t)read64(p); }
 static const uint8_t *entry_record;
+static const uint8_t *reservation_record;
 static const uint64_t *physical_table(uint64_t physical) {
   if (!entry_record)
     fail();
@@ -74,11 +75,104 @@ static uint32_t leaf_count(uint64_t base, unsigned level) {
     }
   return count;
 }
+static uint64_t allocate_zero_table(void) {
+  uint64_t count = read64(reservation_record + 24);
+  uint32_t stride = read32(reservation_record + 20);
+  for (uint64_t i = 0; i < count; i++) {
+    const uint8_t *r = reservation_record + 32 + i * stride;
+    if (read32(r + 16) != LBP_PURPOSE_TABLES)
+      continue;
+    uint64_t base = read64(r), length = read64(r + 8);
+    for (uint64_t off = 0; off < length; off += 4096) {
+      volatile const uint64_t *page = physical_table(base + off);
+      if ((uintptr_t)page != base + off)
+        continue;
+      unsigned j = 0;
+      for (; j < 512 && page[j] == 0; j++) {
+      }
+      if (j == 512)
+        return base + off;
+    }
+  }
+  fail();
+}
+static uint64_t *scratch_mapping(uint64_t va, uint64_t physical) {
+  uint64_t *table = (uint64_t *)physical_table(probe_snapshot[5]);
+  for (unsigned shift = 39; shift > 12; shift -= 9) {
+    uint64_t *slot = &table[(va >> shift) & 511];
+    if (!(*slot & 1))
+      *slot = allocate_zero_table() | 3;
+    table = (uint64_t *)(uintptr_t)(*slot & UINT64_C(0x000ffffffffff000));
+  }
+  uint64_t *slot = &table[(va >> 12) & 511];
+  if (*slot & 1)
+    fail();
+  *slot = (physical & UINT64_C(0x000ffffffffff000)) | 1 |
+          (probe_snapshot[7] & 0x800 ? UINT64_C(0x8000000000000000) : 0);
+  return slot;
+}
+static lbp_status validate_with_acpi(const uint8_t *blob, uint64_t size,
+                                     lbp_view *view) {
+  uint64_t total = read64(blob + 16), at = read64(blob + 40);
+  uint32_t records = read32(blob + 48);
+  if (total > size || total > LBP_MAX_SIZE || records > LBP_MAX_RECORDS ||
+      at < 64)
+    return LBP_INVALID;
+  const uint8_t *acpi = 0;
+  uint64_t record_offsets[9] = {0};
+  for (uint32_t i = 0; i < records; i++) {
+    if (at > total || total - at < 16)
+      return LBP_TRUNCATED;
+    uint64_t length = read64(blob + at + 8);
+    if (length < 16 || length % 8 || length > total - at)
+      return LBP_INVALID;
+    uint32_t type = read32(blob + at);
+    if (type <= LBP_ACPI)
+      record_offsets[type] = at;
+    if (type == LBP_ACPI)
+      acpi = blob + at;
+    at += length;
+  }
+  if (at != total || !record_offsets[LBP_ENTRY] ||
+      !record_offsets[LBP_RESERVATIONS])
+    return LBP_INVALID;
+  entry_record = blob + record_offsets[LBP_ENTRY];
+  reservation_record = blob + record_offsets[LBP_RESERVATIONS];
+  uint64_t entry_count = read64(entry_record + 64),
+           res_count = read64(reservation_record + 24);
+  uint32_t entry_stride = read32(entry_record + 60),
+           res_stride = read32(reservation_record + 20);
+  if (entry_stride < 32 || entry_stride % 8 || res_stride < 32 ||
+      res_stride % 8 ||
+      entry_count > (read64(entry_record + 8) - 72) / entry_stride ||
+      res_count > (read64(reservation_record + 8) - 32) / res_stride)
+    return LBP_INVALID;
+  if (!acpi)
+    return lbp_validate(blob, size, 0, 0, view);
+  uint64_t physical = read64(acpi + 16);
+  uint32_t length = read32(acpi + 24);
+  if ((length != 20 && length != 36) || physical + length < physical)
+    return LBP_INVALID;
+  const uint64_t scratch = UINT64_C(0xfffffe0000000000);
+  uint64_t first = physical & ~UINT64_C(4095),
+           last = (physical + length - 1) & ~UINT64_C(4095);
+  uint64_t *pte0 = scratch_mapping(scratch, first), *pte1 = 0;
+  if (last != first)
+    pte1 = scratch_mapping(scratch + 4096, last);
+  const uint8_t *bytes =
+      (const uint8_t *)(uintptr_t)(scratch + (physical - first));
+  lbp_span span = {physical, bytes, length};
+  lbp_status status = lbp_validate(blob, size, &span, 1, view);
+  *pte0 = 0;
+  if (pte1)
+    *pte1 = 0;
+  return status;
+}
 void probe_main(void) {
   const uint8_t *blob = (void *)(uintptr_t)probe_snapshot[0];
   lbp_view view;
   if (probe_snapshot[1] != LBP_ENTRY_MAGIC || !blob ||
-      lbp_validate(blob, LBP_MAX_SIZE, 0, 0, &view) != LBP_OK)
+      validate_with_acpi(blob, LBP_MAX_SIZE, &view) != LBP_OK)
     fail();
   if ((probe_snapshot[4] & UINT64_C(0x80010001)) != UINT64_C(0x80010001) ||
       !(probe_snapshot[6] & 32) || (probe_snapshot[6] & (1u << 12)) ||
@@ -103,14 +197,27 @@ void probe_main(void) {
     if (zero_bss[i])
       fail();
   const uint8_t *entry = 0;
+  const uint8_t *device = 0;
+  const uint8_t *fb = 0;
+  const uint8_t *acpi = 0;
   for (uint32_t i = 0; i < view.count; i++) {
     uint64_t off;
     if (lbp_record_at(&view, i, &off) != LBP_OK)
       fail();
     if (read32(blob + off) == LBP_ENTRY)
       entry = blob + off;
+    if (read32(blob + off) == LBP_BOOT_DEVICE)
+      device = blob + off;
+    if (read32(blob + off) == LBP_FRAMEBUFFER)
+      fb = blob + off;
+    if (read32(blob + off) == LBP_ACPI)
+      acpi = blob + off;
+    if (read32(blob + off) == LBP_RESERVATIONS)
+      reservation_record = blob + off;
   }
-  if (!entry || read64(entry + 16) != probe_snapshot[5] ||
+  (void)acpi;
+  if (!entry || !device || !reservation_record ||
+      read64(entry + 16) != probe_snapshot[5] ||
       read64(entry + 40) != probe_snapshot[2] || probe_snapshot[2] % 16 != 8 ||
       *(const uint64_t *)(uintptr_t)probe_snapshot[2])
     fail();
@@ -133,6 +240,18 @@ void probe_main(void) {
   }
   if (pages != leaf_count(probe_snapshot[5], 4))
     fail();
+  if (fb) {
+    uint64_t first = read64(fb + 16) & ~UINT64_C(4095);
+    uint64_t end = read64(fb + 16) + read64(fb + 24);
+    if (end < read64(fb + 16))
+      fail();
+    for (uint64_t p = first; p < end; p += 4096) {
+      uint64_t e = pte(p);
+      if (!(e & 1) || (e & UINT64_C(0x000ffffffffff000)) != p || !(e & 2) ||
+          (nx && !(e >> 63)) || (e & 0x18) != 0x18)
+        fail();
+    }
+  }
 #if PROBE_FAULT == 1
   *(volatile uint8_t *)(uintptr_t)blob = 0;
   fail();
@@ -140,7 +259,14 @@ void probe_main(void) {
   (void)*(volatile uint8_t *)(uintptr_t)read64(entry + 48);
   fail();
 #else
-  serial("M05:PASS\n");
+  if (read32(device + 16) == LBP_SOURCE_UEFI) {
+    if (fb)
+      serial("M06:FRAMEBUFFER\n");
+    if (acpi)
+      serial("M06:ACPI\n");
+    serial("M06:PASS\n");
+  } else
+    serial("M05:PASS\n");
   for (;;)
     __asm__ volatile("cli; hlt");
 #endif
