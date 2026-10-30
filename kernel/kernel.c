@@ -225,7 +225,10 @@ static int pmm_buddy_self_test(const lbp_view *view) {
   serial("\n");
   return 1;
 }
+#endif
 
+#if defined(LAMIX_M10_VMM)
+#if defined(LAMIX_M12_BUDDY)
 static int kernel_alloc_frame(uint64_t *physical) {
   return pmm_buddy_alloc_frame(&experimental_buddy, physical) == PMM_OK;
 }
@@ -241,6 +244,7 @@ static int kernel_alloc_frame(uint64_t *physical) {
 static int kernel_free_frame(uint64_t physical) {
   return pmm_free_frame(&physical_memory, physical) == PMM_OK;
 }
+#endif
 #endif
 #endif
 static const uint8_t *raw_record(const lbp_header*h,uint32_t wanted){

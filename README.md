@@ -10,7 +10,7 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00–M11 đã nghiệm thu; M12 Buddy PMM đang VERIFYING trên PR #10. Toolchain CI trên PR head hiện FAILURE trước các bước M12; Documentation, Harness và Boot Contract CI SUCCESS. Xem [handoff](docs/SESSION_HANDOFF.md) để biết bằng chứng và giới hạn. Đây chưa phải kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh; chưa có bản phát hành và chưa đạt Playable.
+M00–M11 đã nghiệm thu; M12 Buddy PMM đang VERIFYING trên PR #10. Toolchain CI thất bại ở hồi quy profile M09 do helper PMM chưa được giới hạn theo profile; bản sửa đang chờ CI. Documentation, Harness và Boot Contract CI SUCCESS. Xem [handoff](docs/SESSION_HANDOFF.md) để biết bằng chứng và giới hạn. Đây chưa phải kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh; chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 
