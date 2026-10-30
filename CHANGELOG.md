@@ -4,6 +4,14 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M12 — VERIFYING (2026-10-30)
+
+- Thêm Buddy PMM thử nghiệm song song với bitmap; bitmap vẫn mặc định. API cấp frame order 0 và cấp block order 0–18; kernel profile M12 route VMM/heap qua Buddy.
+- Thêm native ASan/UBSan, provenance/guest BIOS-UEFI tests và benchmark host tái lập. M12 CTest **6/6 PASS**, M11 hồi quy **3/3 PASS**; BIOS/UEFI cùng kernel phát marker M08–M12.
+- Benchmark host bỏ no-op khỏi mẫu latency/throughput và báo số no-op riêng. Lần chạy kiểm tra sau hiệu chỉnh ghi nhận throughput bitmap cao hơn Buddy; fragmentation fixture cho hai backend kết quả giống nhau. Đây là host-only measurement, không khẳng định lợi thế hiệu năng; metadata reserve Buddy **589,824 bytes**, bitmap **262,144 bytes**.
+- Toolchain CI run [41082791636](https://github.com/duclam2011dz/LamixOS/actions/runs/41082791636) **FAILURE** hai lượt tại smoke/CTest M01; các bước M12 phía sau SKIPPED. Artifact chỉ ra helper cấp/trả frame không dùng ở profile M09 do bị khai báo ngoài điều kiện VMM. Workspace hiện đã giới hạn helper vào profile VMM; syntax-only `cc` M09/M12 PASS, nhưng bản sửa chưa có CI. Documentation, Harness và Boot Contract CI SUCCESS trên commit PR hiện tại. Chưa merge hoặc tạo tag. Benchmark review fix đã commit trước đó. M07 2/2, M08 2/2, M10 3/3 regression PASS; M09 sanitizer PASS; host/guest setup không hoàn tất vì sandbox chặn wrapper ghi dưới `build/`. Docs validator PASS, unittest 40/40 PASS.
+
+
 ### M11 — DONE (2026-10-30)
 
 - Thêm kernel heap BSP free-list first-fit dùng PMM/VMM, page backing theo nhu cầu, split/coalesce, C API alloc/calloc/free/stats và rollback khi mở rộng thất bại. Không thêm `new/delete`, slab, SMP hoặc IRQ-safe allocation.

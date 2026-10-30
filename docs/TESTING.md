@@ -18,10 +18,10 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=VERIFYING
 ```
 
-Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M11 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
+Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M12 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
 
 [Unittest](../tests/test_validate_docs.py) dùng repository fixtures tạm cho positive/negative tests; không sửa tài liệu thật. Validator không trực tiếp chạy skill Codex. Kiểm tra metadata đơn giản trong Python không thay thế review hành vi skill.
 
@@ -294,3 +294,18 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m11-tests --no-test
 Native ASan/UBSan chạy cùng heap implementation qua simulator map/release callbacks. Host/provenance test kiểm build `m11-kernel`, source hashes, cross G++ consumer và ELF không undefined runtime symbols/static constructors. Guest suite tạo một image/kernel chung rồi boot thật qua SeaBIOS và OVMF; cần marker `M08:PASS`, `M09:PASS`, `M10:PASS`, `M11:PASS`, protected hashes không đổi và cleanup không cưỡng bức. Reports tại `out/m11/`; không upload image hoặc firmware. Host cases bao gồm OOM rollback/exhaustion, overflow/zero-size, alignment, zeroing, reuse/coalescing, invalid pointer và double-free.
 
 M11 **DONE**: CTest **3/3 PASS**, guest BIOS/OVMF **2/2 PASS**; hồi quy M07–M10 PASS. Bốn workflow GitHub Actions SUCCESS trên SHA nghiệm thu `3bf87334999a794bce6dec7e8d691f5f125ff781`; URLs ở [handoff](SESSION_HANDOFF.md). PC thật và firmware ngoài profile **NOT RUN**; global `new/delete`, SMP, IRQ-safe allocation, buddy/slab, user heap và kernel sản phẩm ngoài phạm vi.
+
+## Buddy PMM M12
+
+Buddy được build trong profile riêng `m12-kernel`; bitmap PMM vẫn mặc định ở các profile trước. Host suite biên dịch `kernel/pmm.c` trực tiếp với ASan/UBSan; benchmark native `-O2` so sánh cùng trace xác định với bitmap adapter hỗ trợ contiguous blocks. Workload ghi seed/hash, init latency, metadata, free blocks theo order, largest block và trường hợp order cấp phát thất bại dù free total đủ. Latency và throughput chỉ tính lần allocator thực sự được gọi; no-op bị bỏ qua và có số đếm riêng. Host measurements không phải guest performance.
+
+Lệnh sau khi activate `.venv`:
+
+```bash
+python3 tests/m12/build_kernel.py --build build/m12
+cmake -S tests/m12 -B build/m12-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+cmake --build build/m12-tests
+ctest --test-dir build/m12-tests --no-tests=error --output-on-failure
+```
+
+M12 CTest gồm Buddy native ASan/UBSan (extents, holes, reservations, OOM, coalescing, invalid/double-free, order18 1 GiB, stress), host provenance/image, benchmark và guest BIOS/OVMF trên cùng kernel. Guest PASS cần serial M08–M12, protected hashes không đổi và cleanup không cưỡng bức. Kết quả hiện tại **6/6 PASS** local; benchmark seed `0x12a110c`, mixed orders 0–3, trace hash `3ded994161041ff7`, 20,000 trace operations × 5; no-op được bỏ khỏi latency/throughput và báo riêng. Lần kiểm tra hiện tại ghi nhận throughput bitmap cao hơn Buddy; fragmentation fixture bằng nhau. Host-only numbers không kết luận hiệu năng guest; Buddy không được chọn làm mặc định. GitHub Toolchain CI thất bại hai lượt tại smoke/CTest M01 trước khi tới M12. Artifact chỉ ra helper PMM không dùng ở profile M09; workspace đã sửa điều kiện biên dịch và đang chờ CI xác nhận. Documentation, Harness và Boot Contract CI SUCCESS; M12 vẫn VERIFYING, chưa tag/merge. PC thật/firmware khác **NOT RUN**.

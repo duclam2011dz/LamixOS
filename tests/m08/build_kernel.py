@@ -13,7 +13,9 @@ SOURCES=("kernel/entry.asm","kernel/interrupts.asm","kernel/kernel.c","kernel/li
          "lib/boot/contract.c","lib/boot/memory.c","tests/m08/build_kernel.py")
 def sha(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def build(output, fault="none", m09_pmm=False, m10_vmm=False,
-          m11_heap=False):
+          m11_heap=False, m12_buddy=False):
+    if m12_buddy:
+        m11_heap = True
     if m11_heap:
         m10_vmm = True
     if m10_vmm:
@@ -42,6 +44,8 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
     if m11_heap:
         sources.extend(("kernel/heap.c", "kernel/heap.h",
                         "tests/m11/build_kernel.py", "tests/m11/cpp_probe.cpp"))
+    if m12_buddy:
+        sources.append("tests/m12/build_kernel.py")
     common=[x["gcc"],"-std=c11","-m64","-mcmodel=kernel","-mno-red-zone","-mgeneral-regs-only","-ffreestanding","-fno-builtin","-fno-pie","-fno-pic","-fno-stack-protector","-fno-asynchronous-unwind-tables","-fno-unwind-tables","-fno-exceptions","-Wall","-Wextra","-Werror","-I",ROOT/"include","-I",ROOT/"kernel","-O2"]
     run("nasm","--reproducible","-f","elf64","-o",output/"entry.o",ROOT/"kernel/entry.asm")
     run("nasm","--reproducible","-f","elf64","-o",output/"interrupts.o",ROOT/"kernel/interrupts.asm")
@@ -62,6 +66,8 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
             if m10_variants[fault]: args += ["-D"+m10_variants[fault]+"=1"]
         if source=="kernel/kernel.c" and m11_heap:
             args += ["-DLAMIX_M11_HEAP=1"]
+        if source=="kernel/kernel.c" and m12_buddy:
+            args += ["-DLAMIX_M12_BUDDY=1"]
         run(*args,"-c",ROOT/source,"-o",obj);objects.append(obj)
     if m11_heap:
         cpp_object = output / "cpp_probe.o"
@@ -103,7 +109,7 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
         if ".init_array" in sections or ".ctors" in sections:
             raise ValueError("kernel M11 không được có static constructors")
     if b"INTERP" in subprocess.check_output([str(x["readelf"]),"-l",str(elf)]): raise ValueError("PT_INTERP không freestanding")
-    report={"status":"PASS","mode":"m11-kernel" if m11_heap else "m10-kernel" if m10_vmm else "m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"entry":"kernel_entry","commands":commands,
+    report={"status":"PASS","mode":"m12-kernel" if m12_buddy else "m11-kernel" if m11_heap else "m10-kernel" if m10_vmm else "m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"entry":"kernel_entry","commands":commands,
             "tool_versions":{"gcc":subprocess.check_output([str(x["gcc"]),"--version"],text=True).splitlines()[0],"g++":subprocess.check_output([str(x["g++"]),"--version"],text=True).splitlines()[0] if m11_heap else None,"ld":subprocess.check_output([str(x["ld"]),"--version"],text=True).splitlines()[0],"nasm":subprocess.check_output(["nasm","-v"],text=True).strip()},
             "source_hashes":{s:sha(ROOT/s) for s in sources},"hashes":{elf.name:sha(elf)},"elf_inspection":elf.stem+".inspection.txt","load_segments":loads}
     (output/"build.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n")
