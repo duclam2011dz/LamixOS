@@ -1,23 +1,23 @@
-# Kế hoạch hiện hành — M12
+# Kế hoạch và kết quả — M12
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE
 
-Trạng thái M12: **VERIFYING (2026-10-30)** trên nhánh `codex/m12-buddy-pmm`; PR #10 đang mở. Trên head `214229507800f1c41ce34f8c55c3fd42662454c7`, Documentation, Harness và Boot Contract CI SUCCESS; Toolchain CI FAILURE ở smoke/CTest M01 trước khi các bước M12 chạy. Bitmap M09 giữ mặc định; Buddy là backend thử nghiệm trong profile `m12-kernel`, VMM/heap chỉ dùng Buddy ở profile thử nghiệm. Không đổi LBP v1, kernel entry ABI, loaders, BIOS Stage1 gate hoặc Stage2 budget.
+Trạng thái M12: **DONE (2026-10-30)**. PR #10 merge commit `385f835b5825528915080859156e963db15e6fd0`; acceptance commit/tag target `f3391d66eabc6b6d82a27800db6e229bb74f577b`; annotated tag object `b4a0ee9ed47e3e6b77a8658e5270d8af8338bffe`. Bốn workflow CI SUCCESS trên acceptance SHA: Toolchain [41084497139](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497139), Harness [41084497177](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497177), Documentation [41084497141](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497141), Boot Contract [41084497179](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497179). Bitmap M09 tiếp tục mặc định; Buddy là backend thử nghiệm riêng trong profile `m12-kernel`, VMM/heap chỉ dùng Buddy ở profile đó. Không đổi LBP v1, kernel entry ABI, loaders, BIOS Stage1 gate hoặc Stage2 budget.
 
 ## Phạm vi M12 — Buddy allocator thử nghiệm song song
 
 - `kernel/pmm.c`/`kernel/pmm.h` thêm tree bitmap 2-bit/node cho frames dưới 4 GiB, boundary-aware coalescing và order 0–18; API bitmap M09 không đổi. Chỉ frame đầy đủ thuộc `LBP_USABLE` được đưa vào pool; reservations/hole/extent edges ngăn coalesce. Không reclaim LOADER/ACPI và không cấp RAM trên 4 GiB.
 - Kernel profile `m12-kernel` dành 512 KiB cho node state và 64 KiB cho boundary capacity trong `.bss`; tổng reserve metadata **589,824 bytes**. Khởi tạo Buddy chỉ sau validation map/reservations. Profile M12 route VMM/heap callbacks qua wrapper order 0; các profile trước giữ bitmap.
 - Tests trong `tests/m12/` dùng cùng `kernel/pmm.c` trên native ASan/UBSan, host provenance, deterministic benchmark với bitmap contiguous adapter, workload fragmentation/pressure/OOM và QEMU guest. Host benchmark không đại diện hiệu năng guest.
-- Rollback bằng profile/backend bitmap; bitmap vẫn là backend mặc định. Không chuyển mặc định theo kết quả hiện tại: mixed-order host trace có throughput thấp hơn ở Buddy; percentile thay đổi theo workload; fragmentation fixture cho kết quả giống nhau.
+- Rollback bằng profile/backend bitmap; bitmap vẫn là backend mặc định. Không chuyển mặc định: mixed-order benchmark CI có throughput thấp hơn ở Buddy và fragmentation fixture hai backend cho kết quả giống nhau.
 
-## Kết quả xác minh local M12
+## Kết quả nghiệm thu M12
 
-- Build cross profile `m12-kernel` **PASS**; ELF SHA-256 hiện tại ghi trong `build/m12/build.json` (artifact cục bộ, không commit).
-- M12 CTest **6/6 PASS**: Buddy ASan/UBSan, host provenance/image, benchmark native và BIOS/OVMF guest. Cùng kernel boot hai firmware; serial phát M08–M12 PASS; hashes protected inputs giữ nguyên, cleanup không cưỡng bức.
-- M11 CTest **3/3 PASS**. M07 2/2, M08 2/2, M10 3/3 regressions PASS; M09 sanitizer PASS, host/guest setup sandbox-blocked do wrapper ghi dưới `build/`. PC thật/firmware ngoài QEMU **NOT RUN**.
-- Benchmark host seed `0x12a110c`, trace hash `3ded994161041ff7`, 20,000 trace operations × 5 repetitions. Chỉ latency/throughput của allocator calls được tính; no-op bị bỏ qua và báo riêng. Lần chạy native kiểm tra sau hiệu chỉnh ghi nhận 50,385 allocator calls và 49,615 no-op mỗi backend, 50,385 latency samples; p50/p95/max bitmap 130/385/23,723 ns, Buddy 128/1,015/53,576 ns; throughput 6,762,287/2,979,290 allocator calls/s; mean init 768,026/7,574,075 ns. Metadata reserve bitmap/Buddy 262,144/589,824 B. Các số host dao động theo tải máy và chỉ mô tả lần chạy này. Fixture alternate-free: cả hai còn 2,048 frames, largest block 4 KiB, order 1 thất bại; chưa thấy fragmentation advantage trong workload này. Không suy ra hiệu năng guest.
-- Documentation validator PASS, unittest tài liệu 40/40 PASS; `git diff --check` PASS. Toolchain CI run [41082791636](https://github.com/duclam2011dz/LamixOS/actions/runs/41082791636) **FAILURE** hai lần tại smoke/CTest M01 vì helper `kernel_alloc_frame`/`kernel_free_frame` không được dùng ở profile M09 và `-Werror` từ chối; downstream M12 CI step SKIPPED. Đã giới hạn helper này cho profile VMM trong workspace; syntax-only `cc` M09 và M12 PASS, nhưng CI chưa xác nhận bản sửa.
+- Cross build `m12-kernel` **PASS** trong Toolchain CI; kernel ELF SHA-256 `8ed07725bfa1fb5bb8d226c9d85cfe2f7efec82d45efe614a85998cc2c9ef847`.
+- M12 CTest **6/6 PASS** trong Toolchain CI: Buddy ASan/UBSan, host provenance/image, benchmark native và BIOS/OVMF guest. Cùng kernel boot hai firmware; serial phát M08–M12 PASS; hashes protected inputs giữ nguyên, cleanup không cưỡng bức. Toolchain regression M07 2/2, M08 2/2, M09 3/3, M10 3/3 và M11 3/3 **PASS**.
+- Benchmark CI seed `0x12a110c`, trace hash `3ded994161041ff7`, 20,000 trace operations × 5 repetitions. Latency/throughput chỉ tính allocator calls, no-op báo riêng: 50,385 calls và 49,615 no-op mỗi backend, 50,385 latency samples. p50/p95/max bitmap 203/580/11,902 ns, Buddy 180/1,425/11,440 ns; throughput 4,469,397/2,136,508 allocator calls/s; mean init 1,124,849/10,944,121 ns. Metadata bitmap/Buddy 262,144/589,824 B. Đây là một host CI run, không phải guest performance claim. Fixture alternate-free: mỗi backend còn 2,048 frames, largest 4 KiB, order 1 allocation thất bại; không thấy fragmentation advantage trong workload này.
+- Documentation validator, unittest tài liệu 40/40 và `git diff --check` **PASS** local sau khi cập nhật handoff. Bốn workflow CI SUCCESS trên acceptance SHA.
+- PC thật/firmware ngoài profile QEMU **NOT RUN**. Không reclaim LOADER/ACPI, không cấp RAM trên 4 GiB, không chuyển bitmap mặc định.
 
 ## Lệnh M12
 
@@ -218,4 +218,4 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
 
 Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M11 DONE; M12 VERIFYING.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M12 DONE; M13 trở đi PLANNED và chưa bắt đầu.

@@ -1,29 +1,28 @@
-# Bàn giao M12 — VERIFYING — 2026-10-30
+# Bàn giao M12 — DONE — 2026-10-30
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE
 
-## M11 baseline đã nghiệm thu
+## M12 đã nghiệm thu
 
-- M11 acceptance commit `3bf87334999a794bce6dec7e8d691f5f125ff781`; annotated tag object `618d9a27610e5ce73c81abad120b04872f60587b` trỏ SHA đó. PR #9 merge commit `c1d288e7ca4fcc9f87c9eb08ba257098e6111bc8`.
-- Bốn GitHub Actions workflows SUCCESS trên acceptance SHA: [Toolchain](https://github.com/duclam2011dz/LamixOS/actions/runs/41048803138), [Harness](https://github.com/duclam2011dz/LamixOS/actions/runs/41048803129), [Documentation](https://github.com/duclam2011dz/LamixOS/actions/runs/41048803013), [Boot Contract](https://github.com/duclam2011dz/LamixOS/actions/runs/41048803313).
-- M11 CTest 3/3 PASS; regression M07 2/2, M08 2/2, M09 3/3, M10 3/3 PASS; docs validator PASS, unittest 39/39 PASS. PC thật và firmware ngoài profile QEMU NOT RUN.
-- Kernel heap M11 là BSP free-list first-fit, dùng PMM/VMM qua callbacks; không reentrant/IRQ-safe, không có global C++ `new/delete`.
+- PR [#10](https://github.com/duclam2011dz/LamixOS/pull/10) merged tại `385f835b5825528915080859156e963db15e6fd0` vào `main`.
+- Acceptance commit `f3391d66eabc6b6d82a27800db6e229bb74f577b`. Annotated tag `milestone/M12` object `b4a0ee9ed47e3e6b77a8658e5270d8af8338bffe` trỏ acceptance commit. Commit closure tài liệu nằm sau tag; không di chuyển tag.
+- Bốn GitHub Actions workflows SUCCESS trên acceptance SHA: [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497139), [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497177), [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497141), [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497179).
+- Toolchain M12 CTest 6/6 PASS: ba Buddy ASan/UBSan cases, host provenance, benchmark và BIOS/UEFI guest. Cùng kernel SHA-256 `8ed07725bfa1fb5bb8d226c9d85cfe2f7efec82d45efe614a85998cc2c9ef847` boot qua SeaBIOS/OVMF; cả hai serial log có M08–M12 PASS, protected hashes giữ nguyên, cleanup không cưỡng bức.
+- Hồi quy Toolchain: M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3 PASS. Docs validator và unittest tài liệu 40/40 PASS local trước closure; benchmark native trực tiếp qua `cc` và count/schema validation PASS. CMake không có trong PATH local; không chạy local CTest sau review-fix. Toolchain CI đã chạy CTest trên SHA nghiệm thu.
+- Review finding benchmark no-op đã được sửa trong `895e5ba`; thread review resolve trước merge. Lỗi CI M09 ở lượt đầu được sửa bằng cách chỉ biên dịch frame wrappers khi profile VMM bật.
 
-## M12 implementation và ranh giới
+## Kết quả và giới hạn Buddy
 
-- Nhánh `codex/m12-buddy-pmm`, bắt đầu từ workspace M11 handoff. M12 implementation commit `214229507800f1c41ce34f8c55c3fd42662454c7`, PR #10 đang mở; tag chưa tạo. Thay đổi gồm `kernel/pmm.c`/`pmm.h`, kernel M12 profile, build/image tooling, `tests/m12/`, Toolchain CI và tài liệu M12.
-- Buddy dùng tree-state 2-bit/node cho miền dưới 4 GiB; order 0–18. Metadata dự trữ 512 KiB node state + 64 KiB boundary array = 589,824 bytes. Chỉ `LBP_USABLE` đầy đủ được cấp; reservation/hole/extent boundaries chặn merge. Không reclaim LOADER/ACPI, không dùng >4 GiB.
-- Bitmap giữ mặc định và đường rollback; chỉ profile M12 route VMM/heap qua Buddy order 0. LBP v1, entry ABI, loaders, BIOS Stage1 gate và Stage2 budget không đổi.
+- Bitmap PMM tiếp tục là backend mặc định; Buddy là backend thử nghiệm song song trong profile `m12-kernel`. Buddy có order 0–18, quản lý frame đầy đủ thuộc `LBP_USABLE` dưới 4 GiB sau reservations. Không reclaim LOADER/ACPI, không cấp RAM trên 4 GiB.
+- Benchmark CI seed `0x12a110c`, trace hash `3ded994161041ff7`, 20,000 trace operations × 5. Mỗi backend ghi 50,385 allocator calls và bỏ qua 49,615 no-op; latency p50/p95/max bitmap 203/580/11,902 ns, Buddy 180/1,425/11,440 ns; throughput 4,469,397/2,136,508 calls/s; mean init 1,124,849/10,944,121 ns. Metadata bitmap/Buddy 262,144/589,824 bytes.
+- Fixture alternate-free: cả hai còn 2,048 frames, largest block 4 KiB; order 1 cấp phát thất bại dù tổng free đủ. Không thấy lợi thế fragmentation trong fixture này. Đây là số host CI, không phải hiệu năng guest; không chuyển Buddy thành mặc định.
+- PC thật và firmware ngoài profile QEMU **NOT RUN**. Không thay LBP v1, kernel entry ABI, loaders, BIOS Stage1 gate hoặc Stage2 budget.
 
-## Kết quả local
+## M11 baseline
 
-- Cross build profile `m12-kernel` PASS. Kernel ELF SHA-256 theo build hiện tại: xem `build/m12/build.json` (artifact không version-control).
-- M12 CTest 6/6 PASS: Buddy host ASan/UBSan, host provenance, benchmark và guest BIOS/UEFI cùng kernel. Cả hai guest phát M08–M12 PASS; protected hashes không đổi và cleanup không cưỡng bức.
-- M11 CTest regression 3/3 PASS. M07 2/2, M08 2/2, M10 3/3 PASS. M09 sanitizer PASS; host/guest setup bị sandbox chặn khi build wrapper ghi dưới `build/`; artifacts cũ không tính là evidence hiện hành. Docs validator PASS, unittest 40/40 PASS; `git diff --check` PASS.
-- Host benchmark sau hiệu chỉnh: seed `0x12a110c`, trace hash `3ded994161041ff7`, 20,000 trace operations × 5; no-op bị bỏ khỏi latency/throughput và báo riêng. Lần chạy native ghi nhận 50,385 allocator calls và 49,615 no-op mỗi backend; p50/p95/max bitmap 130/385/23,723 ns, Buddy 128/1,015/53,576 ns; throughput 6,762,287/2,979,290 calls/s; mean init 768,026/7,574,075 ns. Các giá trị dao động và chỉ mô tả lần host run này. Metadata bitmap/Buddy 262,144/589,824 bytes. Alternating-free fixture vẫn bằng nhau: 2,048 frames rỗi, largest 4 KiB, order 1 allocation fail. Đây không phải guest performance evidence; bitmap vẫn mặc định.
-- CI PR #10 trên SHA `214229507800f1c41ce34f8c55c3fd42662454c7`: Documentation [41082791435](https://github.com/duclam2011dz/LamixOS/actions/runs/41082791435), Harness [41082791590](https://github.com/duclam2011dz/LamixOS/actions/runs/41082791590) và Boot Contract [41082791478](https://github.com/duclam2011dz/LamixOS/actions/runs/41082791478) SUCCESS. Toolchain [41082791636](https://github.com/duclam2011dz/LamixOS/actions/runs/41082791636) FAILURE hai lượt ở smoke/CTest M01, trước bước M12; M12 CI step SKIPPED. Artifact chỉ ra wrapper frame PMM không dùng trong profile M09 dưới `-Werror`; workspace đã giới hạn wrapper cho profile VMM và syntax-only `cc` M09/M12 PASS, chờ CI xác nhận. PC thật và firmware ngoài profile QEMU NOT RUN. M12 chưa nghiệm thu DONE, chưa merge, chưa tạo milestone tag.
-- Review tự động PR #10 ghi nhận benchmark tính no-op vào latency/throughput; đã sửa và đẩy commit `895e5ba74250b09ac1113bb5f9bc2b7a72e3da2a`. Benchmark native compile và schema/count validation qua direct `cc` **PASS** sau sửa; CMake/CTest local **NOT RUN** vì `cmake` không có trong PATH. Chưa xác minh review thread sau commit sửa.
+- M11 acceptance commit `3bf87334999a794bce6dec7e8d691f5f125ff781`; annotated tag object `618d9a27610e5ce73c81abad120b04872f60587b`; PR #9 merge commit `c1d288e7ca4fcc9f87c9eb08ba257098e6111bc8`.
+- Kernel heap M11 là BSP free-list first-fit dùng PMM/VMM callbacks; không reentrant/IRQ-safe, không có global C++ `new/delete`.
 
-## Hành động tiếp theo
+## Tiếp theo
 
-Tiếp tục xử lý lỗi Toolchain CI và đẩy bản sửa benchmark sau review; cần toàn bộ CI xanh và review finding được resolve trước merge/tag. M12 vẫn VERIFYING; không bắt đầu M13.
+M12 đã đóng. M13 vẫn **PLANNED**, chưa bắt đầu trong lượt này; cần yêu cầu và duyệt phạm vi riêng trước khi khảo sát hoặc triển khai.

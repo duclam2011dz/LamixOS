@@ -18,7 +18,7 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M12 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -308,4 +308,4 @@ cmake --build build/m12-tests
 ctest --test-dir build/m12-tests --no-tests=error --output-on-failure
 ```
 
-M12 CTest gồm Buddy native ASan/UBSan (extents, holes, reservations, OOM, coalescing, invalid/double-free, order18 1 GiB, stress), host provenance/image, benchmark và guest BIOS/OVMF trên cùng kernel. Guest PASS cần serial M08–M12, protected hashes không đổi và cleanup không cưỡng bức. Kết quả hiện tại **6/6 PASS** local; benchmark seed `0x12a110c`, mixed orders 0–3, trace hash `3ded994161041ff7`, 20,000 trace operations × 5; no-op được bỏ khỏi latency/throughput và báo riêng. Lần kiểm tra hiện tại ghi nhận throughput bitmap cao hơn Buddy; fragmentation fixture bằng nhau. Host-only numbers không kết luận hiệu năng guest; Buddy không được chọn làm mặc định. GitHub Toolchain CI thất bại hai lượt tại smoke/CTest M01 trước khi tới M12. Artifact chỉ ra helper PMM không dùng ở profile M09; workspace đã sửa điều kiện biên dịch và đang chờ CI xác nhận. Documentation, Harness và Boot Contract CI SUCCESS; M12 vẫn VERIFYING, chưa tag/merge. PC thật/firmware khác **NOT RUN**.
+M12 CTest trong Toolchain CI trên acceptance SHA `f3391d66eabc6b6d82a27800db6e229bb74f577b` **6/6 PASS**: Buddy native ASan/UBSan (extents, holes, reservations, OOM, coalescing, invalid/double-free, order18 1 GiB, stress), host provenance, benchmark và guest BIOS/OVMF cùng kernel. Guest BIOS/UEFI phát marker M08–M12, protected hashes giữ nguyên và cleanup không cưỡng bức. CI run [41084497139](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497139); bốn workflow SUCCESS trên SHA này. Benchmark seed `0x12a110c`, trace hash `3ded994161041ff7`, 20,000 trace operations × 5; no-op được bỏ khỏi latency/throughput và báo riêng. Host CI run ghi nhận throughput bitmap cao hơn Buddy; fragmentation fixture bằng nhau. Host-only numbers không kết luận hiệu năng guest; Buddy không được chọn làm mặc định. PC thật/firmware khác **NOT RUN**. M12 DONE; M13 chưa bắt đầu.
