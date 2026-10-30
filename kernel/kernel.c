@@ -53,6 +53,11 @@ static uint64_t acpi_scratch_base, acpi_scratch_pages;
 static pmm physical_memory;
 static uint8_t pmm_states[PMM_STATE_BYTES];
 #endif
+#if defined(LAMIX_M12_BUDDY)
+static pmm_buddy experimental_buddy;
+static uint8_t buddy_node_storage[PMM_BUDDY_STATE_BYTES];
+static uint32_t buddy_boundary_storage[PMM_BUDDY_BOUNDARY_CAPACITY];
+#endif
 #if defined(LAMIX_M10_VMM)
 static vmm_space kernel_space;
 static uint64_t vmm_scratch_base, vmm_scratch_control;
@@ -154,6 +159,89 @@ static int pmm_self_test(const lbp_view *view,const lbp_entry *entry){
   serial("M09:PMM frames=8 free=");hex(initial);serial("\n");
   return 1;
 }
+
+#if defined(LAMIX_M12_BUDDY)
+static int pmm_buddy_self_test(const lbp_view *view) {
+  pmm_buddy_stats stats;
+  uint64_t frame = 0, block = 0;
+  if (pmm_buddy_init(&experimental_buddy, view, buddy_node_storage,
+                     sizeof(buddy_node_storage), buddy_boundary_storage,
+                     PMM_BUDDY_BOUNDARY_CAPACITY) != PMM_OK ||
+      pmm_buddy_get_stats(&experimental_buddy, &stats) != PMM_OK ||
+      stats.free_frames < 3 ||
+      pmm_buddy_alloc_frame(&experimental_buddy, &frame) != PMM_OK ||
+      frame >= PMM_PHYSICAL_LIMIT || !frame_usable(view, frame) ||
+      frame_reserved(view, frame) ||
+      pmm_buddy_free_frame(&experimental_buddy, frame) != PMM_OK ||
+      pmm_buddy_free_frame(&experimental_buddy, frame) != PMM_NOT_ALLOCATED)
+    return 0;
+  uint32_t initial_free = stats.free_frames;
+  uint32_t order = PMM_BUDDY_MAX_ORDER;
+  while (!experimental_buddy.free_blocks[order] && order)
+    --order;
+  if (pmm_buddy_alloc_order(&experimental_buddy, order, &block) != PMM_OK)
+    return 0;
+  uint64_t block_bytes = PMM_PAGE_SIZE << order;
+  int contained = 0;
+  const uint8_t *raw = record(view, LBP_MEMORY_MAP);
+  if (!raw || ((const lbp_record *)raw)->size < 32)
+    return 0;
+  uint32_t stride = *(const uint32_t *)(raw + 20);
+  uint64_t count = *(const uint64_t *)(raw + 24);
+  for (uint64_t i = 0; i < count; ++i) {
+    const uint8_t *entry = raw + 32 + i * stride;
+    uint64_t base = *(const uint64_t *)entry;
+    uint64_t length = *(const uint64_t *)(entry + 8);
+    if (*(const uint32_t *)(entry + 16) == LBP_USABLE && block >= base &&
+        block - base <= length && block_bytes <= length - (block - base)) {
+      contained = 1;
+      break;
+    }
+  }
+  const uint8_t *reserved = record(view, LBP_RESERVATIONS);
+  if (!reserved || ((const lbp_record *)reserved)->size < 32)
+    return 0;
+  uint32_t reserved_stride = *(const uint32_t *)(reserved + 20);
+  uint64_t reserved_count = *(const uint64_t *)(reserved + 24);
+  for (uint64_t i = 0; i < reserved_count; ++i) {
+    const uint8_t *entry = reserved + 32 + i * reserved_stride;
+    uint64_t base = *(const uint64_t *)entry;
+    uint64_t length = *(const uint64_t *)(entry + 8);
+    if (block < base + length && base < block + block_bytes)
+      return 0;
+  }
+  if (!contained || (block & (block_bytes - 1u)) ||
+      pmm_buddy_free_order(&experimental_buddy, block, order) != PMM_OK ||
+      pmm_buddy_get_stats(&experimental_buddy, &stats) != PMM_OK ||
+      stats.allocated_frames != 0 || stats.free_frames != initial_free)
+    return 0;
+  serial("M12:BUDDY order=");
+  hex(order);
+  serial(" free=");
+  hex(stats.free_frames);
+  serial(" metadata=");
+  hex(PMM_BUDDY_STATE_BYTES +
+      sizeof(buddy_boundary_storage));
+  serial("\n");
+  return 1;
+}
+
+static int kernel_alloc_frame(uint64_t *physical) {
+  return pmm_buddy_alloc_frame(&experimental_buddy, physical) == PMM_OK;
+}
+
+static int kernel_free_frame(uint64_t physical) {
+  return pmm_buddy_free_frame(&experimental_buddy, physical) == PMM_OK;
+}
+#else
+static int kernel_alloc_frame(uint64_t *physical) {
+  return pmm_alloc_frame(&physical_memory, physical) == PMM_OK;
+}
+
+static int kernel_free_frame(uint64_t physical) {
+  return pmm_free_frame(&physical_memory, physical) == PMM_OK;
+}
+#endif
 #endif
 static const uint8_t *raw_record(const lbp_header*h,uint32_t wanted){
   uint64_t total=h->total_size,at=h->records_offset;uint32_t count=h->record_count;
@@ -249,11 +337,11 @@ static void unmap_acpi_span(void){
 #if defined(LAMIX_M10_VMM)
 static int vmm_allocate(void *context, uint64_t *physical) {
   (void)context;
-  return pmm_alloc_frame(&physical_memory, physical) == PMM_OK;
+  return kernel_alloc_frame(physical);
 }
 static int vmm_release(void *context, uint64_t physical) {
   (void)context;
-  return pmm_free_frame(&physical_memory, physical) == PMM_OK;
+  return kernel_free_frame(physical);
 }
 static volatile uint64_t *vmm_access(void *context, uint64_t physical) {
   (void)context;
@@ -402,7 +490,7 @@ static int vmm_build_root(const lbp_view *view, const lbp_header *header,
   return 1;
 }
 static int vmm_self_test(void) {
-  if (pmm_alloc_frame(&physical_memory, &vmm_test_physical) != PMM_OK ||
+  if (!kernel_alloc_frame(&vmm_test_physical) ||
       vmm_map_range(&kernel_space, VMM_TEST_BASE, vmm_test_physical,
                     PAGE_SIZE, VMM_READ | VMM_WRITE, 0) != VMM_OK)
     return 0;
@@ -422,7 +510,7 @@ static int vmm_self_test(void) {
       vmm_unmap_range(&kernel_space, VMM_TEST_BASE, PAGE_SIZE) != VMM_OK ||
       vmm_query(&kernel_space, VMM_TEST_BASE, &physical, &permissions,
                 &flags) != VMM_NOT_MAPPED ||
-      pmm_free_frame(&physical_memory, vmm_test_physical) != PMM_OK)
+      !kernel_free_frame(vmm_test_physical))
     return 0;
   serial("M10:VMM root=switched NX=");
   serial(kernel_space.nx_enabled ? "1\n" : "0\n");
@@ -433,12 +521,11 @@ static int heap_map_page(void *context, uint64_t virtual_address,
                          void **accessible_page) {
   (void)context;
   uint64_t physical = 0;
-  if (!accessible_page ||
-      pmm_alloc_frame(&physical_memory, &physical) != PMM_OK)
+  if (!accessible_page || !kernel_alloc_frame(&physical))
     return 0;
   if (vmm_map_range(&kernel_space, virtual_address, physical, PAGE_SIZE,
                     VMM_READ | VMM_WRITE, 0) != VMM_OK) {
-    (void)pmm_free_frame(&physical_memory, physical);
+    (void)kernel_free_frame(physical);
     return 0;
   }
   *accessible_page = (void *)(uintptr_t)virtual_address;
@@ -454,7 +541,7 @@ static int heap_release_page(void *context, uint64_t virtual_address) {
       vmm_unmap_range(&kernel_space, virtual_address, PAGE_SIZE) != VMM_OK)
     return 0;
   physical &= ~(PAGE_SIZE - 1);
-  return pmm_free_frame(&physical_memory, physical) == PMM_OK;
+  return kernel_free_frame(physical);
 }
 
 static int heap_self_test(void) {
@@ -542,6 +629,12 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
 #if defined(LAMIX_M09_PMM)
   if(!pmm_self_test(&view,e)){serial("M09:FAIL\n");fail();}
 #endif
+#if defined(LAMIX_M12_BUDDY)
+  if (!pmm_buddy_self_test(&view)) {
+    serial("M12:FAIL\n");
+    fail();
+  }
+#endif
   uint16_t prior_cs;__asm__ volatile("mov %%cs,%0":"=r"(prior_cs));
   idt_init(prior_cs,0);
   gdt_init(prior_cs);
@@ -579,6 +672,9 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
 #endif
 #if defined(LAMIX_M11_HEAP)
   serial("M11:PASS\n");
+#endif
+#if defined(LAMIX_M12_BUDDY)
+  serial("M12:PASS\n");
 #endif
   halt();
 }

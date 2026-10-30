@@ -1,6 +1,32 @@
-# Kế hoạch hiện hành — M11
+# Kế hoạch hiện hành — M12
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=VERIFYING
+
+Trạng thái M12: **VERIFYING (2026-10-30)** trên nhánh `codex/m12-buddy-pmm`; CI GitHub trên nhánh/commit này **PENDING** (chưa push/PR). Bitmap M09 giữ mặc định; Buddy là backend thử nghiệm trong profile `m12-kernel`, VMM/heap chỉ dùng Buddy ở profile thử nghiệm. Không đổi LBP v1, kernel entry ABI, loaders, BIOS Stage1 gate hoặc Stage2 budget.
+
+## Phạm vi M12 — Buddy allocator thử nghiệm song song
+
+- `kernel/pmm.c`/`kernel/pmm.h` thêm tree bitmap 2-bit/node cho frames dưới 4 GiB, boundary-aware coalescing và order 0–18; API bitmap M09 không đổi. Chỉ frame đầy đủ thuộc `LBP_USABLE` được đưa vào pool; reservations/hole/extent edges ngăn coalesce. Không reclaim LOADER/ACPI và không cấp RAM trên 4 GiB.
+- Kernel profile `m12-kernel` dành 512 KiB cho node state và 64 KiB cho boundary capacity trong `.bss`; tổng reserve metadata **589,824 bytes**. Khởi tạo Buddy chỉ sau validation map/reservations. Profile M12 route VMM/heap callbacks qua wrapper order 0; các profile trước giữ bitmap.
+- Tests trong `tests/m12/` dùng cùng `kernel/pmm.c` trên native ASan/UBSan, host provenance, deterministic benchmark với bitmap contiguous adapter, workload fragmentation/pressure/OOM và QEMU guest. Host benchmark không đại diện hiệu năng guest.
+- Rollback bằng profile/backend bitmap; bitmap vẫn là backend mặc định. Không chuyển mặc định theo kết quả hiện tại: mixed-order host trace có throughput thấp hơn ở Buddy; percentile thay đổi theo workload; fragmentation fixture cho kết quả giống nhau.
+
+## Kết quả xác minh local M12
+
+- Build cross profile `m12-kernel` **PASS**; ELF SHA-256 hiện tại ghi trong `build/m12/build.json` (artifact cục bộ, không commit).
+- M12 CTest **6/6 PASS**: Buddy ASan/UBSan, host provenance/image, benchmark native và BIOS/OVMF guest. Cùng kernel boot hai firmware; serial phát M08–M12 PASS; hashes protected inputs giữ nguyên, cleanup không cưỡng bức.
+- M11 CTest **3/3 PASS**. M07 2/2, M08 2/2, M10 3/3 regressions PASS; M09 sanitizer PASS, host/guest setup sandbox-blocked do wrapper ghi dưới `build/`. PC thật/firmware ngoài QEMU **NOT RUN**.
+- Benchmark host seed `0x12a110c`, trace hash `3ded994161041ff7`, 20,000 ops × 5 repetitions. Metadata reserve: bitmap 262,144 B, Buddy 589,824 B. Mixed-order trace orders 0–3, p50/p95/max toàn bộ (lần chạy cuối): bitmap 21/383/13,016 ns; Buddy 56/963/38,456 ns. Mean init bitmap/Buddy 810,773/7,920,754 ns; throughput 9,152,882/4,710,185 ops/s. Độ trễ dao động giữa các lần chạy host; đây không phải tuyên bố hiệu năng guest. Fixture alternate-free: cả hai còn 2,048 frames, largest block 4 KiB, order 1 thất bại; chưa thấy fragmentation advantage trong workload này. Chỉ số là host-specific.
+- Documentation validator PASS, unittest 40/40 PASS; `git diff --check` PASS. Toolchain CI M12 **NOT RUN**; không có workflow GitHub mới SHA.
+
+## Lệnh M12
+
+```bash
+python3 tests/m12/build_kernel.py --build build/m12
+cmake -S tests/m12 -B build/m12-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+cmake --build build/m12-tests
+ctest --test-dir build/m12-tests --no-tests=error --output-on-failure
+```
 
 Trạng thái M11: **DONE (2026-10-30)**. Commit nghiệm thu `3bf87334999a794bce6dec7e8d691f5f125ff781`; PR [#9](https://github.com/duclam2011dz/LamixOS/pull/9) merge commit `c1d288e7ca4fcc9f87c9eb08ba257098e6111bc8`. Bốn GitHub Actions workflows SUCCESS trên commit nghiệm thu. Annotated tag `milestone/M11` object `618d9a27610e5ce73c81abad120b04872f60587b` trỏ commit nghiệm thu. Commit bàn giao tài liệu được tạo sau tag; tag không di chuyển.
 
@@ -192,4 +218,4 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
 
 Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M11 DONE; M12 cần kế hoạch và duyệt riêng.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M11 DONE; M12 VERIFYING.

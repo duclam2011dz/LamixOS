@@ -10,7 +10,7 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00–M11 đã nghiệm thu. M11 kernel heap qua host/sanitizer, guest BIOS/OVMF và bốn workflow CI trên SHA nghiệm thu. Đây chưa phải kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh. Xem [handoff](docs/SESSION_HANDOFF.md) để biết bằng chứng và giới hạn. Chưa có bản phát hành và chưa đạt Playable.
+M00–M11 đã nghiệm thu; M12 Buddy PMM đang VERIFYING trên nhánh công việc. M11 kernel heap qua host/sanitizer, guest BIOS/OVMF và bốn workflow CI trên SHA nghiệm thu; M12 Buddy PMM có local tests nhưng GitHub CI chưa chạy. Đây chưa phải kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh. Xem [handoff](docs/SESSION_HANDOFF.md) để biết bằng chứng và giới hạn. Chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 
@@ -66,4 +66,4 @@ Stage1 NASM và fixture tests: [đặc tả/audit](docs/BIOS_STAGE1.md), [lệnh
 
 ## BIOS Stage2 M05
 
-BIOS loader nạp ELF64 từ ESP FAT32 và chuyển vào kernel qua LBP v1; [audit/giới hạn](docs/BIOS_STAGE2.md), [kiểm thử](docs/TESTING.md#bios-stage2-m05). M05 DONE; xem [PR #3](https://github.com/duclam2011dz/LamixOS/pull/3) và annotated [milestone/M05](https://github.com/duclam2011dz/LamixOS/tree/milestone/M05). M06–M11 DONE.
+BIOS loader nạp ELF64 từ ESP FAT32 và chuyển vào kernel qua LBP v1; [audit/giới hạn](docs/BIOS_STAGE2.md), [kiểm thử](docs/TESTING.md#bios-stage2-m05). M05 DONE; xem [PR #3](https://github.com/duclam2011dz/LamixOS/pull/3) và annotated [milestone/M05](https://github.com/duclam2011dz/LamixOS/tree/milestone/M05). M06–M11 DONE; M12 VERIFYING.
