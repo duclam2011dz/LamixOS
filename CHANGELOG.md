@@ -4,6 +4,12 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M11 — VERIFYING (2026-10-30)
+
+- Thêm kernel heap BSP free-list first-fit dùng PMM/VMM, page backing theo nhu cầu, split/coalesce, C API alloc/calloc/free/stats và rollback khi mở rộng thất bại. Không thêm `new/delete`, slab, SMP hoặc IRQ-safe allocation.
+- Thêm C++17 freestanding consumer/build provenance, host ASan/UBSan, image profile `m11-kernel`, BIOS/OVMF guest test và Toolchain CI job/report.
+- Local M11 CTest **3/3 PASS**; hồi quy M07 **2/2**, M08 **2/2**, M09 **3/3**, M10 **3/3 PASS**. GitHub CI chưa chạy trên SHA có thay đổi; milestone VERIFYING, chưa tạo tag.
+
 ### M10 — DONE (2026-10-30)
 
 - Thêm VMM BSP paging bốn cấp với root CR3 mới, 4 KiB map/unmap/protect/range, scratch access cho page-table frames, TLB invalidation, W^X/NX và cleanup bảng rỗng.

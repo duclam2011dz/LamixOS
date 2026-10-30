@@ -91,6 +91,12 @@ jobs:
           cmake -S tests/m10 -B build/m10-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m10-tests
           ctest --test-dir build/m10-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m10/ctest.xml"
+      - name: M11 kernel heap, C++ freestanding và guest BIOS/UEFI
+        timeout-minutes: 20
+        run: |
+          cmake -S tests/m11 -B build/m11-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m11-tests
+          ctest --test-dir build/m11-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m11/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -194,4 +200,18 @@ jobs:
             out/m10/**/qmp.log
             build/m10-*/build.json
             build/m10-*/kernel.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M11 heap/C++/guest reports, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m11-heap-reports
+          path: |
+            out/m11/*.xml
+            out/m11/results/*.json
+            out/m11/**/result.json
+            out/m11/**/serial.log
+            out/m11/**/qmp.log
+            build/m11-*/build.json
+            build/m11-*/kernel.inspection.txt
           if-no-files-found: warn
