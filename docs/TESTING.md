@@ -18,7 +18,7 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M11 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -185,7 +185,7 @@ Mỗi run có result.json/serial/QMP/stderr, case.json expected/actual và prote
 
 Toolchain CI build/guest Debug và Release dùng cross cache sẵn; Boot Contract CI host/sanitizer; Harness CI giữ M02/M04. Lưu JUnit/logs/maps/listings/JSON, không upload images/firmware hoặc dependencies. Các kết quả thật theo SHA ở [handoff](SESSION_HANDOFF.md).
 
-Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M08–M10 DONE, M11 VERIFYING. Không gán probe M05–M11 làm image OS sản phẩm mặc định.
+Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M08–M11 DONE. Không gán probe M05–M11 làm image OS sản phẩm mặc định.
 
 ## Kernel tối thiểu M08
 
@@ -293,4 +293,4 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m11-tests --no-test
 
 Native ASan/UBSan chạy cùng heap implementation qua simulator map/release callbacks. Host/provenance test kiểm build `m11-kernel`, source hashes, cross G++ consumer và ELF không undefined runtime symbols/static constructors. Guest suite tạo một image/kernel chung rồi boot thật qua SeaBIOS và OVMF; cần marker `M08:PASS`, `M09:PASS`, `M10:PASS`, `M11:PASS`, protected hashes không đổi và cleanup không cưỡng bức. Reports tại `out/m11/`; không upload image hoặc firmware. Host cases bao gồm OOM rollback/exhaustion, overflow/zero-size, alignment, zeroing, reuse/coalescing, invalid pointer và double-free.
 
-Local M11 CTest **3/3 PASS**, guest BIOS/OVMF **2/2 PASS**; hồi quy M07–M10 PASS. M11 vẫn **VERIFYING** cho đến khi bốn workflow GitHub Actions SUCCESS trên SHA nghiệm thu. PC thật và firmware ngoài profile **NOT RUN**; global `new/delete`, SMP, IRQ-safe allocation, buddy/slab, user heap và kernel sản phẩm ngoài phạm vi.
+M11 **DONE**: CTest **3/3 PASS**, guest BIOS/OVMF **2/2 PASS**; hồi quy M07–M10 PASS. Bốn workflow GitHub Actions SUCCESS trên SHA nghiệm thu `3bf87334999a794bce6dec7e8d691f5f125ff781`; URLs ở [handoff](SESSION_HANDOFF.md). PC thật và firmware ngoài profile **NOT RUN**; global `new/delete`, SMP, IRQ-safe allocation, buddy/slab, user heap và kernel sản phẩm ngoài phạm vi.

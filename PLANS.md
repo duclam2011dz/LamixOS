@@ -1,8 +1,8 @@
 # Kế hoạch hiện hành — M11
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE
 
-Trạng thái M11: **VERIFYING (2026-10-30)**. Mã và kiểm thử đã triển khai trên nhánh `codex/m11-kernel-heap`, nền local `main` SHA `bddbc148191cc10e66a6cb9506ec62e8b1258237`. Chưa commit, push, mở PR hoặc tạo tag; bốn GitHub workflows chưa chạy trên SHA chứa thay đổi. Chỉ chuyển DONE sau khi CI nghiệm thu xanh.
+Trạng thái M11: **DONE (2026-10-30)**. Commit nghiệm thu `3bf87334999a794bce6dec7e8d691f5f125ff781`; PR [#9](https://github.com/duclam2011dz/LamixOS/pull/9) merge commit `c1d288e7ca4fcc9f87c9eb08ba257098e6111bc8`. Bốn GitHub Actions workflows SUCCESS trên commit nghiệm thu. Annotated tag `milestone/M11` object `618d9a27610e5ce73c81abad120b04872f60587b` trỏ commit nghiệm thu. Commit bàn giao tài liệu được tạo sau tag; tag không di chuyển.
 
 ## Phạm vi triển khai M11 — Kernel heap và nền tảng C/C++
 
@@ -16,7 +16,7 @@ Trạng thái M11: **VERIFYING (2026-10-30)**. Mã và kiểm thử đã triển
 - M11 CTest **3/3 PASS**: heap implementation dưới ASan/UBSan, host provenance/C++ cross smoke, và BIOS/OVMF guest. Cùng kernel ELF SHA-256 `9500f6c599c96a0430224cb86a9903412735802982308ed9a0c3fa9b7939b4a5`; cả hai firmware phát `M08:PASS`, `M09:PASS`, `M10:PASS`, `M11:PASS`.
 - Hồi quy M07 **2/2**, M08 **2/2**, M09 **3/3**, M10 **3/3 PASS**. Guest QEMU dùng cùng image, snapshot/firmware VARS riêng, protected hashes trước/sau và cleanup không cưỡng bức.
 - Build provenance: GCC/G++ cross 12.2.0, GNU LD 2.39, NASM 2.15.05; ELF ET_EXEC x86_64 có 3 load segments, không undefined symbols; C++ smoke object liên kết vào ELF freestanding.
-- Documentation validator **PASS**, unittest tài liệu **39/39 PASS**, `git diff --check` **PASS**. Bốn workflow CI trên SHA chứa thay đổi: **NOT RUN**. PC thật và firmware ngoài profile QEMU: **NOT RUN**. M11 còn VERIFYING.
+- Documentation validator **PASS**, unittest tài liệu **39/39 PASS**, `git diff --check` **PASS**. Bốn workflow CI SUCCESS trên SHA nghiệm thu. PC thật và firmware ngoài profile QEMU: **NOT RUN**.
 
 ## Lệnh M11
 
@@ -192,4 +192,4 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
 
 Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M10 DONE; M11 VERIFYING.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M11 DONE; M12 cần kế hoạch và duyệt riêng.

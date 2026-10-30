@@ -4,11 +4,11 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
-### M11 — VERIFYING (2026-10-30)
+### M11 — DONE (2026-10-30)
 
 - Thêm kernel heap BSP free-list first-fit dùng PMM/VMM, page backing theo nhu cầu, split/coalesce, C API alloc/calloc/free/stats và rollback khi mở rộng thất bại. Không thêm `new/delete`, slab, SMP hoặc IRQ-safe allocation.
 - Thêm C++17 freestanding consumer/build provenance, host ASan/UBSan, image profile `m11-kernel`, BIOS/OVMF guest test và Toolchain CI job/report.
-- Local M11 CTest **3/3 PASS**; hồi quy M07 **2/2**, M08 **2/2**, M09 **3/3**, M10 **3/3 PASS**. GitHub CI chưa chạy trên SHA có thay đổi; milestone VERIFYING, chưa tạo tag.
+- Local M11 CTest **3/3 PASS**; hồi quy M07 **2/2**, M08 **2/2**, M09 **3/3**, M10 **3/3 PASS**. Bốn workflow SUCCESS trên SHA nghiệm thu `3bf87334999a794bce6dec7e8d691f5f125ff781`; PR #9 merge commit `c1d288e7`. Annotated tag `milestone/M11` trỏ commit nghiệm thu.
 
 ### M10 — DONE (2026-10-30)
 
