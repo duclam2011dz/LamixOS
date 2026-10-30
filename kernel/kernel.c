@@ -6,6 +6,9 @@
 #if defined(LAMIX_M10_VMM)
 #include "vmm.h"
 #endif
+#if defined(LAMIX_M11_HEAP)
+#include "heap.h"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -59,6 +62,10 @@ static uint8_t vmm_scratch_active, vmm_nx_enabled;
 static const uint64_t VMM_SCRATCH_BASE = UINT64_C(0xfffffd0000000000);
 static const uint64_t VMM_SCRATCH_CONTROL = UINT64_C(0xfffffd0000001000);
 static const uint64_t VMM_TEST_BASE = UINT64_C(0xfffffc0000000000);
+#endif
+#if defined(LAMIX_M11_HEAP)
+static kheap kernel_heap;
+extern int m11_cpp_heap_probe(kheap *heap);
 #endif
 static __attribute__((noreturn)) void fail(void);
 
@@ -421,6 +428,80 @@ static int vmm_self_test(void) {
   serial(kernel_space.nx_enabled ? "1\n" : "0\n");
   return 1;
 }
+#if defined(LAMIX_M11_HEAP)
+static int heap_map_page(void *context, uint64_t virtual_address,
+                         void **accessible_page) {
+  (void)context;
+  uint64_t physical = 0;
+  if (!accessible_page ||
+      pmm_alloc_frame(&physical_memory, &physical) != PMM_OK)
+    return 0;
+  if (vmm_map_range(&kernel_space, virtual_address, physical, PAGE_SIZE,
+                    VMM_READ | VMM_WRITE, 0) != VMM_OK) {
+    (void)pmm_free_frame(&physical_memory, physical);
+    return 0;
+  }
+  *accessible_page = (void *)(uintptr_t)virtual_address;
+  return 1;
+}
+
+static int heap_release_page(void *context, uint64_t virtual_address) {
+  (void)context;
+  uint64_t physical = 0, flags = 0;
+  uint32_t permissions = 0;
+  if (vmm_query(&kernel_space, virtual_address, &physical, &permissions,
+                &flags) != VMM_OK ||
+      vmm_unmap_range(&kernel_space, virtual_address, PAGE_SIZE) != VMM_OK)
+    return 0;
+  physical &= ~(PAGE_SIZE - 1);
+  return pmm_free_frame(&physical_memory, physical) == PMM_OK;
+}
+
+static int heap_self_test(void) {
+  kheap_operations operations = {.context = 0,
+                                 .map_page = heap_map_page,
+                                 .release_page = heap_release_page};
+  if (kheap_init(&kernel_heap, &operations, KHEAP_VIRTUAL_BASE,
+                 KHEAP_VIRTUAL_SIZE) != KHEAP_OK ||
+      kheap_alloc(&kernel_heap, 0) != 0 ||
+      kernel_heap.last_error != KHEAP_INVALID_ARGUMENT)
+    return 0;
+  uint8_t *first = kheap_alloc(&kernel_heap, 13);
+  uint8_t *zeroed = kheap_calloc(&kernel_heap, 64, 3);
+  uint8_t *large = kheap_alloc(&kernel_heap, 5000);
+  if (!first || !zeroed || !large || ((uintptr_t)first & 15) ||
+      ((uintptr_t)zeroed & 15) || ((uintptr_t)large & 15))
+    return 0;
+  for (unsigned i = 0; i < 192; ++i)
+    if (zeroed[i])
+      return 0;
+  first[0] = 0x5a;
+  large[0] = 0xa5;
+  if (!m11_cpp_heap_probe(&kernel_heap) || first[0] != 0x5a ||
+      large[0] != 0xa5 ||
+      kheap_free(&kernel_heap, first) != KHEAP_OK ||
+      kheap_free(&kernel_heap, zeroed) != KHEAP_OK ||
+      kheap_free(&kernel_heap, large) != KHEAP_OK ||
+      kheap_free(&kernel_heap, first) != KHEAP_DOUBLE_FREE ||
+      kheap_free(&kernel_heap,
+                 (void *)(uintptr_t)(KHEAP_VIRTUAL_BASE + 16)) !=
+          KHEAP_INVALID_POINTER)
+    return 0;
+  kheap_stats stats;
+  if (kheap_get_stats(&kernel_heap, &stats) != KHEAP_OK ||
+      stats.live_allocations != 0 || stats.live_bytes != 0 ||
+      stats.allocation_count != 4 || stats.free_count != 4 ||
+      stats.double_free_count != 1 || stats.invalid_free_count != 1 ||
+      !stats.mapped_pages)
+    return 0;
+  serial("M11:HEAP pages=");
+  hex(stats.mapped_pages);
+  serial(" peak=");
+  hex(stats.peak_live_bytes);
+  serial("\n");
+  return 1;
+}
+#endif
 static __attribute__((noreturn, unused)) void
 vmm_fault_test(const lbp_entry *entry) {
   (void)entry;
@@ -471,6 +552,12 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
     fail();
   }
 #endif
+#if defined(LAMIX_M11_HEAP)
+  if (!heap_self_test()) {
+    serial("M11:FAIL\n");
+    fail();
+  }
+#endif
   serial("M08:LBP\n");
   serial("M08:GUARD=");hex(e->guard);serial("\n");
 #if defined(LAMIX_FAULT_UD)
@@ -489,6 +576,9 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
 #else
   serial("M10:PASS\n");
 #endif
+#endif
+#if defined(LAMIX_M11_HEAP)
+  serial("M11:PASS\n");
 #endif
   halt();
 }

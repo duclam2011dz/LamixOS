@@ -87,3 +87,9 @@ Image raw sparse theo profile 8 GiB. Chỉ ESP 256 MiB được format FAT32 và
 `tests/m08/build_kernel.py` dùng GCC cross, GNU LD/Binutils và NASM đã có; không cài hoặc bootstrap dependency mới. Cờ freestanding loại runtime host, PIE, stack protector, unwind tables, red zone và SIMD; ELF report xác minh ET_EXEC x86_64, higher-half entry, `p_paddr=0`, segments W^X, không dynamic/interpreter/undefined symbols, compiler/linker/NASM versions, commands, source hashes, ELF inspection và SHA-256. Thư viện LBP M03 được build lại với cùng target flags.
 
 `scripts/m07_image.py create/check --kernel-build build/m08` xác minh report/hash M08 trước khi dùng `kernel.elf`; nếu không truyền tùy chọn, vẫn dùng kernel M05 như M07 ban đầu. M08 CTest khởi chạy SeaBIOS và OVMF guest thật; report JSON lưu command/version/hash/status, serial/QMP paths và protected hash trước/sau. CI lưu reports, không lưu image hoặc firmware.
+
+## C++ freestanding kernel M11
+
+M11 dùng GCC/G++ cross 12.2.0, GNU LD/Binutils 2.39 và NASM như các profile kernel trước. Consumer C++17 được compile riêng với `-ffreestanding -fno-exceptions -fno-rtti -fno-use-cxa-atexit`, sau đó liên kết vào ELF kernel bằng cross LD; không link libstdc++ hoặc runtime C++. Build verifier từ chối undefined symbols và `.init_array`/`.ctors`. Đây chỉ là smoke consumer gọi C API heap; không định nghĩa global `new/delete`.
+
+`tests/m11/build_kernel.py --build build/m11` ghi compiler/linker versions, commands, source hashes, ELF inspection và kernel SHA-256. Toolchain CI chạy `tests/m11` CTest, gồm native ASan/UBSan cùng guest BIOS/OVMF; kết quả phải được xác minh trên SHA nghiệm thu cụ thể. QEMU launch-only và build compile-only không thay thế guest boot.

@@ -1,6 +1,33 @@
-# Kế hoạch hiện hành — M10
+# Kế hoạch hiện hành — M11
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=VERIFYING
+
+Trạng thái M11: **VERIFYING (2026-10-30)**. Mã và kiểm thử đã triển khai trên nhánh `codex/m11-kernel-heap`, nền local `main` SHA `bddbc148191cc10e66a6cb9506ec62e8b1258237`. Chưa commit, push, mở PR hoặc tạo tag; bốn GitHub workflows chưa chạy trên SHA chứa thay đổi. Chỉ chuyển DONE sau khi CI nghiệm thu xanh.
+
+## Phạm vi triển khai M11 — Kernel heap và nền tảng C/C++
+
+- Thêm `kernel/heap.c`/`kernel/heap.h`: heap BSP-only trong aperture 1 GiB từ `0xffffe00000000000`, page backing theo nhu cầu qua PMM/VMM. Free-list first-fit có chia/gộp; mapped pages được giữ lại để tái sử dụng.
+- C API cung cấp init, alloc, calloc zero, free và stats. Căn 16 byte; OOM trả `NULL`; zero-size trả `NULL`; calloc kiểm tra overflow; invalid pointer và double-free có status riêng. Không thêm global `new/delete`, đồng bộ SMP hoặc IRQ safety.
+- Kernel self-test gọi C++ freestanding smoke consumer; profile `m11-kernel` ghi provenance, compiler/linker, source/artifact hashes và ELF inspection. Image tool giữ M05 default và profile trước đó.
+- Toolchain CI được mở rộng để chạy M11 CTest và lưu reports, không lưu image/firmware.
+
+## Kết quả xác minh local M11
+
+- M11 CTest **3/3 PASS**: heap implementation dưới ASan/UBSan, host provenance/C++ cross smoke, và BIOS/OVMF guest. Cùng kernel ELF SHA-256 `9500f6c599c96a0430224cb86a9903412735802982308ed9a0c3fa9b7939b4a5`; cả hai firmware phát `M08:PASS`, `M09:PASS`, `M10:PASS`, `M11:PASS`.
+- Hồi quy M07 **2/2**, M08 **2/2**, M09 **3/3**, M10 **3/3 PASS**. Guest QEMU dùng cùng image, snapshot/firmware VARS riêng, protected hashes trước/sau và cleanup không cưỡng bức.
+- Build provenance: GCC/G++ cross 12.2.0, GNU LD 2.39, NASM 2.15.05; ELF ET_EXEC x86_64 có 3 load segments, không undefined symbols; C++ smoke object liên kết vào ELF freestanding.
+- Documentation validator **PASS**, unittest tài liệu **39/39 PASS**, `git diff --check` **PASS**. Bốn workflow CI trên SHA chứa thay đổi: **NOT RUN**. PC thật và firmware ngoài profile QEMU: **NOT RUN**. M11 còn VERIFYING.
+
+## Lệnh M11
+
+```bash
+python tests/m11/build_kernel.py --build build/m11
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m11 -B build/m11-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m11-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m11-tests --no-tests=error --output-on-failure
+```
+
+## Kế hoạch M10 đã nghiệm thu
 
 Trạng thái M10: **DONE (2026-10-30)**. PR #8 merge commit `493cd8a8e6790d0d1adbd87e7500b596698613dd`; head nghiệm thu `7e0b2f288e0497deb4a2c5fd4a50c679643643ba`. Bốn GitHub Actions workflows SUCCESS trên head này. Review phát hiện và sửa quyền execute khi NX không khả dụng tại `7e0b2f2`; M10 CTest sau sửa 3/3 PASS. Tag `milestone/M10` giữ nguyên, trỏ commit ban đầu `dd6365c6c217bfc076f73ec0cb5efdcb8e05a777`; không di chuyển tag công khai.
 
@@ -165,4 +192,4 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
 
 Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08 DONE; M09 VERIFYING; M10 chưa bắt đầu.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M10 DONE; M11 VERIFYING.

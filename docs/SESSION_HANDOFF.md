@@ -1,32 +1,23 @@
-# Bàn giao M10 — DONE — 2026-10-30
+# Bàn giao M11 — VERIFYING — 2026-10-30
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=VERIFYING
 
-## Kết quả và Git
+M11 kernel heap đã triển khai trên nhánh `codex/m11-kernel-heap`, dựa trên local `main` SHA `bddbc148191cc10e66a6cb9506ec62e8b1258237`. Remote `origin` là repository chính thức `https://github.com/duclam2011dz/LamixOS.git`. Thay đổi chưa commit/push, chưa có PR hoặc tag M11. Bốn workflow GitHub Actions trên SHA chứa thay đổi chưa chạy; vì vậy M11 giữ **VERIFYING**, chưa DONE.
 
-M10 VMM đã triển khai, kiểm chứng, review và merge. PR [#8](https://github.com/duclam2011dz/LamixOS/pull/8) merge commit `493cd8a8e6790d0d1adbd87e7500b596698613dd`. Head nghiệm thu cuối cùng là `7e0b2f288e0497deb4a2c5fd4a50c679643643ba`; commit triển khai ban đầu `dd6365c6c217bfc076f73ec0cb5efdcb8e05a777`, commit sửa review `7e0b2f288e0497deb4a2c5fd4a50c679643643ba`.
+## Thay đổi
 
-Annotated tag `milestone/M10` đã push; tag object `667b9434a6713b8d596072557643648a7342fd24`, peeled commit `dd6365c6c217bfc076f73ec0cb5efdcb8e05a777`. Review phát hiện sau khi tạo tag một lỗi ở đường không có NX: `vmm_query()` báo mapping read-only là non-executable dù phần cứng thực thi được. Đã sửa và thêm native regression tại `7e0b2f2`, resolve thread review, chạy lại M10 tests/CI rồi merge. Tag công khai được giữ nguyên, không di chuyển; vì vậy nó trỏ commit triển khai đầu thay vì head cuối chứa review-fix.
+- Thêm `kernel/heap.c`/`kernel/heap.h`: allocator BSP-only free-list first-fit, chia/gộp block, căn 16 byte và page backing lười trong aperture 1 GiB `0xffffe00000000000`. Page đã map được giữ để tái sử dụng; lỗi mở rộng rollback pages/frame vừa cấp.
+- Thêm API C init/alloc/calloc/free/stats; zeroing chỉ ở calloc. OOM trả NULL; zero-size trả NULL; overflow calloc, invalid pointer và double-free được xử lý bằng status. Heap không reentrant/IRQ-safe; chưa có global C++ `new/delete`.
+- Kernel tự kiểm tra heap sau PMM/VMM, dùng consumer C++17 freestanding; build kiểm tra provenance, ELF không undefined runtime symbols và không có static constructors. Image tooling hỗ trợ `m11-kernel`, giữ mặc định M05 và profile cũ.
+- Toolchain CI đã được cấu hình thêm M11 CTest cùng report artifacts; kết quả CI trên thay đổi hiện vẫn **PENDING/NOT RUN**.
 
-Local `main` đã fast-forward qua PR merge và commit bàn giao. M11 chưa bắt đầu; hành động tiếp theo là chờ yêu cầu riêng, vào Plan Mode thật để khảo sát và lập kế hoạch M11 rồi dừng chờ duyệt. Không triển khai M11 trong thủ tục M10 này.
+## Bằng chứng local
 
-## Thay đổi M10
+- M11 CTest **3/3 PASS**: heap native ASan/UBSan, host provenance/C++ cross smoke và BIOS/OVMF guest suite. Cùng kernel ELF SHA-256 `9500f6c599c96a0430224cb86a9903412735802982308ed9a0c3fa9b7939b4a5` boot qua cả SeaBIOS và OVMF; serial chứa `M08:PASS`, `M09:PASS`, `M10:PASS`, `M11:PASS`.
+- Hồi quy M07 **2/2**, M08 **2/2**, M09 **3/3**, M10 **3/3 PASS**. Guest dùng image snapshot, firmware VARS riêng, kiểm tra hash protected inputs trước/sau và cleanup không cưỡng bức.
+- Toolchain report ghi GCC/G++ cross 12.2.0, GNU LD 2.39, NASM 2.15.05; ELF x86_64 ET_EXEC có 3 load segments. Reports chi tiết ở `out/m11/` và build manifest trong `build/m11-guest/` (local, không commit).
+- Docs validator **PASS**, unittest tài liệu **39/39 PASS**, `git diff --check` **PASS**. Bốn GitHub workflows **NOT RUN** trên SHA thay đổi; PC thật và firmware ngoài profile QEMU **NOT RUN**.
 
-- Thêm `kernel/vmm.c`/`kernel/vmm.h`: paging 4 cấp, root CR3 mới cho BSP, map/unmap/protect 4 KiB và range, query, rollback OOM/conflict, thu hồi bảng trung gian rỗng, scratch access, W^X, NX khi có, uncached mapping và `invlpg`.
-- Dựng lại mapping kernel segments, BootInfo identity RO, stack identity RW, guard unmapped và framebuffer uncached. Không direct-map RAM; caller giữ ownership leaf frames; TABLES cũ vẫn unavailable.
-- Thêm M10 build profile/provenance, native simulator/sanitizer và guest fault tests BIOS/OVMF; image tooling giữ M05 default và các profile M08/M09. Sửa allocator scratch cũ để không tái dùng table rỗng còn được CR3 hiện hành tham chiếu.
-- Giữ nguyên LBP v1, kernel entry ABI, loaders, BIOS Stage1 gate/440-byte artifact và Stage2 budget.
+## Tiếp theo
 
-## Kiểm chứng
-
-- M10 CTest sau review-fix: **3/3 PASS**, guest **8/8 PASS** trên SeaBIOS/OVMF cho normal, RO write, NX execute và guard fault. Native ASan/UBSan và host/image tests PASS.
-- Hồi quy M07 **2/2 PASS**, M08 **2/2 PASS**, M09 **3/3 PASS**. Docs validator PASS; unittest tài liệu **38/38 PASS**.
-- Cả bốn GitHub Actions workflows **SUCCESS trên đúng PR head `7e0b2f288e0497deb4a2c5fd4a50c679643643ba`**: [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40902948477), [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40902948404), [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40902948422), [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/40902948480).
-- PC thật, firmware khác QEMU profile, SMP, RAM trên 4 GiB, process address spaces và kernel sản phẩm: **NOT RUN/ngoài phạm vi**. OS skeleton mặc định vẫn **SKIPPED**.
-
-## Lệnh M10
-
-    python tests/m10/build_kernel.py --build build/m10
-    PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m10 -B build/m10-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
-    PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m10-tests
-    PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m10-tests --no-tests=error --output-on-failure
+Chạy docs validator/unittest, kiểm tra diff và toàn bộ M11 CTest lần cuối. Sau đó cần đưa thay đổi lên review/CI theo quy trình dự án; chỉ khi bốn workflows SUCCESS trên SHA nghiệm thu và người dùng xác nhận hoàn thành riêng mới được đánh dấu DONE hoặc tạo annotated tag `milestone/M11`. Không bắt đầu M12 trong thủ tục M11.

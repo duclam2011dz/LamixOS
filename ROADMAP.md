@@ -3,10 +3,10 @@
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
 > **Cập nhật:** 2026-10-30
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 VERIFYING; M12–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=VERIFYING
 
 ## 0. Tầm nhìn và giới hạn
 
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 VERIFYING; M12–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -107,7 +107,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M10 — VMM và kernel address space.** **Trạng thái: DONE (2026-10-30).** PR #8 merge commit `493cd8a8e6790d0d1adbd87e7500b596698613dd`; CI bốn workflow SUCCESS trên head nghiệm thu `7e0b2f288e0497deb4a2c5fd4a50c679643643ba`. VMM paging 4 cấp tạo root CR3 mới trên BSP; hỗ trợ map/unmap/protect 4 KiB và range, scratch page-table access, W^X, NX khi khả dụng, guard và TLB invalidation. Host/sanitizer, 8 guest boots BIOS/OVMF và hồi quy M07–M09 PASS. Review đã phát hiện và sửa quyền execute khi NX không khả dụng; regression native được thêm. Annotated tag `milestone/M10` đã push, giữ nguyên trên commit ban đầu `dd6365c6c217bfc076f73ec0cb5efdcb8e05a777`; review-fix `7e0b2f2` có trong PR merge nhưng tag không di chuyển. Không đổi LBP v1 hay loader contract. PC thật, firmware ngoài QEMU, SMP, RAM trên 4 GiB, process address spaces và kernel sản phẩm NOT RUN/ngoài phạm vi. Xem [handoff](docs/SESSION_HANDOFF.md).
 
-**M11 — Kernel heap và C++ nền tảng.** Bootstrap allocator → kernel heap, `new/delete` tối thiểu khi dùng C++, pool/slab tùy nhu cầu, ownership, leak/double-free diagnostics. Nghiệm thu: allocation tests, không phụ thuộc runtime host.
+**M11 — Kernel heap và C++ nền tảng.** **Trạng thái: VERIFYING.** Đã thêm kernel heap BSP free-list first-fit, cấp trang theo nhu cầu qua PMM/VMM, API C zero/alloc/free/stats và C++ freestanding smoke consumer; chưa có global `new/delete`. Host sanitizer/provenance và guest BIOS/OVMF đã PASS local; hồi quy M07–M10 PASS. GitHub Actions trên SHA chứa thay đổi chưa chạy; chưa đủ điều kiện DONE/tag. Xem [kế hoạch và kết quả](PLANS.md) cùng [handoff](docs/SESSION_HANDOFF.md).
 
 **M12 — Buddy allocator nâng cấp PMM.** Đo fragmentation, thử buddy cho page allocations, khả năng fallback/rollback khi benchmark không có lợi. Nghiệm thu: pressure/fragmentation tests và số liệu so sánh, không bắt buộc xóa bitmap bootstrap.
 
