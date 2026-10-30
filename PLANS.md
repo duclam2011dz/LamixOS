@@ -1,8 +1,8 @@
 # Kế hoạch hiện hành — M10
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE
 
-Trạng thái M10: **VERIFYING (2026-10-29)**. Checkout còn trên commit M09 closure `481efbcb3fa6e4144e9401e06f8745cee64de2f5`; M10 thay đổi chưa commit, GitHub CI trên SHA chứa M10 **NOT RUN**. Local CTest 3/3 và tám guest boots BIOS/OVMF PASS; không tạo commit/tag, chưa xác nhận kết thúc milestone.
+Trạng thái M10: **DONE (2026-10-30)**. PR #8 merge commit `493cd8a8e6790d0d1adbd87e7500b596698613dd`; head nghiệm thu `7e0b2f288e0497deb4a2c5fd4a50c679643643ba`. Bốn GitHub Actions workflows SUCCESS trên head này. Review phát hiện và sửa quyền execute khi NX không khả dụng tại `7e0b2f2`; M10 CTest sau sửa 3/3 PASS. Tag `milestone/M10` giữ nguyên, trỏ commit ban đầu `dd6365c6c217bfc076f73ec0cb5efdcb8e05a777`; không di chuyển tag công khai.
 
 ## Phạm vi triển khai M10 — VMM và kernel address space
 
@@ -15,7 +15,9 @@ Trạng thái M10: **VERIFYING (2026-10-29)**. Checkout còn trên commit M09 cl
 
 - M10 CTest **3/3 PASS**: native VMM ASan/UBSan, host build/image checks và guest suite; guest **8/8 PASS** trên cùng kernel profiles BIOS/OVMF. Normal phát `M08:PASS`, `M09:PASS`, `M10:PASS`; RO/NX/guard faults có vector 0e, error bits và CR2 mong đợi.
 - Root CR3 mới giữ mapping cần thiết; allocator scratch cũ được sửa để không tái sử dụng table page còn được root tham chiếu. Image extents, firmware và kernel hashes không đổi; cleanup guest không bị cưỡng bức.
-- Docs validator **PASS**, unittest tài liệu **38/38 PASS**; hồi quy M07 CTest **2/2**, M08 **2/2**, M09 **3/3 PASS**. GitHub CI M10 **NOT RUN** do chưa có commit/PR.
+- Docs validator **PASS**, unittest tài liệu **38/38 PASS**; hồi quy M07 CTest **2/2**, M08 **2/2**, M09 **3/3 PASS**. M10 CTest sau review **3/3 PASS**, guest **8/8 PASS**.
+- CI bốn workflow SUCCESS trên SHA `7e0b2f288e0497deb4a2c5fd4a50c679643643ba`: [Toolchain](https://github.com/duclam2011dz/LamixOS/actions/runs/40902948477), [Harness](https://github.com/duclam2011dz/LamixOS/actions/runs/40902948404), [Documentation](https://github.com/duclam2011dz/LamixOS/actions/runs/40902948422), [Boot Contract](https://github.com/duclam2011dz/LamixOS/actions/runs/40902948480).
+- PR [#8](https://github.com/duclam2011dz/LamixOS/pull/8) đã merge. Annotated tag `milestone/M10` trỏ commit `dd6365c6c217bfc076f73ec0cb5efdcb8e05a777`; review-fix commit `7e0b2f288e0497deb4a2c5fd4a50c679643643ba` được merge sau đó. Tag không bị di chuyển.
 
 ## Lệnh M10
 

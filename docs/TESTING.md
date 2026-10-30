@@ -185,7 +185,7 @@ Mỗi run có result.json/serial/QMP/stderr, case.json expected/actual và prote
 
 Toolchain CI build/guest Debug và Release dùng cross cache sẵn; Boot Contract CI host/sanitizer; Harness CI giữ M02/M04. Lưu JUnit/logs/maps/listings/JSON, không upload images/firmware hoặc dependencies. Các kết quả thật theo SHA ở [handoff](SESSION_HANDOFF.md).
 
-Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M08/M09 DONE, M10 VERIFYING. Không gán probe M05–M10 làm image OS sản phẩm mặc định.
+Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M08–M10 DONE. Không gán probe M05–M10 làm image OS sản phẩm mặc định.
 
 ## Kernel tối thiểu M08
 
@@ -278,4 +278,4 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m10-tests --no-test
 
 CTest gồm native ASan/UBSan trên implementation VMM thật, host provenance/image checks và 8 guest boots trên cùng kernel profile set: normal, ghi RO, execute NX và chạm guard, từng profile qua SeaBIOS lẫn OVMF. Guest âm yêu cầu `#PF` vector `0e`, CR2/error bits đúng; normal yêu cầu `M08:PASS`, `M09:PASS`, `M10:PASS`. QEMU dùng snapshot image, firmware CODE chỉ đọc, VARS riêng, serial/QMP, timeout và cleanup; reports tại `out/m10/`, không upload image/firmware.
 
-M10 **VERIFYING**: local CTest **3/3 PASS**, guest **8/8 PASS**, image/provenance và sanitizer PASS. GitHub CI trên SHA chứa M10 **NOT RUN** vì chưa có commit/PR; PC thật, firmware ngoài QEMU, SMP, RAM trên 4 GiB và process address spaces **NOT RUN/ngoài phạm vi**.
+M10 **DONE**: local CTest **3/3 PASS** sau sửa review, guest **8/8 PASS**, image/provenance và sanitizer PASS. Bốn GitHub workflows SUCCESS trên PR head `7e0b2f288e0497deb4a2c5fd4a50c679643643ba`. Tag `milestone/M10` giữ nguyên tại commit đầu `dd6365c6`; review-fix commit nằm trong merge PR #8. PC thật, firmware ngoài QEMU, SMP, RAM trên 4 GiB và process address spaces **NOT RUN/ngoài phạm vi**.

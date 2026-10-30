@@ -1,12 +1,12 @@
 # ROADMAP — Lamix OS
 
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
-> **Cập nhật:** 2026-10-29
+> **Cập nhật:** 2026-10-30
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 VERIFYING; M11–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=VERIFYING
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE
 
 ## 0. Tầm nhìn và giới hạn
 
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 VERIFYING; M11–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -105,7 +105,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M09 — Bitmap PMM.** **Trạng thái: DONE (2026-10-29).** PR #7 merge; annotated tag `milestone/M09` trỏ commit nghiệm thu `b2ef8182`; bốn workflow SUCCESS trên đúng SHA. Bitmap 2-bit/frame trong kernel `.bss` quản lý frame 4 KiB dưới 4 GiB; chỉ `LBP_USABLE` vào pool, reservations bị loại, không reclaim LOADER/ACPI. Host/sanitizer và cùng-kernel guest boot SeaBIOS/OVMF PASS; xem [handoff](docs/SESSION_HANDOFF.md) và [quản lý bộ nhớ](docs/MEMORY_MANAGEMENT.md). Mục tiêu: parse memory map chuẩn LBP, đánh dấu vùng firmware/kernel/modules/ACPI/MMIO, cấp/trả 4KiB frames; unit tests và stress tests có kiểm tra. Nghiệm thu: không trả frame reserved, xử lý hết bộ nhớ an toàn.
 
-**M10 — VMM và kernel address space.** **Trạng thái: VERIFYING (2026-10-29).** VMM nội bộ paging 4 cấp tạo root CR3 mới trên BSP; map/unmap/protect trang 4 KiB và range, scratch access cho page-table frames, W^X, NX khi khả dụng, guard và TLB invalidation. Local native/sanitizer và 8 guest boot BIOS/OVMF (normal, RO write, NX execute, guard #PF) PASS; GitHub CI trên SHA chứa M10 NOT RUN vì chưa có commit/PR. Không đổi LBP v1 hay loader contract. Nghiệm thu milestone vẫn cần CI xanh và xác nhận riêng.
+**M10 — VMM và kernel address space.** **Trạng thái: DONE (2026-10-30).** PR #8 merge commit `493cd8a8e6790d0d1adbd87e7500b596698613dd`; CI bốn workflow SUCCESS trên head nghiệm thu `7e0b2f288e0497deb4a2c5fd4a50c679643643ba`. VMM paging 4 cấp tạo root CR3 mới trên BSP; hỗ trợ map/unmap/protect 4 KiB và range, scratch page-table access, W^X, NX khi khả dụng, guard và TLB invalidation. Host/sanitizer, 8 guest boots BIOS/OVMF và hồi quy M07–M09 PASS. Review đã phát hiện và sửa quyền execute khi NX không khả dụng; regression native được thêm. Annotated tag `milestone/M10` đã push, giữ nguyên trên commit ban đầu `dd6365c6c217bfc076f73ec0cb5efdcb8e05a777`; review-fix `7e0b2f2` có trong PR merge nhưng tag không di chuyển. Không đổi LBP v1 hay loader contract. PC thật, firmware ngoài QEMU, SMP, RAM trên 4 GiB, process address spaces và kernel sản phẩm NOT RUN/ngoài phạm vi. Xem [handoff](docs/SESSION_HANDOFF.md).
 
 **M11 — Kernel heap và C++ nền tảng.** Bootstrap allocator → kernel heap, `new/delete` tối thiểu khi dùng C++, pool/slab tùy nhu cầu, ownership, leak/double-free diagnostics. Nghiệm thu: allocation tests, không phụ thuộc runtime host.
 

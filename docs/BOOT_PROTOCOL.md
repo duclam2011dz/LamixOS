@@ -1,6 +1,6 @@
 # Lamix Boot Protocol v1.0
 
-Contract M03 được duyệt ngày 2026-10-26. Headers và thư viện validation/normalization đã triển khai; BIOS Stage1 M04 có smoke test riêng; M05 có Stage2 BIOS và kernel probe; M06 bổ sung EFI loader; M07 đã boot cùng kernel probe qua SeaBIOS/OVMF. Kernel M08 và PMM bitmap M09 đã DONE; VMM kernel address space M10 đang VERIFYING. M10 không đổi LBP v1 hoặc entry ABI; chưa có kernel sản phẩm hoàn chỉnh. Kết quả kiểm chứng ở [handoff](SESSION_HANDOFF.md); không coi host tests là OS boot.
+Contract M03 được duyệt ngày 2026-10-26. Headers và thư viện validation/normalization đã triển khai; BIOS Stage1 M04 có smoke test riêng; M05 có Stage2 BIOS và kernel probe; M06 bổ sung EFI loader; M07 đã boot cùng kernel probe qua SeaBIOS/OVMF. Kernel M08, PMM bitmap M09 và VMM kernel address space M10 đã DONE. M10 không đổi LBP v1 hoặc entry ABI; chưa có kernel sản phẩm hoàn chỉnh. Kết quả kiểm chứng ở [handoff](SESSION_HANDOFF.md); không coi host tests là OS boot.
 
 ## Encoding và cấu trúc
 
