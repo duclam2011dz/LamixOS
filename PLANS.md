@@ -1,8 +1,32 @@
-# Kế hoạch hiện hành — M09
+# Kế hoạch hiện hành — M10
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=VERIFYING
 
-Trạng thái M09: **DONE (2026-10-29)**. Commit nghiệm thu `b2ef8182e75fcf9665374fd20881ed0bfc3fbb8d`; PR [#7](https://github.com/duclam2011dz/LamixOS/pull/7) merge commit `49720af528af08d74cca8b1bc325eb9ea8ff6f84`. Annotated tag `milestone/M09` có tag object `bcb23b864eb20f4c71030816d7760066fe5e0d01`, peeled commit trùng SHA nghiệm thu. Bốn workflow SUCCESS trên đúng SHA; chi tiết ở [handoff](docs/SESSION_HANDOFF.md). M10 chưa bắt đầu.
+Trạng thái M10: **VERIFYING (2026-10-29)**. Checkout còn trên commit M09 closure `481efbcb3fa6e4144e9401e06f8745cee64de2f5`; M10 thay đổi chưa commit, GitHub CI trên SHA chứa M10 **NOT RUN**. Local CTest 3/3 và tám guest boots BIOS/OVMF PASS; không tạo commit/tag, chưa xác nhận kết thúc milestone.
+
+## Phạm vi triển khai M10 — VMM và kernel address space
+
+- Thêm `kernel/vmm.c`/`kernel/vmm.h`: BSP paging 4 cấp, root CR3 mới, map/unmap/protect trang 4 KiB và range, query, TLB invalidation, W^X và NX khi LBP cung cấp feature.
+- Dựng lại mapping kernel segments, BootInfo identity RO, stack identity RW, guard không map và framebuffer uncached. Page-table frames do PMM cấp, truy cập qua scratch data/control aliases; không tạo direct map. Caller giữ ownership leaf frame; VMM thu hồi table frames rỗng. TABLES cũ vẫn unavailable.
+- Thêm M10 build provenance/profile và hỗ trợ `m10-kernel` trong image checker; mặc định kernel M05 cùng profile M08/M09 giữ nguyên. Host simulator/sanitizer và guest fault profiles RO write/NX execute/guard.
+- Không đổi LBP v1, entry ABI, BIOS Stage1 gate hoặc Stage2 budget; chưa có process address spaces, SMP, heap hay reservation reclamation.
+
+## Kết quả xác minh local M10
+
+- M10 CTest **3/3 PASS**: native VMM ASan/UBSan, host build/image checks và guest suite; guest **8/8 PASS** trên cùng kernel profiles BIOS/OVMF. Normal phát `M08:PASS`, `M09:PASS`, `M10:PASS`; RO/NX/guard faults có vector 0e, error bits và CR2 mong đợi.
+- Root CR3 mới giữ mapping cần thiết; allocator scratch cũ được sửa để không tái sử dụng table page còn được root tham chiếu. Image extents, firmware và kernel hashes không đổi; cleanup guest không bị cưỡng bức.
+- Docs validator **PASS**, unittest tài liệu **38/38 PASS**; hồi quy M07 CTest **2/2**, M08 **2/2**, M09 **3/3 PASS**. GitHub CI M10 **NOT RUN** do chưa có commit/PR.
+
+## Lệnh M10
+
+```bash
+python tests/m10/build_kernel.py --build build/m10
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m10 -B build/m10-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m10-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m10-tests --no-tests=error --output-on-failure
+```
+
+## Lịch sử M09 — Bitmap PMM
 
 ## Phạm vi M09 — Bitmap PMM
 

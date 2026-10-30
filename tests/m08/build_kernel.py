@@ -12,7 +12,9 @@ SOURCES=("kernel/entry.asm","kernel/interrupts.asm","kernel/kernel.c","kernel/li
          "include/lamix/boot/lbp.h","include/lamix/boot/contract.h",
          "lib/boot/contract.c","lib/boot/memory.c","tests/m08/build_kernel.py")
 def sha(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
-def build(output, fault="none", m09_pmm=False):
+def build(output, fault="none", m09_pmm=False, m10_vmm=False):
+    if m10_vmm:
+        m09_pmm = True
     output=Path(output).resolve(strict=False)
     if not output.is_relative_to(ROOT/"build"): raise ValueError("output ngoài build/")
     output.mkdir(parents=True,exist_ok=True)
@@ -21,10 +23,17 @@ def build(output, fault="none", m09_pmm=False):
     def run(*args):
         args=list(map(str,args));commands.append(args);subprocess.run(args,cwd=ROOT,check=True,timeout=90)
     variants={"none":None,"ud":"LAMIX_FAULT_UD","pf":"LAMIX_FAULT_PF"}
-    if fault not in variants: raise ValueError("fault không hợp lệ")
+    m10_variants={"none":None,"ro":"LAMIX_M10_FAULT_RO",
+                  "nx":"LAMIX_M10_FAULT_NX","guard":"LAMIX_M10_FAULT_GUARD"}
+    if m10_vmm:
+        if fault not in m10_variants: raise ValueError("fault M10 không hợp lệ")
+    elif fault not in variants:
+        raise ValueError("fault không hợp lệ")
     sources=list(SOURCES)
     if m09_pmm:
         sources.extend(("kernel/pmm.c","kernel/pmm.h","tests/m09/build_kernel.py"))
+    if m10_vmm:
+        sources.extend(("kernel/vmm.c","kernel/vmm.h","tests/m10/build_kernel.py"))
     common=[x["gcc"],"-std=c11","-m64","-mcmodel=kernel","-mno-red-zone","-mgeneral-regs-only","-ffreestanding","-fno-builtin","-fno-pie","-fno-pic","-fno-stack-protector","-fno-asynchronous-unwind-tables","-fno-unwind-tables","-fno-exceptions","-Wall","-Wextra","-Werror","-I",ROOT/"include","-I",ROOT/"kernel","-O2"]
     run("nasm","--reproducible","-f","elf64","-o",output/"entry.o",ROOT/"kernel/entry.asm")
     run("nasm","--reproducible","-f","elf64","-o",output/"interrupts.o",ROOT/"kernel/interrupts.asm")
@@ -32,10 +41,15 @@ def build(output, fault="none", m09_pmm=False):
     compile_sources=["kernel/kernel.c","lib/boot/contract.c","lib/boot/memory.c"]
     if m09_pmm:
         compile_sources.append("kernel/pmm.c")
+    if m10_vmm:
+        compile_sources.append("kernel/vmm.c")
     for source in compile_sources:
         obj=output/(Path(source).stem+".o"); args=common.copy()
-        if source=="kernel/kernel.c" and variants[fault]: args += ["-D"+variants[fault]+"=1"]
+        if source=="kernel/kernel.c" and not m10_vmm and variants[fault]: args += ["-D"+variants[fault]+"=1"]
         if source=="kernel/kernel.c" and m09_pmm: args += ["-DLAMIX_M09_PMM=1"]
+        if source=="kernel/kernel.c" and m10_vmm:
+            args += ["-DLAMIX_M10_VMM=1"]
+            if m10_variants[fault]: args += ["-D"+m10_variants[fault]+"=1"]
         run(*args,"-c",ROOT/source,"-o",obj);objects.append(obj)
     elf=output/"kernel.elf"
     run(x["ld"],"--fatal-warnings","--build-id=none","-z","noexecstack","-z","max-page-size=0x1000","-T",ROOT/"kernel/linker.ld","-Map",output/(elf.stem+".map"),"-o",elf,output/"entry.o",output/"interrupts.o",*objects)
@@ -60,7 +74,7 @@ def build(output, fault="none", m09_pmm=False):
     undefined=subprocess.check_output([str(x["nm"]),"-u",str(elf)],text=True).strip()
     if undefined: raise ValueError("undefined symbols: "+undefined)
     if b"INTERP" in subprocess.check_output([str(x["readelf"]),"-l",str(elf)]): raise ValueError("PT_INTERP không freestanding")
-    report={"status":"PASS","mode":"m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"entry":"kernel_entry","commands":commands,
+    report={"status":"PASS","mode":"m10-kernel" if m10_vmm else "m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"entry":"kernel_entry","commands":commands,
             "tool_versions":{"gcc":subprocess.check_output([str(x["gcc"]),"--version"],text=True).splitlines()[0],"ld":subprocess.check_output([str(x["ld"]),"--version"],text=True).splitlines()[0],"nasm":subprocess.check_output(["nasm","-v"],text=True).strip()},
             "source_hashes":{s:sha(ROOT/s) for s in sources},"hashes":{elf.name:sha(elf)},"elf_inspection":elf.stem+".inspection.txt","load_segments":loads}
     (output/"build.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n")

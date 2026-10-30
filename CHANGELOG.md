@@ -4,6 +4,12 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M10 — VERIFYING (2026-10-29)
+
+- Thêm VMM BSP paging bốn cấp với root CR3 mới, 4 KiB map/unmap/protect/range, scratch access cho page-table frames, TLB invalidation, W^X/NX và cleanup bảng rỗng.
+- Thêm kernel M10 provenance, host/sanitizer/BIOS/OVMF tests và M07 image checker support cho profile `m10-kernel`; kernel mặc định M05 và M08/M09 profiles giữ nguyên.
+- Local M10 CTest **3/3 PASS**, guest **8/8 PASS**, docs validator và unittest **38/38 PASS**; hồi quy M07 **2/2**, M08 **2/2**, M09 **3/3 PASS**. GitHub CI trên SHA M10 NOT RUN do chưa có commit/PR; M10 chưa được xác nhận DONE, không commit/tag/merge.
+
 ### M09 — DONE (2026-10-29)
 
 - Thêm bitmap PMM nội bộ 2-bit/frame trong kernel `.bss`; chỉ cấp frame 4 KiB thuộc `LBP_USABLE` dưới 4 GiB, loại reservations và không reclaim LOADER/ACPI.

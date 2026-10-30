@@ -1,6 +1,6 @@
 # Lamix Boot Protocol v1.0
 
-Contract M03 được duyệt ngày 2026-10-26. Headers và thư viện validation/normalization đã triển khai; BIOS Stage1 M04 có smoke test riêng; M05 có Stage2 BIOS và kernel probe; M06 bổ sung EFI loader; M07 đã boot cùng kernel probe qua SeaBIOS/OVMF. Kernel M08 tiêu thụ LBP v1; PMM bitmap M09 đang VERIFYING; chưa có VMM hay kernel sản phẩm hoàn chỉnh. Kết quả kiểm chứng ở [handoff](SESSION_HANDOFF.md); không coi host tests là OS boot.
+Contract M03 được duyệt ngày 2026-10-26. Headers và thư viện validation/normalization đã triển khai; BIOS Stage1 M04 có smoke test riêng; M05 có Stage2 BIOS và kernel probe; M06 bổ sung EFI loader; M07 đã boot cùng kernel probe qua SeaBIOS/OVMF. Kernel M08 và PMM bitmap M09 đã DONE; VMM kernel address space M10 đang VERIFYING. M10 không đổi LBP v1 hoặc entry ABI; chưa có kernel sản phẩm hoàn chỉnh. Kết quả kiểm chứng ở [handoff](SESSION_HANDOFF.md); không coi host tests là OS boot.
 
 ## Encoding và cấu trúc
 
@@ -65,7 +65,7 @@ Normalizer kiểm tra provenance trước overlay; validator BootInfo không th�
 
 ## Entry ABI và mappings
 
-Đây là nghĩa vụ producer/consumer cho M05–M09; M07 đã kiểm chứng cùng probe qua SeaBIOS/OVMF, M08 xác minh kernel entry, M09 đọc memory map/reservations đã validate mà không đổi wire contract:
+Đây là nghĩa vụ producer/consumer cho M05–M10; M07 đã kiểm chứng cùng probe qua SeaBIOS/OVMF, M08 xác minh kernel entry, M09 đọc memory map/reservations đã validate, M10 thay root page table sau khi tiêu thụ hợp đồng mà không đổi wire contract:
 
 - BSP x86_64 ring0/long mode, `CR0.PE=PG=WP=1`, `CR4.PAE=1`, LA57=0; paging 4 cấp. `EFER.LME/LMA=1`; NXE bật nếu provided NX=1, mọi mapping không executable được đặt NX khi khả dụng.
 - Kernel ELF64 ET_EXEC, virtual segments/entry trong `[0xffffffff80000000, 0xffffffffffffffff]`, range không wrap; chưa KASLR. Kernel load segments là page-disjoint để không tạo RWX page.
@@ -73,6 +73,7 @@ Normalizer kiểm tra provenance trước overlay; validator BootInfo không th�
 - Stack identity mapped RW, ít nhất 64 KiB; `RSP=stack_phys+stack_size-8`, `RSP%16=8`. Guard page ngay dưới stack không map ở bất kỳ mapping virtual nào. Không dùng red zone/SIMD/FPU trước kernel initialization; compile entry bằng `-mno-red-zone -mgeneral-regs-only`.
 - IF=0, DF=0. GDT/IDT hợp lệ, CS 64-bit ring0, data selectors hợp lệ; không hard-code selector values. Loader giữ descriptors và handlers fatal hợp lệ cho tới khi kernel thay thế. Không bảo đảm SIMD/FPU, TR, FS/GS state: kernel phải thiết lập trước khi sử dụng và không dùng TLS sớm.
 - CR3 physical căn 4 KiB, page tables có TABLES reservations. Entry mappings liệt kê trong record; không giả định full identity/direct map. Kernel segments map đúng virtual/permissions, BootInfo page coverage identity RO (mọi alias của blob cũng chỉ READ), stack identity RW. Page tables/loader tables/code cần tồn tại phải được reservations bảo vệ, transition resources có mappings cần thiết do loader lập và kiểm chứng M07.
+- M10 dựng root CR3 mới từ kernel segments, BootInfo reservation, stack và framebuffer records; giữ mapping kernel/handoff cần thiết trước khi chuyển CR3. Page-table frames mới do PMM cấp và được truy cập qua scratch mapping; TABLES cũ tiếp tục reserved/unavailable vì M10 chưa thêm reservation reclamation. Framebuffer giữ identity mapping RW, uncached; ACPI chỉ được dùng trong bước validation hiện có và không giữ firmware callback/handle.
 - Physical allocations kernel/modules/BootInfo/stack/tables không zero và kết thúc <=4 GiB. RAM cao hơn vẫn có trong map. Framebuffer/ACPI physical có thể cao hơn, chỉ truy cập sau khi map phù hợp.
 
 ## Ownership và thư viện

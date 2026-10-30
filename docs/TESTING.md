@@ -18,10 +18,10 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED
+Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED
 ```
 
-Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M09 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
+Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M10 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
 
 [Unittest](../tests/test_validate_docs.py) dùng repository fixtures tạm cho positive/negative tests; không sửa tài liệu thật. Validator không trực tiếp chạy skill Codex. Kiểm tra metadata đơn giản trong Python không thay thế review hành vi skill.
 
@@ -185,7 +185,7 @@ Mỗi run có result.json/serial/QMP/stderr, case.json expected/actual và prote
 
 Toolchain CI build/guest Debug và Release dùng cross cache sẵn; Boot Contract CI host/sanitizer; Harness CI giữ M02/M04. Lưu JUnit/logs/maps/listings/JSON, không upload images/firmware hoặc dependencies. Các kết quả thật theo SHA ở [handoff](SESSION_HANDOFF.md).
 
-Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M08/M09 DONE. Không gán probe M05–M09 làm image OS sản phẩm mặc định.
+Regression phù hợp: validator/unittest tài liệu, pytest -m 'not qemu', M03 native/sanitizer/cross và M02/M04 CTest. M01 tiếp tục Toolchain CI; không tự chạy toàn bộ M01 local khi không đổi inputs. OS skeleton mặc định vẫn SKIPPED; M08/M09 DONE, M10 VERIFYING. Không gán probe M05–M10 làm image OS sản phẩm mặc định.
 
 ## Kernel tối thiểu M08
 
@@ -264,3 +264,18 @@ Host suite chạy cùng `kernel/pmm.c` với fixture LBP đã validate, kiểm n
 Guest test tạo image mới với cùng kernel ELF cho SeaBIOS/OVMF; yêu cầu `M08:PASS` và `M09:PASS`, tám frame duy nhất thuộc usable, free count trở lại sau free và free lỗi bị từ chối. QEMU dùng snapshot, OVMF CODE nguồn chỉ đọc, VARS riêng, serial/QMP, deadline/cleanup; hash image extents/firmware/build inputs trước/sau phải bằng nhau. Guest là boot thực, không phải launch-only. Reports tại `out/m09/`, không đưa image hoặc firmware vào artifact.
 
 M09 **DONE**: local CTest 3/3, hai firmware guest PASS và bốn workflow CI SUCCESS trên SHA nghiệm thu; kết quả chi tiết tại [handoff](SESSION_HANDOFF.md). RAM trên 4 GiB, reclaim LOADER/ACPI, PC thật và firmware ngoài QEMU profile **NOT RUN/ngoài phạm vi**. VMM/mapping, zeroing, contiguous allocator, SMP và kernel sản phẩm thuộc phạm vi sau M09.
+
+## VMM kernel address space M10
+
+Build M10 dùng GCC cross/Binutils và NASM hiện có; không bootstrap M01. Build report ghi command, tool versions, source hashes, ELF inspection và SHA-256. Image M07 nhận provenance `m10-kernel`; kernel mặc định M05 và profile M08/M09 vẫn giữ nguyên:
+
+```bash
+python tests/m10/build_kernel.py --build build/m10
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m10 -B build/m10-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m10-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m10-tests --no-tests=error --output-on-failure
+```
+
+CTest gồm native ASan/UBSan trên implementation VMM thật, host provenance/image checks và 8 guest boots trên cùng kernel profile set: normal, ghi RO, execute NX và chạm guard, từng profile qua SeaBIOS lẫn OVMF. Guest âm yêu cầu `#PF` vector `0e`, CR2/error bits đúng; normal yêu cầu `M08:PASS`, `M09:PASS`, `M10:PASS`. QEMU dùng snapshot image, firmware CODE chỉ đọc, VARS riêng, serial/QMP, timeout và cleanup; reports tại `out/m10/`, không upload image/firmware.
+
+M10 **VERIFYING**: local CTest **3/3 PASS**, guest **8/8 PASS**, image/provenance và sanitizer PASS. GitHub CI trên SHA chứa M10 **NOT RUN** vì chưa có commit/PR; PC thật, firmware ngoài QEMU, SMP, RAM trên 4 GiB và process address spaces **NOT RUN/ngoài phạm vi**.

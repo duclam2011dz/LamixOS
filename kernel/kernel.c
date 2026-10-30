@@ -3,6 +3,9 @@
 #if defined(LAMIX_M09_PMM)
 #include "pmm.h"
 #endif
+#if defined(LAMIX_M10_VMM)
+#include "vmm.h"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -47,6 +50,16 @@ static uint64_t acpi_scratch_base, acpi_scratch_pages;
 static pmm physical_memory;
 static uint8_t pmm_states[PMM_STATE_BYTES];
 #endif
+#if defined(LAMIX_M10_VMM)
+static vmm_space kernel_space;
+static uint64_t vmm_scratch_base, vmm_scratch_control;
+static uint64_t vmm_scratch_table_bytes, vmm_scratch_control_page;
+static uint64_t vmm_test_physical;
+static uint8_t vmm_scratch_active, vmm_nx_enabled;
+static const uint64_t VMM_SCRATCH_BASE = UINT64_C(0xfffffd0000000000);
+static const uint64_t VMM_SCRATCH_CONTROL = UINT64_C(0xfffffd0000001000);
+static const uint64_t VMM_TEST_BASE = UINT64_C(0xfffffc0000000000);
+#endif
 static __attribute__((noreturn)) void fail(void);
 
 static inline uint8_t in8(uint16_t p){uint8_t x;__asm__ volatile("inb %1,%0":"=a"(x):"Nd"(p));return x;}
@@ -59,7 +72,11 @@ __attribute__((noreturn)) static void halt(void){__asm__ volatile("cli");for(;;)
 __attribute__((noreturn)) static void panic_frame(const interrupt_frame*f){
   serial("M08:PANIC\nvector=");hex(f->vector);serial(" error=");hex(f->error);serial(" rip=");hex(f->rip);serial(" cs=");hex(f->cs);serial(" rflags=");hex(f->rflags);serial(" rsp=");hex(f->rsp);
   serial(" rax=");hex(f->rax);serial(" rbx=");hex(f->rbx);serial(" rcx=");hex(f->rcx);serial(" rdx=");hex(f->rdx);serial(" rsi=");hex(f->rsi);serial(" rdi=");hex(f->rdi);serial(" rbp=");hex(f->rbp);serial(" r8=");hex(f->r8);serial(" r9=");hex(f->r9);serial(" r10=");hex(f->r10);serial(" r11=");hex(f->r11);serial(" r12=");hex(f->r12);serial(" r13=");hex(f->r13);serial(" r14=");hex(f->r14);serial(" r15=");hex(f->r15);
-  if(f->vector==14){uint64_t cr2;__asm__ volatile("mov %%cr2,%0":"=r"(cr2));serial(" cr2=");hex(cr2);}serial("\n");halt();
+  if(f->vector==14){uint64_t cr2;__asm__ volatile("mov %%cr2,%0":"=r"(cr2));serial(" cr2=");hex(cr2);}serial("\n");
+#if defined(LAMIX_M10_VMM)
+  serial("M10:PANIC\n");
+#endif
+  halt();
 }
 static uint16_t gate_selector=KCODE;
 static void gate(unsigned v,uintptr_t a,uint8_t ist){idt[v]=(idt_gate){(uint16_t)a,gate_selector,(uint8_t)(ist&7),0x8e,(uint16_t)(a>>16),(uint32_t)(a>>32),0};}
@@ -156,8 +173,24 @@ static int table_reservation(const lbp_header*h,uint64_t*base,uint64_t*length){
   }
   return 0;
 }
-static uint64_t allocate_table_page(uint64_t base,uint64_t length){
-  for(uint64_t off=0;off<length;off+=PAGE_SIZE){volatile uint64_t*p=(volatile uint64_t*)(uintptr_t)(base+off);unsigned i=0;
+static int table_referenced(uint64_t table, uint64_t wanted, unsigned level) {
+  if (table == wanted)
+    return 1;
+  if (level <= 1)
+    return 0;
+  volatile uint64_t *entries = (volatile uint64_t *)(uintptr_t)table;
+  for (unsigned i = 0; i < 512; ++i) {
+    uint64_t entry = entries[i];
+    if (!(entry & PTE_PRESENT) || (entry & PTE_HUGE))
+      continue;
+    uint64_t child = entry & PTE_ADDRESS;
+    if (child == wanted || table_referenced(child, wanted, level - 1))
+      return 1;
+  }
+  return 0;
+}
+static uint64_t allocate_table_page(uint64_t root,uint64_t base,uint64_t length){
+  for(uint64_t off=0;off<length;off+=PAGE_SIZE){uint64_t candidate=base+off;if(table_referenced(root,candidate,4))continue;volatile uint64_t*p=(volatile uint64_t*)(uintptr_t)candidate;unsigned i=0;
     for(;i<512&&p[i]==0;i++){}
     if(i==512){for(i=0;i<512;i++)p[i]=0;return base+off;}
   }
@@ -168,7 +201,7 @@ static volatile uint64_t *page_leaf(uint64_t root,uint64_t va,uint64_t table_bas
   for(unsigned shift=39;shift>12;shift-=9){volatile uint64_t*slot=&t[(va>>shift)&511];
     if(!(*slot&PTE_PRESENT)){
       if(!create)return 0;
-      uint64_t next=allocate_table_page(table_base,table_size);
+      uint64_t next=allocate_table_page(root,table_base,table_size);
       if(!next)return 0;
       *slot=next|PTE_PRESENT|PTE_WRITE;
     }else if(*slot&PTE_HUGE)return 0;
@@ -206,6 +239,214 @@ static void unmap_acpi_span(void){
   for(uint64_t i=0;i<acpi_scratch_pages;i++){volatile uint64_t*p=page_leaf(root,acpi_scratch_base+i*PAGE_SIZE,0,0,0);if(p){*p=0;invalidate(acpi_scratch_base+i*PAGE_SIZE);}}
   acpi_scratch_base=acpi_scratch_pages=0;
 }
+#if defined(LAMIX_M10_VMM)
+static int vmm_allocate(void *context, uint64_t *physical) {
+  (void)context;
+  return pmm_alloc_frame(&physical_memory, physical) == PMM_OK;
+}
+static int vmm_release(void *context, uint64_t physical) {
+  (void)context;
+  return pmm_free_frame(&physical_memory, physical) == PMM_OK;
+}
+static volatile uint64_t *vmm_access(void *context, uint64_t physical) {
+  (void)context;
+  if (physical >= VMM_PHYSICAL_LIMIT || (physical & (PAGE_SIZE - 1)))
+    return 0;
+  if (!vmm_scratch_active) {
+    uint64_t root;
+    __asm__ volatile("mov %%cr3,%0" : "=r"(root));
+    volatile uint64_t *pte = page_leaf(root, VMM_SCRATCH_BASE,
+                                       vmm_scratch_base,
+                                       vmm_scratch_table_bytes, 1);
+    if (!pte)
+      return 0;
+    *pte = physical | PTE_PRESENT | PTE_WRITE |
+           (vmm_nx_enabled ? PTE_NX : 0);
+    invalidate(VMM_SCRATCH_BASE);
+    return (volatile uint64_t *)(uintptr_t)VMM_SCRATCH_BASE;
+  }
+  volatile uint64_t *control =
+      (volatile uint64_t *)(uintptr_t)vmm_scratch_control;
+  unsigned index = (unsigned)((VMM_SCRATCH_BASE >> 12) & 511);
+  control[index] = physical | PTE_PRESENT | PTE_WRITE |
+                   (vmm_nx_enabled ? PTE_NX : 0);
+  invalidate(VMM_SCRATCH_BASE);
+  return (volatile uint64_t *)(uintptr_t)VMM_SCRATCH_BASE;
+}
+static void vmm_invalidate(void *context, uint64_t virtual_address) {
+  (void)context;
+  invalidate(virtual_address);
+}
+static int vmm_map_bootinfo(vmm_space *space, const lbp_header *header) {
+  const uint8_t *raw = raw_record(header, LBP_RESERVATIONS);
+  if (!raw || ((const lbp_record *)raw)->size < 32)
+    return 0;
+  uint32_t stride = *(const uint32_t *)(raw + 20);
+  uint64_t count = *(const uint64_t *)(raw + 24);
+  uint64_t size = ((const lbp_record *)raw)->size;
+  if (stride < sizeof(lbp_reservation) || (stride & 7) ||
+      count > (size - 32) / stride)
+    return 0;
+  for (uint64_t i = 0; i < count; ++i) {
+    const uint8_t *entry = raw + 32 + i * stride;
+    if (*(const uint32_t *)(entry + 16) == LBP_PURPOSE_BOOTINFO) {
+      uint64_t base = *(const uint64_t *)entry;
+      uint64_t length = *(const uint64_t *)(entry + 8);
+      return base == header->self_phys &&
+             vmm_map_range(space, base, base, length, VMM_READ, 0) == VMM_OK;
+    }
+  }
+  return 0;
+}
+static int vmm_build_root(const lbp_view *view, const lbp_header *header,
+                          const lbp_entry *entry) {
+  uint64_t table_base = 0, table_size = 0;
+  if (!table_reservation(header, &table_base, &table_size))
+    return 0;
+  vmm_scratch_base = table_base;
+  vmm_scratch_table_bytes = table_size;
+  uint8_t nx_enabled = !!(header->provided_features & LBP_FEATURE_NX);
+  vmm_nx_enabled = nx_enabled;
+  vmm_operations operations = {.context = 0,
+                               .allocate_page = vmm_allocate,
+                               .release_page = vmm_release,
+                               .access_page = vmm_access,
+                               .invalidate = vmm_invalidate};
+  if (vmm_init(&kernel_space, &operations, nx_enabled) != VMM_OK)
+    return 0;
+
+  const uint8_t *raw_kernel = record(view, LBP_KERNEL);
+  if (!raw_kernel || ((const lbp_record *)raw_kernel)->size < 40)
+    return 0;
+  uint64_t size = ((const lbp_record *)raw_kernel)->size;
+  uint32_t stride = *(const uint32_t *)(raw_kernel + 28);
+  uint64_t count = *(const uint64_t *)(raw_kernel + 32);
+  if (stride < sizeof(lbp_segment) || (stride & 7) ||
+      count > (size - 40) / stride || count > 32)
+    return 0;
+  for (uint64_t i = 0; i < count; ++i) {
+    const lbp_segment *segment =
+        (const lbp_segment *)(raw_kernel + 40 + i * stride);
+    if (vmm_map_range(&kernel_space, segment->virtual_address,
+                      segment->physical, segment->length,
+                      segment->permissions, 0) != VMM_OK)
+      return 0;
+  }
+  if (!vmm_map_bootinfo(&kernel_space, header) ||
+      entry->stack_size < 65536 || (entry->stack_physical & (PAGE_SIZE - 1)) ||
+      (entry->stack_size & (PAGE_SIZE - 1)) ||
+      entry->guard > UINT64_MAX - PAGE_SIZE ||
+      entry->guard + PAGE_SIZE != entry->stack_physical ||
+      vmm_map_range(&kernel_space, entry->stack_physical,
+                    entry->stack_physical, entry->stack_size,
+                    VMM_READ | VMM_WRITE, 0) != VMM_OK)
+    return 0;
+
+  const uint8_t *raw_fb = record(view, LBP_FRAMEBUFFER);
+  if (raw_fb) {
+    if (((const lbp_record *)raw_fb)->size < sizeof(lbp_framebuffer))
+      return 0;
+    const lbp_framebuffer *fb = (const lbp_framebuffer *)raw_fb;
+    if (fb->length) {
+      uint64_t end = fb->physical + fb->length;
+      if (end < fb->physical || end > VMM_PHYSICAL_LIMIT - (PAGE_SIZE - 1))
+        return 0;
+      uint64_t first = fb->physical & ~(PAGE_SIZE - 1);
+      uint64_t last = (end + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+      if (vmm_map_range(&kernel_space, first, first, last - first,
+                        VMM_READ | VMM_WRITE, VMM_MAP_UNCACHED) != VMM_OK)
+        return 0;
+    }
+  }
+
+  uint64_t physical = 0, flags = 0;
+  uint32_t permissions = 0;
+  if (vmm_query(&kernel_space, entry->guard, &physical, &permissions, &flags) !=
+      VMM_NOT_MAPPED)
+    return 0;
+  if (vmm_prepare_scratch(&kernel_space, VMM_SCRATCH_BASE,
+                          VMM_SCRATCH_CONTROL,
+                          &vmm_scratch_control_page) != VMM_OK)
+    return 0;
+  vmm_scratch_control = VMM_SCRATCH_CONTROL;
+  vmm_scratch_active = 0;
+  __asm__ volatile("mov %0,%%cr3" : : "r"(kernel_space.root_physical) : "memory");
+  vmm_scratch_active = 1;
+
+  for (uint64_t i = 0; i < count; ++i) {
+    const lbp_segment *segment =
+        (const lbp_segment *)(raw_kernel + 40 + i * stride);
+    uint32_t expected_permissions = segment->permissions;
+    if (!kernel_space.nx_enabled && !(expected_permissions & VMM_WRITE))
+      expected_permissions |= VMM_EXECUTE;
+    if (vmm_query(&kernel_space, segment->virtual_address, &physical,
+                  &permissions, &flags) != VMM_OK ||
+        physical != segment->physical || permissions != expected_permissions)
+      return 0;
+  }
+  if (vmm_query(&kernel_space, entry->rsp - 8, &physical, &permissions,
+                &flags) != VMM_OK || physical != entry->rsp - 8 ||
+      !(permissions & VMM_WRITE) ||
+      vmm_query(&kernel_space, entry->guard, &physical, &permissions,
+                &flags) != VMM_NOT_MAPPED ||
+      ((const lbp_header *)(uintptr_t)header->self_phys)->self_phys !=
+          header->self_phys)
+    return 0;
+  return 1;
+}
+static int vmm_self_test(void) {
+  if (pmm_alloc_frame(&physical_memory, &vmm_test_physical) != PMM_OK ||
+      vmm_map_range(&kernel_space, VMM_TEST_BASE, vmm_test_physical,
+                    PAGE_SIZE, VMM_READ | VMM_WRITE, 0) != VMM_OK)
+    return 0;
+  volatile uint64_t *probe = (volatile uint64_t *)(uintptr_t)VMM_TEST_BASE;
+  *probe = UINT64_C(0x4d3130564d4d);
+  if (*probe != UINT64_C(0x4d3130564d4d) ||
+      vmm_protect_range(&kernel_space, VMM_TEST_BASE, PAGE_SIZE, VMM_READ) !=
+          VMM_OK)
+    return 0;
+  uint64_t physical = 0, flags = 0;
+  uint32_t permissions = 0;
+  if (vmm_query(&kernel_space, VMM_TEST_BASE, &physical, &permissions,
+                &flags) != VMM_OK || physical != vmm_test_physical ||
+      permissions != (kernel_space.nx_enabled ? VMM_READ
+                                               : VMM_READ | VMM_EXECUTE) ||
+      (kernel_space.nx_enabled && !(flags & PTE_NX)) ||
+      vmm_unmap_range(&kernel_space, VMM_TEST_BASE, PAGE_SIZE) != VMM_OK ||
+      vmm_query(&kernel_space, VMM_TEST_BASE, &physical, &permissions,
+                &flags) != VMM_NOT_MAPPED ||
+      pmm_free_frame(&physical_memory, vmm_test_physical) != PMM_OK)
+    return 0;
+  serial("M10:VMM root=switched NX=");
+  serial(kernel_space.nx_enabled ? "1\n" : "0\n");
+  return 1;
+}
+static __attribute__((noreturn, unused)) void
+vmm_fault_test(const lbp_entry *entry) {
+  (void)entry;
+#if defined(LAMIX_M10_FAULT_RO)
+  if (pmm_alloc_frame(&physical_memory, &vmm_test_physical) != PMM_OK ||
+      vmm_map_range(&kernel_space, VMM_TEST_BASE, vmm_test_physical,
+                    PAGE_SIZE, VMM_READ, 0) != VMM_OK)
+    fail();
+  serial("M10:FAULT_READY ro\n");
+  *(volatile uint8_t *)(uintptr_t)VMM_TEST_BASE = 0x5a;
+#elif defined(LAMIX_M10_FAULT_NX)
+  if (!kernel_space.nx_enabled ||
+      pmm_alloc_frame(&physical_memory, &vmm_test_physical) != PMM_OK ||
+      vmm_map_range(&kernel_space, VMM_TEST_BASE, vmm_test_physical,
+                    PAGE_SIZE, VMM_READ, 0) != VMM_OK)
+    fail();
+  serial("M10:FAULT_READY nx\n");
+  ((void (*)(void))(uintptr_t)VMM_TEST_BASE)();
+#elif defined(LAMIX_M10_FAULT_GUARD)
+  serial("M10:FAULT_READY guard\n");
+  *(volatile uint8_t *)(uintptr_t)entry->guard = 0x5a;
+#else
+#endif
+  halt();
+}
+#endif
 static __attribute__((noreturn)) void fail(void){serial("M08:FAIL\n");halt();}
 __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
   serial_init();serial("M08:ENTRY\n");if(magic!=LBP_ENTRY_MAGIC||!self)fail();const lbp_header*h=(const lbp_header*)(uintptr_t)self;lbp_view view;
@@ -224,6 +465,12 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
   idt_init(prior_cs,0);
   gdt_init(prior_cs);
   idt_init(KCODE,1);
+#if defined(LAMIX_M10_VMM)
+  if (!vmm_build_root(&view, h, e) || !vmm_self_test()) {
+    serial("M10:FAIL\n");
+    fail();
+  }
+#endif
   serial("M08:LBP\n");
   serial("M08:GUARD=");hex(e->guard);serial("\n");
 #if defined(LAMIX_FAULT_UD)
@@ -234,6 +481,14 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
   pic_pit_init();__asm__ volatile("sti");while(ticks<3)__asm__ volatile("pause");__asm__ volatile("cli");out8(0x21,0xff);out8(0xa1,0xff);serial("M08:PASS\n");
 #if defined(LAMIX_M09_PMM)
   serial("M09:PASS\n");
+#endif
+#if defined(LAMIX_M10_VMM)
+#if defined(LAMIX_M10_FAULT_RO) || defined(LAMIX_M10_FAULT_NX) || \
+    defined(LAMIX_M10_FAULT_GUARD)
+  vmm_fault_test(e);
+#else
+  serial("M10:PASS\n");
+#endif
 #endif
   halt();
 }

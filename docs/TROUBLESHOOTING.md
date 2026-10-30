@@ -70,3 +70,10 @@ Audit/limits: [BIOS_STAGE2](BIOS_STAGE2.md). Không debug bằng cách bỏ snap
 - Nếu OVMF guest dừng sau `TABLES_OK`, xem `serial.log`/`case.json`; không coi PE build hoặc QEMU launch là boot thành công. `M06:PASS` chỉ do cùng kernel probe phát sau khi kiểm LBP/page tables.
 - `ExitBootServices()` chỉ retry một lần khi `EFI_INVALID_PARAMETER`; không gọi protocol, cấp phát hoặc ghi serial sau lần GetMemoryMap cuối. Buffer growth có một lần bounded, tối đa 2 MiB; vượt mức fail-stop.
 - OVMF CODE gốc read-only, mỗi run dùng VARS riêng; disk snapshot bật. Hash thay đổi hoặc cleanup bị cưỡng bức là FAIL. OVMF PASS không xác nhận PC thật, 4Kn, Secure Boot hay mọi GOP/ACPI firmware.
+
+## VMM/kernel address space M10
+
+- Nếu dừng trước `M10:VMM root=switched`, xem `M10:FAIL` và panic frame; kiểm tra LBP kernel segments, BootInfo reservation, stack/guard, TABLES reservation và PMM còn usable frame. Không giả định mọi physical address đang identity-map.
+- `#PF` tại scratch VA `0xfffffd0000000000` thường chỉ ra scratch PTE/control alias chưa được dựng hoặc page-table frame bị tái sử dụng. Trước khi đổi CR3, scratch access dựa vào TABLES cũ; sau đổi CR3 chỉ được sửa PTE qua control alias.
+- Fault profiles có expected errors: ghi trang RO supervisor `error=3`; execute NX `error=0x11`; guard write `error=2`; mọi trường hợp phải có vector `0e` và CR2 phù hợp. `TIMEOUT`, triple fault, hoặc chỉ thấy QEMU launch không phải PASS.
+- Không bỏ snapshot hoặc tắt W^X/NX/guard để vượt test. Cùng kernel chạy SeaBIOS/OVMF; PC thật và CPU không có NX chưa được kiểm chứng.
