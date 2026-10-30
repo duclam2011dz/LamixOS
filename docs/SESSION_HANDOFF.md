@@ -8,7 +8,7 @@ M10 VMM đã triển khai, kiểm chứng, review và merge. PR [#8](https://git
 
 Annotated tag `milestone/M10` đã push; tag object `667b9434a6713b8d596072557643648a7342fd24`, peeled commit `dd6365c6c217bfc076f73ec0cb5efdcb8e05a777`. Review phát hiện sau khi tạo tag một lỗi ở đường không có NX: `vmm_query()` báo mapping read-only là non-executable dù phần cứng thực thi được. Đã sửa và thêm native regression tại `7e0b2f2`, resolve thread review, chạy lại M10 tests/CI rồi merge. Tag công khai được giữ nguyên, không di chuyển; vì vậy nó trỏ commit triển khai đầu thay vì head cuối chứa review-fix.
 
-Nhánh làm việc là `codex/m10-vmm-address-space`; local `main` hiện đã fast-forward tới PR merge. Bước tiếp theo là commit tài liệu bàn giao này và xác minh Documentation CI trên SHA đóng thủ tục; không bắt đầu M11.
+Local `main` đã fast-forward qua PR merge và commit bàn giao. M11 chưa bắt đầu; hành động tiếp theo là chờ yêu cầu riêng, vào Plan Mode thật để khảo sát và lập kế hoạch M11 rồi dừng chờ duyệt. Không triển khai M11 trong thủ tục M10 này.
 
 ## Thay đổi M10
 
