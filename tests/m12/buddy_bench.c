@@ -22,6 +22,9 @@ typedef struct sample {
   uint64_t init_ns;
   uint64_t elapsed_ns;
   uint64_t *latencies;
+  uint32_t latency_count;
+  uint64_t allocator_ops;
+  uint64_t noops;
   uint64_t max_latency;
   uint64_t successes;
 } sample;
@@ -171,49 +174,60 @@ static int run_trace(const lbp_view *view, const bench_op *trace,
   memset(buddy_live, 0, sizeof(buddy_live));
   memset(bitmap_orders_live, 0, sizeof(bitmap_orders_live));
   memset(buddy_orders_live, 0, sizeof(buddy_orders_live));
-  uint64_t start = now_ns();
   for (uint32_t i = 0; i < BENCH_OPS; ++i) {
     uint32_t slot = trace[i].slot;
     uint32_t order = trace[i].order;
+    if ((!trace[i].allocate && !bitmap_live[slot]) ||
+        (trace[i].allocate && bitmap_live[slot])) {
+      bitmap_result->noops++;
+      continue;
+    }
     uint64_t op_start = now_ns();
-    if (trace[i].allocate && !bitmap_live[slot]) {
+    if (trace[i].allocate) {
       if (bitmap_alloc_order(&bitmap, order, &bitmap_frames[slot]) == PMM_OK) {
         bitmap_live[slot] = 1;
         bitmap_orders_live[slot] = (uint8_t)order;
         bitmap_result->successes++;
       }
-    } else if (!trace[i].allocate && bitmap_live[slot]) {
+    } else {
       if (bitmap_free_order(&bitmap, bitmap_frames[slot], bitmap_orders_live[slot]) != PMM_OK)
         return 0;
       bitmap_live[slot] = 0;
     }
-    bitmap_result->latencies[i] = now_ns() - op_start;
-    if (bitmap_result->latencies[i] > bitmap_result->max_latency)
-      bitmap_result->max_latency = bitmap_result->latencies[i];
+    uint64_t latency = now_ns() - op_start;
+    bitmap_result->latencies[bitmap_result->latency_count++] = latency;
+    bitmap_result->allocator_ops++;
+    bitmap_result->elapsed_ns += latency;
+    if (latency > bitmap_result->max_latency)
+      bitmap_result->max_latency = latency;
   }
-  bitmap_result->elapsed_ns = now_ns() - start;
-
-  start = now_ns();
   for (uint32_t i = 0; i < BENCH_OPS; ++i) {
     uint32_t slot = trace[i].slot;
     uint32_t order = trace[i].order;
+    if ((!trace[i].allocate && !buddy_live[slot]) ||
+        (trace[i].allocate && buddy_live[slot])) {
+      buddy_result->noops++;
+      continue;
+    }
     uint64_t op_start = now_ns();
-    if (trace[i].allocate && !buddy_live[slot]) {
+    if (trace[i].allocate) {
       if (pmm_buddy_alloc_order(&buddy, order, &buddy_frames[slot]) == PMM_OK) {
         buddy_live[slot] = 1;
         buddy_orders_live[slot] = (uint8_t)order;
         buddy_result->successes++;
       }
-    } else if (!trace[i].allocate && buddy_live[slot]) {
+    } else {
       if (pmm_buddy_free_order(&buddy, buddy_frames[slot], buddy_orders_live[slot]) != PMM_OK)
         return 0;
       buddy_live[slot] = 0;
     }
-    buddy_result->latencies[i] = now_ns() - op_start;
-    if (buddy_result->latencies[i] > buddy_result->max_latency)
-      buddy_result->max_latency = buddy_result->latencies[i];
+    uint64_t latency = now_ns() - op_start;
+    buddy_result->latencies[buddy_result->latency_count++] = latency;
+    buddy_result->allocator_ops++;
+    buddy_result->elapsed_ns += latency;
+    if (latency > buddy_result->max_latency)
+      buddy_result->max_latency = latency;
   }
-  buddy_result->elapsed_ns = now_ns() - start;
   (void)trace_hash;
   return 1;
 }
@@ -314,6 +328,9 @@ int main(int argc, char **argv) {
   uint64_t bitmap_total_ns = 0, buddy_total_ns = 0;
   uint64_t bitmap_init_total_ns = 0, buddy_init_total_ns = 0;
   uint64_t bitmap_max = 0, buddy_max = 0;
+  uint32_t bitmap_latency_count = 0, buddy_latency_count = 0;
+  uint64_t bitmap_allocator_ops = 0, buddy_allocator_ops = 0;
+  uint64_t bitmap_noops = 0, buddy_noops = 0;
   for (uint32_t rep = 0; rep < BENCH_REPETITIONS; ++rep) {
     bitmap_total_ns += bitmap_runs[rep].elapsed_ns;
     buddy_total_ns += buddy_runs[rep].elapsed_ns;
@@ -323,20 +340,35 @@ int main(int argc, char **argv) {
       bitmap_max = bitmap_runs[rep].max_latency;
     if (buddy_runs[rep].max_latency > buddy_max)
       buddy_max = buddy_runs[rep].max_latency;
+    if (rep != 0) {
+      memmove(bitmap_values + bitmap_latency_count,
+              bitmap_runs[rep].latencies,
+              bitmap_runs[rep].latency_count * sizeof(*bitmap_values));
+      memmove(buddy_values + buddy_latency_count,
+              buddy_runs[rep].latencies,
+              buddy_runs[rep].latency_count * sizeof(*buddy_values));
+    }
+    bitmap_latency_count += bitmap_runs[rep].latency_count;
+    buddy_latency_count += buddy_runs[rep].latency_count;
+    bitmap_allocator_ops += bitmap_runs[rep].allocator_ops;
+    buddy_allocator_ops += buddy_runs[rep].allocator_ops;
+    bitmap_noops += bitmap_runs[rep].noops;
+    buddy_noops += buddy_runs[rep].noops;
   }
-  uint64_t operations = (uint64_t)BENCH_OPS * BENCH_REPETITIONS;
-  uint64_t bitmap_p50 = percentile(bitmap_values, (uint32_t)operations, 50);
-  uint64_t bitmap_p95 = percentile(bitmap_values, (uint32_t)operations, 95);
-  uint64_t buddy_p50 = percentile(buddy_values, (uint32_t)operations, 50);
-  uint64_t buddy_p95 = percentile(buddy_values, (uint32_t)operations, 95);
+  uint64_t bitmap_p50 = percentile(bitmap_values, bitmap_latency_count, 50);
+  uint64_t bitmap_p95 = percentile(bitmap_values, bitmap_latency_count, 95);
+  uint64_t buddy_p50 = percentile(buddy_values, buddy_latency_count, 50);
+  uint64_t buddy_p95 = percentile(buddy_values, buddy_latency_count, 95);
   uint64_t bitmap_metadata = PMM_STATE_BYTES;
   uint64_t buddy_metadata = PMM_BUDDY_STATE_BYTES +
       PMM_BUDDY_BOUNDARY_CAPACITY * sizeof(uint32_t);
   printf("{\"seed\":\"0x12a110c\",\"trace_hash\":\"%016" PRIx64
-         "\",\"operations_per_allocator\":%" PRIu64
+         "\",\"trace_operations\":%u,\"allocator_ops\":{\"bitmap\":%" PRIu64
+         ",\"buddy\":%" PRIu64 "},\"noops_skipped\":{\"bitmap\":%" PRIu64
+         ",\"buddy\":%" PRIu64 "},\"latency_samples\":{\"bitmap\":%u,\"buddy\":%u}"
          ",\"repetitions\":%u,\"metadata_bytes\":{\"bitmap\":%" PRIu64
          ",\"buddy_reserved\":%" PRIu64
-         "},\"latency_ns_all_ops\":{\"bitmap_p50\":%" PRIu64
+         "},\"latency_ns_allocator_ops\":{\"bitmap_p50\":%" PRIu64
          ",\"bitmap_p95\":%" PRIu64 ",\"bitmap_max\":%" PRIu64
          ",\"buddy_p50\":%" PRIu64 ",\"buddy_p95\":%" PRIu64
          ",\"buddy_max\":%" PRIu64
@@ -348,13 +380,15 @@ int main(int argc, char **argv) {
          ",\"buddy_free_frames\":%u,\"buddy_largest_free_bytes\":%" PRIu64
          ",\"buddy_order1_failed_with_free_frames\":%s"
          "},\"bitmap_free_blocks_by_order\":[",
-         trace_hash, operations, BENCH_REPETITIONS, bitmap_metadata,
+         trace_hash, BENCH_OPS, bitmap_allocator_ops, buddy_allocator_ops,
+         bitmap_noops, buddy_noops, bitmap_latency_count, buddy_latency_count,
+         BENCH_REPETITIONS, bitmap_metadata,
          buddy_metadata, bitmap_p50, bitmap_p95, bitmap_max, buddy_p50,
          buddy_p95, buddy_max,
          (double)bitmap_init_total_ns / BENCH_REPETITIONS,
          (double)buddy_init_total_ns / BENCH_REPETITIONS,
-         (double)operations * 1e9 / (double)bitmap_total_ns,
-         (double)operations * 1e9 / (double)buddy_total_ns, bitmap_free,
+         (double)bitmap_allocator_ops * 1e9 / (double)bitmap_total_ns,
+         (double)buddy_allocator_ops * 1e9 / (double)buddy_total_ns, bitmap_free,
          bitmap_largest, bitmap_order1_fail ? "true" : "false", buddy_free,
          buddy_largest, buddy_order1_fail ? "true" : "false");
   for (uint32_t order = 0; order <= PMM_BUDDY_MAX_ORDER; ++order)

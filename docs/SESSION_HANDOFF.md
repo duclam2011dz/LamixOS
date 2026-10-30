@@ -11,7 +11,7 @@ Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=D
 
 ## M12 implementation và ranh giới
 
-- Nhánh `codex/m12-buddy-pmm`, bắt đầu từ workspace M11 handoff. Thay đổi gồm `kernel/pmm.c`/`pmm.h`, kernel M12 profile, build/image tooling, `tests/m12/`, Toolchain CI và tài liệu M12. Chưa commit, push, mở PR hoặc tạo tag.
+- Nhánh `codex/m12-buddy-pmm`, bắt đầu từ workspace M11 handoff. M12 implementation commit `214229507800f1c41ce34f8c55c3fd42662454c7`, PR #10 đang mở; tag chưa tạo. Thay đổi gồm `kernel/pmm.c`/`pmm.h`, kernel M12 profile, build/image tooling, `tests/m12/`, Toolchain CI và tài liệu M12.
 - Buddy dùng tree-state 2-bit/node cho miền dưới 4 GiB; order 0–18. Metadata dự trữ 512 KiB node state + 64 KiB boundary array = 589,824 bytes. Chỉ `LBP_USABLE` đầy đủ được cấp; reservation/hole/extent boundaries chặn merge. Không reclaim LOADER/ACPI, không dùng >4 GiB.
 - Bitmap giữ mặc định và đường rollback; chỉ profile M12 route VMM/heap qua Buddy order 0. LBP v1, entry ABI, loaders, BIOS Stage1 gate và Stage2 budget không đổi.
 
@@ -20,9 +20,10 @@ Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=D
 - Cross build profile `m12-kernel` PASS. Kernel ELF SHA-256 theo build hiện tại: xem `build/m12/build.json` (artifact không version-control).
 - M12 CTest 6/6 PASS: Buddy host ASan/UBSan, host provenance, benchmark và guest BIOS/UEFI cùng kernel. Cả hai guest phát M08–M12 PASS; protected hashes không đổi và cleanup không cưỡng bức.
 - M11 CTest regression 3/3 PASS. M07 2/2, M08 2/2, M10 3/3 PASS. M09 sanitizer PASS; host/guest setup bị sandbox chặn khi build wrapper ghi dưới `build/`; artifacts cũ không tính là evidence hiện hành. Docs validator PASS, unittest 40/40 PASS; `git diff --check` PASS.
-- Host benchmark: seed `0x12a110c`, trace hash `3ded994161041ff7`, 20,000 operations × 5 (100,000 per backend). Metadata bitmap 262,144 bytes/Buddy 589,824 bytes; mixed-order host trace orders 0–3, 100,000 phép đo: bitmap p50/p95/max 21/383/13,016 ns, Buddy 56/963/38,456 ns; mean init 810,773/7,920,754 ns; throughput 9,152,882/4,710,185 ops/s; latency maxima vary across host runs and are descriptive only. Alternating-free fragmentation fixture: cả hai còn 2,048 frames, largest 4 KiB, order1 allocation fail. Đây là host-only evidence, không phải guest performance; bitmap vẫn mặc định.
-- M12 GitHub CI NOT RUN (chưa push/PR); PC thật và firmware ngoài profile QEMU NOT RUN. Chưa nghiệm thu DONE, chưa tạo milestone tag.
+- Host benchmark sau hiệu chỉnh: seed `0x12a110c`, trace hash `3ded994161041ff7`, 20,000 trace operations × 5; no-op bị bỏ khỏi latency/throughput và báo riêng. Lần chạy native ghi nhận 50,385 allocator calls và 49,615 no-op mỗi backend; p50/p95/max bitmap 130/385/23,723 ns, Buddy 128/1,015/53,576 ns; throughput 6,762,287/2,979,290 calls/s; mean init 768,026/7,574,075 ns. Các giá trị dao động và chỉ mô tả lần host run này. Metadata bitmap/Buddy 262,144/589,824 bytes. Alternating-free fixture vẫn bằng nhau: 2,048 frames rỗi, largest 4 KiB, order 1 allocation fail. Đây không phải guest performance evidence; bitmap vẫn mặc định.
+- CI PR #10 trên SHA `214229507800f1c41ce34f8c55c3fd42662454c7`: Documentation [41082791435](https://github.com/duclam2011dz/LamixOS/actions/runs/41082791435), Harness [41082791590](https://github.com/duclam2011dz/LamixOS/actions/runs/41082791590) và Boot Contract [41082791478](https://github.com/duclam2011dz/LamixOS/actions/runs/41082791478) SUCCESS. Toolchain [41082791636](https://github.com/duclam2011dz/LamixOS/actions/runs/41082791636) FAILURE hai lượt ở smoke/CTest M01, trước bước M12; M12 CI step SKIPPED. Artifact failure logs chưa tải được vì DNS resolver trong workspace không phân giải được host. PC thật và firmware ngoài profile QEMU NOT RUN. M12 chưa nghiệm thu DONE, chưa merge, chưa tạo milestone tag.
+- Review tự động PR #10 ghi nhận benchmark tính no-op vào latency/throughput; đã sửa tại workspace nhưng chưa commit/push. Benchmark native compile và schema/count validation qua direct `cc` **PASS** sau sửa; CMake/CTest local **NOT RUN** vì `cmake` không có trong PATH. Thread review chưa resolve.
 
 ## Hành động tiếp theo
 
-Rà soát diff, chạy docs validator/unittest, regressions cần thiết và kiểm tra report cuối. M12 vẫn VERIFYING tới khi có review/CI phù hợp và người dùng xác nhận nghiệm thu; không bắt đầu M13.
+Tiếp tục xử lý lỗi Toolchain CI và đẩy bản sửa benchmark sau review; cần toàn bộ CI xanh và review finding được resolve trước merge/tag. M12 vẫn VERIFYING; không bắt đầu M13.

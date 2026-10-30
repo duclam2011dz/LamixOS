@@ -109,7 +109,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M11 — Kernel heap và C++ nền tảng.** **Trạng thái: DONE (2026-10-30).** PR #9 merge commit `c1d288e7ca4fcc9f87c9eb08ba257098e6111bc8`; commit nghiệm thu `3bf87334999a794bce6dec7e8d691f5f125ff781`. Bốn workflow GitHub Actions SUCCESS trên SHA nghiệm thu; review tự động không có findings. Annotated tag `milestone/M11` object `618d9a27610e5ce73c81abad120b04872f60587b` trỏ commit nghiệm thu. M11 CTest 3/3 PASS, guest BIOS/OVMF cùng ELF PASS, hồi quy M07–M10 PASS. PC thật và firmware ngoài profile QEMU NOT RUN. Xem [kế hoạch và kết quả](PLANS.md) cùng [handoff](docs/SESSION_HANDOFF.md).
 
-**M12 — Buddy allocator nâng cấp PMM.** **Trạng thái: VERIFYING (2026-10-30).** Buddy đang là backend thử nghiệm song song; bitmap vẫn mặc định. Local host sanitizer, benchmark và guest BIOS/OVMF có kết quả; xem [kế hoạch/kết quả](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md). Nghiệm thu: pressure/fragmentation tests và số liệu so sánh, không bắt buộc xóa bitmap bootstrap; GitHub CI trên thay đổi M12 chưa chạy.
+**M12 — Buddy allocator nâng cấp PMM.** **Trạng thái: VERIFYING (2026-10-30).** Buddy đang là backend thử nghiệm song song; bitmap vẫn mặc định. PR #10 đang mở; Toolchain CI FAILURE trước bước M12, ba workflow CI khác SUCCESS. Local host sanitizer, benchmark và guest BIOS/OVMF có kết quả; xem [kế hoạch/kết quả](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md). Nghiệm thu: pressure/fragmentation tests và số liệu so sánh, không bắt buộc xóa bitmap bootstrap.
 
 ### P3 — Thiết bị nền tảng, ngắt hiện đại và đồ họa QEMU sớm
 

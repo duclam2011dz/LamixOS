@@ -2,7 +2,7 @@
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=VERIFYING
 
-Trạng thái M12: **VERIFYING (2026-10-30)** trên nhánh `codex/m12-buddy-pmm`; CI GitHub trên nhánh/commit này **PENDING** (chưa push/PR). Bitmap M09 giữ mặc định; Buddy là backend thử nghiệm trong profile `m12-kernel`, VMM/heap chỉ dùng Buddy ở profile thử nghiệm. Không đổi LBP v1, kernel entry ABI, loaders, BIOS Stage1 gate hoặc Stage2 budget.
+Trạng thái M12: **VERIFYING (2026-10-30)** trên nhánh `codex/m12-buddy-pmm`; PR #10 đang mở. Trên head `214229507800f1c41ce34f8c55c3fd42662454c7`, Documentation, Harness và Boot Contract CI SUCCESS; Toolchain CI FAILURE ở smoke/CTest M01 trước khi các bước M12 chạy. Bitmap M09 giữ mặc định; Buddy là backend thử nghiệm trong profile `m12-kernel`, VMM/heap chỉ dùng Buddy ở profile thử nghiệm. Không đổi LBP v1, kernel entry ABI, loaders, BIOS Stage1 gate hoặc Stage2 budget.
 
 ## Phạm vi M12 — Buddy allocator thử nghiệm song song
 
@@ -16,8 +16,8 @@ Trạng thái M12: **VERIFYING (2026-10-30)** trên nhánh `codex/m12-buddy-pmm`
 - Build cross profile `m12-kernel` **PASS**; ELF SHA-256 hiện tại ghi trong `build/m12/build.json` (artifact cục bộ, không commit).
 - M12 CTest **6/6 PASS**: Buddy ASan/UBSan, host provenance/image, benchmark native và BIOS/OVMF guest. Cùng kernel boot hai firmware; serial phát M08–M12 PASS; hashes protected inputs giữ nguyên, cleanup không cưỡng bức.
 - M11 CTest **3/3 PASS**. M07 2/2, M08 2/2, M10 3/3 regressions PASS; M09 sanitizer PASS, host/guest setup sandbox-blocked do wrapper ghi dưới `build/`. PC thật/firmware ngoài QEMU **NOT RUN**.
-- Benchmark host seed `0x12a110c`, trace hash `3ded994161041ff7`, 20,000 ops × 5 repetitions. Metadata reserve: bitmap 262,144 B, Buddy 589,824 B. Mixed-order trace orders 0–3, p50/p95/max toàn bộ (lần chạy cuối): bitmap 21/383/13,016 ns; Buddy 56/963/38,456 ns. Mean init bitmap/Buddy 810,773/7,920,754 ns; throughput 9,152,882/4,710,185 ops/s. Độ trễ dao động giữa các lần chạy host; đây không phải tuyên bố hiệu năng guest. Fixture alternate-free: cả hai còn 2,048 frames, largest block 4 KiB, order 1 thất bại; chưa thấy fragmentation advantage trong workload này. Chỉ số là host-specific.
-- Documentation validator PASS, unittest 40/40 PASS; `git diff --check` PASS. Toolchain CI M12 **NOT RUN**; không có workflow GitHub mới SHA.
+- Benchmark host seed `0x12a110c`, trace hash `3ded994161041ff7`, 20,000 trace operations × 5 repetitions. Chỉ latency/throughput của allocator calls được tính; no-op bị bỏ qua và báo riêng. Lần chạy native kiểm tra sau hiệu chỉnh ghi nhận 50,385 allocator calls và 49,615 no-op mỗi backend, 50,385 latency samples; p50/p95/max bitmap 130/385/23,723 ns, Buddy 128/1,015/53,576 ns; throughput 6,762,287/2,979,290 allocator calls/s; mean init 768,026/7,574,075 ns. Metadata reserve bitmap/Buddy 262,144/589,824 B. Các số host dao động theo tải máy và chỉ mô tả lần chạy này. Fixture alternate-free: cả hai còn 2,048 frames, largest block 4 KiB, order 1 thất bại; chưa thấy fragmentation advantage trong workload này. Không suy ra hiệu năng guest.
+- Documentation validator PASS, unittest 40/40 PASS; `git diff --check` PASS. Toolchain CI run [41082791636](https://github.com/duclam2011dz/LamixOS/actions/runs/41082791636) **FAILURE** hai lần tại smoke/CTest M01; downstream M12 CI step SKIPPED. Artifact log chi tiết chưa truy cập được. Thay đổi benchmark hiện tại chưa push, CI chưa kiểm tra.
 
 ## Lệnh M12
 

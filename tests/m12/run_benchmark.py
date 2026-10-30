@@ -14,6 +14,13 @@ args = parser.parse_args()
 result = subprocess.run([str(args.benchmark), str(args.fixture)], check=True,
                         capture_output=True, text=True, timeout=120)
 document = json.loads(result.stdout)
+expected = document["trace_operations"] * document["repetitions"]
+for backend in ("bitmap", "buddy"):
+    if (document["allocator_ops"][backend] + document["noops_skipped"][backend]
+            != expected):
+        raise ValueError(f"Số thao tác không khớp cho {backend}")
+    if document["latency_samples"][backend] != document["allocator_ops"][backend]:
+        raise ValueError(f"Số mẫu latency không khớp cho {backend}")
 args.output.parent.mkdir(parents=True, exist_ok=True)
 args.output.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
 print(json.dumps(document, ensure_ascii=False))
