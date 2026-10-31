@@ -143,7 +143,7 @@ static void reprioritize(scheduler_thread *thread) {
       thread->effective_priority = new_priority;
     }
   }
-  if (thread->waiting_on) {
+  if (thread->waiting_on && old_priority != new_priority) {
     scheduler_mutex *mutex = thread->waiting_on;
     scheduler_thread *owner = mutex->owner;
     /* Reinsert because effective-priority order may have changed. */

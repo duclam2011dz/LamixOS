@@ -326,11 +326,14 @@ static void m19_run(void) {
   m19_owner_thread = owner;
   scheduler_yield(&m19_scheduler);
   serial("M19:MUTEX:MAIN_RESUMED_OWNER\n");
-  if (!m19_owner_ready ||
+  uintptr_t setup_flags = m19_irq_save(0);
+  int workers_created =
       scheduler_create(&m19_scheduler, m19_mutex_medium, 0, 2,
-                       &medium) != SCHED_OK ||
+                       &medium) == SCHED_OK &&
       scheduler_create(&m19_scheduler, m19_mutex_high, 0, 3,
-                       &high) != SCHED_OK) {
+                       &high) == SCHED_OK;
+  m19_irq_restore(0, setup_flags);
+  if (!m19_owner_ready || !workers_created) {
     serial("M19:MUTEX:SETUP_FAIL\nM19:FAIL\n"); halt();
   }
   (void)medium; (void)high;

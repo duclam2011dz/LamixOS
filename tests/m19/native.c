@@ -216,6 +216,8 @@ static void test_mutex_fifo_for_equal_priority_waiters(void) {
   assert(scheduler_mutex_lock(&state, &mutex) == SCHED_BLOCKED);
   assert(state.current == owner);
   assert(mutex.wait_head == first && first->wait_next == second);
+  assert(scheduler_set_priority(first, first->base_priority) == SCHED_OK);
+  assert(mutex.wait_head == first && first->wait_next == second);
   assert(scheduler_mutex_unlock(&state, &mutex) == SCHED_OK);
   assert(state.current == first && mutex.owner == first);
   assert(scheduler_mutex_unlock(&state, &mutex) == SCHED_OK);
