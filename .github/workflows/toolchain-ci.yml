@@ -109,6 +109,12 @@ jobs:
           cmake -S tests/m13 -B build/m13-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m13-tests
           ctest --test-dir build/m13-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m13/ctest.xml"
+      - name: M14 ACPI handoff, APIC/IOAPIC và LAPIC timer
+        timeout-minutes: 35
+        run: |
+          cmake -S tests/m14 -B build/m14-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m14-tests
+          ctest --test-dir build/m14-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m14/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -255,4 +261,18 @@ jobs:
             out/m13/**/qmp.log
             build/m13-*/build.json
             build/m13-*/kernel.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M14 ACPI/APIC/guest reports, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m14-apic-timer-reports
+          path: |
+            out/m14/*.xml
+            out/m14/results/*.json
+            out/m14/**/result.json
+            out/m14/**/serial.log
+            out/m14/**/qmp.log
+            build/m14-*/build.json
+            build/m14-*/kernel.inspection.txt
           if-no-files-found: warn

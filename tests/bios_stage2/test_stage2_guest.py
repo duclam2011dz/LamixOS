@@ -31,7 +31,7 @@ CASES=[('valid','kernel.elf',256,None,None),('valid','kernel.elf',64,None,None),
        ('note-required-nx','kernel.elf',256,'qemu64,-nx','NOTE'),('valid','kernel.elf',256,'qemu64,-lm','CPU'),
        ('oom','kernel.elf',64,None,'MEMORY')]
 CASES += [(v,'kernel.elf',256,None,r) for v,r in [('header-crc','S2'),('core-crc','S2'),('gpt-backup-crc','GPT'),('gpt-array-crc','GPT'),
-        ('fat-bpb','FAT'),('fat-loop','FAT'),('fat-mirror','FAT'),('missing-a','FAT'),('elf-magic','ELF'),('note-duplicate','ELF'),('note-required-acpi','NOTE'),
+        ('fat-bpb','FAT'),('fat-loop','FAT'),('fat-mirror','FAT'),('missing-a','FAT'),('elf-magic','ELF'),('note-duplicate','ELF'),('note-required-acpi',None),
         ('inject-e820-bad','E820'),('inject-e820-truncated','E820'),('inject-e820-overflow','E820'),('inject-a20','A20'),('io-core','DISK'),('io-fat','DISK'),('io-kernel','DISK'),('inject-lbp','LBP'),('inject-map','LBP')]]
 
 CASES += [(v,'kernel.elf',256,None,'S2') for v in ('s2-version','s2-core-lba','s2-empty','s2-memory','s2-load','s2-entry','s2-reserved')]
@@ -69,6 +69,9 @@ def test_bios_stage2_contract(tmp_path,stage2_build,variant,kernel,ram,cpu,reaso
     if reason:assert 'M05:PASS' not in serial and serial[serial.index('M05:FAIL')+1]==reason
     else:
         assert serial[-3]=='M05:HANDOFF' and serial[-1]=='M05:PASS'
+        if variant=='note-required-acpi':
+            lbp=next(line.split() for line in serial if line.startswith('M07:LBP '))
+            assert int(lbp[5],16)&2 and int(lbp[6],16)&2
         maps=[[int(x,16) for x in line.split()[1:]] for line in serial if line.startswith('M05:MAP ')]
         memory=[[int(x,16) for x in line.split()[1:]] for line in serial if line.startswith('M05:MEMORY ')]
         reserves=[[int(x,16) for x in line.split()[1:]] for line in serial if line.startswith('M05:RESERVE ')]

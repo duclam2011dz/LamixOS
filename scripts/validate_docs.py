@@ -32,7 +32,7 @@ STATES = {"PLANNED", "IN_PLAN", "APPROVED", "IN_PROGRESS", "VERIFYING", "DONE", 
 STATUS_FILES = ("ROADMAP.md", "PLANS.md", "docs/SESSION_HANDOFF.md")
 STATUS_PATTERN = re.compile(
     r"^Trạng thái milestone: "
-    + "; ".join(f"M{i:02d}=(\\w+)" for i in range(14))
+    + "; ".join(f"M{i:02d}=(\\w+)" for i in range(15))
     + "$",
     re.M,
 )
@@ -235,9 +235,9 @@ def validate_repository(root):
             error("ROADMAP.md", f"trạng thái không hợp lệ cho {match[1]}")
         actual[match[1]] = state
     if "ROADMAP.md" in status and tuple(
-        actual.get(f"M{i:02d}") for i in range(14)
+        actual.get(f"M{i:02d}") for i in range(15)
     ) != status["ROADMAP.md"]:
-        error("ROADMAP.md", "trạng thái chuẩn không khớp trạng thái mục M00–M13")
+        error("ROADMAP.md", "trạng thái chuẩn không khớp trạng thái mục M00–M14")
     return errors
 
 

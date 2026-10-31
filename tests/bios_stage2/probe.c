@@ -5,6 +5,10 @@
 #define PROBE_FAULT 0
 #endif
 uint64_t probe_snapshot[9];
+static uint32_t probe_fail_stage;
+static uint32_t scratch_map_count;
+static uint64_t scratch_tables[8];
+static uint32_t scratch_table_count;
 volatile uint64_t probe_data = UINT64_C(0xfedcba9876543210);
 static volatile uint8_t zero_bss[8192];
 static const char rodata[] = "LAMIX M05 ELF64";
@@ -31,7 +35,9 @@ static void serial_hex(uint64_t value) {
   }
 }
 __attribute__((noreturn)) static void fail(void) {
-  serial("M05:FAIL\nENTRY\n");
+  serial("M05:FAIL stage=");
+  serial_hex(probe_fail_stage);
+  serial("\nENTRY\n");
   for (;;)
     __asm__ volatile("cli; hlt");
 }
@@ -48,8 +54,10 @@ static uint32_t read32(const uint8_t *p) { return (uint32_t)read64(p); }
 static const uint8_t *entry_record;
 static const uint8_t *reservation_record;
 static const uint64_t *physical_table(uint64_t physical) {
-  if (!entry_record)
+  if (!entry_record) {
+    probe_fail_stage = 11;
     fail();
+  }
   uint64_t count = read64(entry_record + 64);
   for (uint64_t i = 0; i < count; i++) {
     const uint8_t *s = entry_record + 72 + i * 32;
@@ -58,6 +66,7 @@ static const uint64_t *physical_table(uint64_t physical) {
         4096 <= length - (physical - base))
       return (const uint64_t *)(uintptr_t)(read64(s + 8) + (physical - base));
   }
+  probe_fail_stage = 12;
   fail();
 }
 static uint64_t pte(uint64_t va) {
@@ -69,6 +78,19 @@ static uint64_t pte(uint64_t va) {
     t = physical_table(e & UINT64_C(0x000ffffffffff000));
   }
   return t[(va >> 12) & 511];
+}
+static int scratch_page_available(uint64_t va) {
+  const uint64_t *table = (const uint64_t *)physical_table(probe_snapshot[5]);
+  for (unsigned shift = 39; shift > 12; shift -= 9) {
+    uint64_t entry = table[(va >> shift) & 511];
+    if (!(entry & 1))
+      return 1;
+    if (entry & 128)
+      return 0;
+    table = (const uint64_t *)physical_table(
+        entry & UINT64_C(0x000ffffffffff000));
+  }
+  return !(table[(va >> 12) & 511] & 1);
 }
 static uint32_t leaf_count(uint64_t base, unsigned level) {
   const uint64_t *t = physical_table(base);
@@ -97,16 +119,27 @@ static uint64_t allocate_zero_table(void) {
       volatile const uint64_t *page = physical_table(base + off);
       if ((uintptr_t)page != base + off)
         continue;
+      uint32_t used = 0;
+      for (; used < scratch_table_count; used++)
+        if (scratch_tables[used] == base + off)
+          break;
+      if (used != scratch_table_count)
+        continue;
       unsigned j = 0;
       for (; j < 512 && page[j] == 0; j++) {
       }
-      if (j == 512)
+      if (j == 512) {
+        if (scratch_table_count == sizeof scratch_tables / sizeof scratch_tables[0])
+          break;
+        scratch_tables[scratch_table_count++] = base + off;
         return base + off;
+      }
     }
   }
   fail();
 }
 static uint64_t *scratch_mapping(uint64_t va, uint64_t physical) {
+  scratch_map_count++;
   uint64_t *table = (uint64_t *)physical_table(probe_snapshot[5]);
   for (unsigned shift = 39; shift > 12; shift -= 9) {
     uint64_t *slot = &table[(va >> shift) & 511];
@@ -115,8 +148,10 @@ static uint64_t *scratch_mapping(uint64_t va, uint64_t physical) {
     table = (uint64_t *)(uintptr_t)(*slot & UINT64_C(0x000ffffffffff000));
   }
   uint64_t *slot = &table[(va >> 12) & 511];
-  if (*slot & 1)
+  if (*slot & 1) {
+    probe_fail_stage = 14 + scratch_map_count;
     fail();
+  }
   *slot = (physical & UINT64_C(0x000ffffffffff000)) | 1 |
           (probe_snapshot[7] & 0x800 ? UINT64_C(0x8000000000000000) : 0);
   return slot;
@@ -163,7 +198,19 @@ static lbp_status validate_with_acpi(const uint8_t *blob, uint64_t size,
   uint32_t length = read32(acpi + 24);
   if ((length != 20 && length != 36) || physical + length < physical)
     return LBP_INVALID;
-  const uint64_t scratch = UINT64_C(0xfffffe0000000000);
+  uint64_t scratch = 0;
+  for (uint64_t slot = 256; slot < 512; slot++) {
+    uint64_t candidate = UINT64_C(0xffff000000000000) | (slot << 39);
+    if (scratch_page_available(candidate) &&
+        scratch_page_available(candidate + 4096)) {
+      scratch = candidate;
+      break;
+    }
+  }
+  if (!scratch) {
+    probe_fail_stage = 14;
+    fail();
+  }
   uint64_t first = physical & ~UINT64_C(4095),
            last = (physical + length - 1) & ~UINT64_C(4095);
   uint64_t *pte0 = scratch_mapping(scratch, first), *pte1 = 0;
@@ -181,20 +228,28 @@ static lbp_status validate_with_acpi(const uint8_t *blob, uint64_t size,
 void probe_main(void) {
   const uint8_t *blob = (void *)(uintptr_t)probe_snapshot[0];
   lbp_view view;
-  if (probe_snapshot[1] != LBP_ENTRY_MAGIC || !blob ||
-      validate_with_acpi(blob, LBP_MAX_SIZE, &view) != LBP_OK)
+  probe_fail_stage = 1;
+  lbp_status validation = blob ? validate_with_acpi(blob, LBP_MAX_SIZE, &view)
+                               : LBP_INVALID;
+  if (probe_snapshot[1] != LBP_ENTRY_MAGIC || !blob || validation != LBP_OK) {
+    serial("M05:LBP_STATUS="); serial_hex(validation); serial("\n");
     fail();
+  }
+  probe_fail_stage = 2;
   if ((probe_snapshot[4] & UINT64_C(0x80010001)) != UINT64_C(0x80010001) ||
       !(probe_snapshot[6] & 32) || (probe_snapshot[6] & (1u << 12)) ||
       (probe_snapshot[7] & 0x500) != 0x500 || (probe_snapshot[3] & 0x600) ||
       (probe_snapshot[8] & 3) || !((probe_snapshot[8] >> 16) & 0xffff) ||
       !((probe_snapshot[8] >> 32) & 0xffff))
     fail();
+  probe_fail_stage = 3;
   int nx = !!(read64(blob + 32) & LBP_FEATURE_NX);
   if (nx != !!(probe_snapshot[7] & 0x800))
     fail();
+  probe_fail_stage = 4;
   if (probe_data != UINT64_C(0xfedcba9876543210) || rodata[6] != 'M')
     fail();
+  probe_fail_stage = 5;
   uint8_t gdtr[10];
   __asm__ volatile("sgdt %0" : "=m"(gdtr));
   uint64_t descriptor = read64((const uint8_t *)(uintptr_t)read64(gdtr + 2) +
@@ -203,6 +258,7 @@ void probe_main(void) {
           UINT64_C(0x0020980000000000) ||
       !(probe_snapshot[8] >> 48))
     fail();
+  probe_fail_stage = 6;
   for (unsigned i = 0; i < sizeof zero_bss; i++)
     if (zero_bss[i])
       fail();

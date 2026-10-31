@@ -59,7 +59,7 @@ def test_pe_application():
 
 @pytest.mark.parametrize("variant,reason", [
     ("valid", None), ("missing-a", "KERNEL_FILE"),
-    ("elf-magic", "ELF"), ("note-required-acpi", "ELF"),
+    ("elf-magic", "ELF"), ("note-required-acpi", None),
     ("gpt-guid", "GPT_IDENTITY"),
 ])
 @pytest.mark.qemu
@@ -94,6 +94,9 @@ def test_ovmf_guest(tmp_path, variant, reason):
     else:
         assert "M06:FRAMEBUFFER" in serial
         assert result.status == "PASS" and serial[-1] == "M06:PASS"
+        if variant == "note-required-acpi":
+            lbp = next(line.split() for line in serial if line.startswith("M07:LBP "))
+            assert int(lbp[5], 16) & 2 and int(lbp[6], 16) & 2
 
 
 if __name__ == "__main__":
