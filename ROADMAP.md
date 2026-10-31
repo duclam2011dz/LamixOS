@@ -3,10 +3,10 @@
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
 > **Cập nhật:** 2026-10-31
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 IN_PROGRESS; M16–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=IN_PROGRESS
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
 
 ## 0. Tầm nhìn và giới hạn
 
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 IN_PROGRESS; M16–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -117,7 +117,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M14 — Local APIC/IOAPIC, timers.** **Trạng thái: DONE (2026-10-31).** PR #12 merge commit `8360690506b1472d3b31959f36bb3a511e76282e`; acceptance commit `f41d20df47b7e95ac9ac73027c7cd7a7395b67c5`; annotated tag `milestone/M14` object `85876228135c5f1d971a1a30687e999ce5ddab39` trỏ acceptance commit. Bốn workflow GitHub Actions SUCCESS trên acceptance SHA: Toolchain [41177278867](https://github.com/duclam2011dz/LamixOS/actions/runs/41177278867), Harness [41177278863](https://github.com/duclam2011dz/LamixOS/actions/runs/41177278863), Documentation [41177278850](https://github.com/duclam2011dz/LamixOS/actions/runs/41177278850), Boot Contract [41177278957](https://github.com/duclam2011dz/LamixOS/actions/runs/41177278957). CTest M14 3/3 PASS; BIOS SeaBIOS `pc` và UEFI OVMF `q35` cùng kernel/image 3/3 boots mỗi profile, các marker ACPI/APIC/IOAPIC/PIT reference/LAPIC timer đạt, protected hashes/cleanup đúng. Hồi quy Toolchain M05 4/4, M06 UEFI 3/3, M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6, M13 3/3 PASS. Automated review commit cuối không có major findings; finding hiệu chuẩn được sửa và resolved. PC thật và firmware ngoài profile QEMU **NOT RUN**. Tại thời điểm nghiệm thu M14, M15 còn PLANNED.
 
-**M15 — Input bàn phím và chuột PS/2.** **Trạng thái: IN_PROGRESS (2026-10-31).** Đã thêm profile kernel, i8042/PS/2, decoder Set 1, event queue và QMP input script; host ASan/UBSan, kernel cross-build và guest BIOS/UEFI 3/3 mỗi profile hiện PASS local. Hồi quy M07–M14 và docs validation PASS local. Toolchain CI trên acceptance SHA chưa chạy; M15 chưa DONE. Chi tiết tại [PLANS](PLANS.md), [TESTING](docs/TESTING.md) và [handoff](docs/SESSION_HANDOFF.md).
+**M15 — Input bàn phím và chuột PS/2.** **Trạng thái: DONE (2026-10-31).** PR #13 merge commit `eba0607607545638fe1569fa129abac1b283d7d1`; acceptance commit `831748b5d65f0a88394745b20da82a56f69439c4`; annotated tag `milestone/M15` object `69aa3ebdb5c2843487b73925c8b73f96893cd2d7` trỏ acceptance commit. Bốn workflow SUCCESS trên acceptance SHA: Toolchain [41180666554](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666554), Harness [41180666561](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666561), Documentation [41180666589](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666589), Boot Contract [41180666560](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666560). M15 CTest 3/3 PASS, guest BIOS/UEFI 3/3 boots mỗi firmware; hồi quy M07–M14 và docs PASS. PC thật/firmware ngoài profile **NOT RUN**. Chi tiết tại [PLANS](PLANS.md), [TESTING](docs/TESTING.md) và [handoff](docs/SESSION_HANDOFF.md).
 
 **M16 — Software framebuffer renderer.** Pixel formats, clipping, primitives, text, double buffering và damage tracking ban đầu. Nghiệm thu: test ảnh đối chiếu hoặc checksum kiểm chứng render; hiển thị trên BIOS và UEFI nơi có framebuffer hợp lệ.
 

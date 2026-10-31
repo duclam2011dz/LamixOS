@@ -1,6 +1,6 @@
 # Chỉ mục API và ABI
 
-LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader, M06 EFI loader, M07 parity probe; kernel bootstrap M08, PMM M09, VMM BSP M10, kernel heap M11, Buddy PMM thử nghiệm M12 và ACPI/PCI/device framework M13 đã DONE; input PS/2 M15 đang triển khai. API M13 dưới đây là nội bộ, không phải public ABI. Chưa có process address spaces hoặc kernel sản phẩm. On-wire structs khác với API native (`lbp_span`, `lbp_view`, status enum).
+LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader, M06 EFI loader, M07 parity probe; kernel bootstrap M08, PMM M09, VMM BSP M10, kernel heap M11, Buddy PMM thử nghiệm M12 và ACPI/PCI/device framework M13 đã DONE; input PS/2 M15 đã DONE. API M13 dưới đây là nội bộ, không phải public ABI. Chưa có process address spaces hoặc kernel sản phẩm. On-wire structs khác với API native (`lbp_span`, `lbp_view`, status enum).
 
 | Giao diện | Nguồn |
 |---|---|

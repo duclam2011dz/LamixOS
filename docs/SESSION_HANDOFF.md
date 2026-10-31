@@ -1,12 +1,13 @@
-# Bàn giao M15 — IN_PROGRESS — 2026-10-31
+# Bàn giao M15 — DONE — 2026-10-31
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=IN_PROGRESS
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
 
-## M15 đang triển khai
+## M15 đã nghiệm thu
 
-- Profile `m15-kernel` và driver PS/2 đã được thêm; kernel cross-build **PASS**, host sanitizer **PASS**, guest BIOS/UEFI cùng kernel/image **3/3 PASS mỗi firmware**. Reports tại `out/m15/results/`.
-- Hồi quy M07–M14, QMP harness 35/35 và docs validator **PASS** local. Chi tiết kết quả và lệnh trong [PLANS](../PLANS.md) và [TESTING](TESTING.md).
-- Toolchain CI trên acceptance SHA chưa chạy (**PENDING**); M15 chưa DONE. PC thật/firmware khác **NOT RUN**. Không bắt đầu M16.
+- PR #13 merge commit `eba0607607545638fe1569fa129abac1b283d7d1`. Acceptance commit `831748b5d65f0a88394745b20da82a56f69439c4`; annotated tag `milestone/M15` object `69aa3ebdb5c2843487b73925c8b73f96893cd2d7` trỏ acceptance SHA.
+- Bốn workflow SUCCESS trên SHA nghiệm thu: Toolchain [41180666554](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666554), Harness [41180666561](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666561), Documentation [41180666589](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666589), Boot Contract [41180666560](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666560). Review finding 9-bit mouse delta được sửa, test ±200 thêm, thread resolved.
+- M15 CTest 3/3 PASS; guest SeaBIOS `pc` và OVMF `q35` cùng kernel/image 3/3 boots mỗi profile; hồi quy M07–M14 PASS, QMP harness 35/35 PASS, docs validator/unittest 41/41 PASS. Reports tại `out/m15/results/`.
+- PC thật và firmware ngoài profile QEMU **NOT RUN**. M16 chưa bắt đầu; cần Plan Mode và duyệt riêng.
 
 ## M14 đã nghiệm thu
 
@@ -16,7 +17,7 @@ Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=D
 - Kernel cross-build, BIOS Stage2 build-only (core 172,032/262,144 byte; bootstrap 32 KiB), UEFI build-only và native ASan/UBSan M14 **PASS**.
 - Guest cùng kernel/image: SeaBIOS `pc` **3/3 PASS**, OVMF `q35` **3/3 PASS**; đủ marker RSDP/MADT, xAPIC, IOAPIC, PIT reference, LAPIC timer và M14; protected hashes không đổi, cleanup sạch. Reports: `out/m14/results/bios.json`, `out/m14/results/uefi.json`.
 - Toolchain CI M14 CTest **3/3 PASS**, M05 regression **4/4 PASS**, M06 UEFI policy/PE/guest **3/3 PASS**, hồi quy M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6, M13 3/3 **PASS**. M06 ACPI-required fixture xác nhận `required_features`/`provided_features` có ACPI. Docs validator trong CI **PASS**; unittest tài liệu local trước closure **41/41 PASS**. M06 CTest local sau sửa **NOT RUN** vì workspace closure không có `cmake`/`ctest`.
-- PC thật và firmware ngoài profile QEMU **NOT RUN**. M15 được bắt đầu theo kế hoạch đã duyệt; M16 chưa bắt đầu.
+- PC thật và firmware ngoài profile QEMU **NOT RUN**. M15 đã đóng; M16 chưa bắt đầu.
 
 ## M13 đã nghiệm thu
 
@@ -49,4 +50,4 @@ Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=D
 
 ## Tiếp theo tại thời điểm bàn giao M06 (ghi chú lịch sử)
 
-M06 vừa đóng; khi đó M07 là milestone kế tiếp. Ghi chú lịch sử này không thay thế trạng thái hiện tại ở đầu handoff: M14 đã đóng; M15 đang triển khai; M16 chưa bắt đầu.
+M06 vừa đóng; khi đó M07 là milestone kế tiếp. Ghi chú lịch sử này không thay thế trạng thái hiện tại ở đầu handoff: M14 đã đóng; M15 đã đóng; M16 chưa bắt đầu.

@@ -18,7 +18,7 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=IN_PROGRESS
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M15 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -363,4 +363,4 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m15-tests --no-test
 
 Native ASan/UBSan dùng cùng decoder/queue implementation, kiểm tra make/break, phím mở rộng, Shift/Caps, ASCII, mouse sign/button/overflow, queue wrap/sequence/drop. QMP harness inject input sau `M15:READY`; guest yêu cầu keyboard, mouse motion và button press/release, thứ tự key sequence, không overflow, marker M15, protected hashes và cleanup. Guest nghiệm thu là SeaBIOS `pc` và OVMF `q35`, ba boot mỗi firmware trên cùng kernel/image; host simulation/compile-only không được tính boot.
 
-M15 local: sanitizer/host **2/2 PASS**, guest **3/3 PASS mỗi firmware**, QMP harness **35/35 PASS**, hồi quy M07–M14 PASS và docs validator PASS. Kernel cross-build PASS. Toolchain CI trên acceptance SHA **PENDING/NOT RUN**; PC thật và firmware ngoài profile **NOT RUN**. M15 chưa DONE.
+M15 local: sanitizer/host **2/2 PASS**, guest **3/3 PASS mỗi firmware**, QMP harness **35/35 PASS**, hồi quy M07–M14 PASS và docs validator PASS. Kernel cross-build PASS. Bốn workflow GitHub Actions SUCCESS trên acceptance SHA `831748b5d65f0a88394745b20da82a56f69439c4`: Toolchain [41180666554](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666554), Harness [41180666561](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666561), Documentation [41180666589](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666589), Boot Contract [41180666560](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666560). PC thật và firmware ngoài profile **NOT RUN**. M15 DONE.

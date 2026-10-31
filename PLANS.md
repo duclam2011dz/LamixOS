@@ -1,8 +1,8 @@
 # Kế hoạch và kết quả — M15
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=IN_PROGRESS
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
 
-## M15 — Input bàn phím và chuột PS/2 (IN_PROGRESS)
+## M15 — Input bàn phím và chuột PS/2 (DONE)
 
 ### Triển khai hiện có
 
@@ -15,7 +15,7 @@ Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=D
 - Kernel cross-build `m15-kernel` **PASS**, ELF SHA-256 `8fc8d6af1f7847036510b2925ea5bde4de7718487e3cfc4cd7bfd894a149bc60`; ELF có 3 load segments, không undefined symbols. BIOS Stage2 core 172,032/262,144 bytes, bootstrap giữ giới hạn 32 KiB; UEFI build-only **PASS** trong fixture guest.
 - M15 CTest host sanitizer + host/provenance **2/2 PASS**. Guest SeaBIOS `pc` và OVMF `q35` cùng kernel/image **3/3 PASS mỗi profile**, có M15 READY/keyboard/mouse/queue/PASS; protected hashes không đổi, cleanup sạch. Reports: `out/m15/results/bios.json`, `out/m15/results/uefi.json`.
 - QMP harness unit tests **35/35 PASS**. Hồi quy M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6, M13 3/3, M14 3/3 **PASS**. Docs validator **PASS**.
-- GitHub Actions **PENDING/NOT RUN** trên thay đổi hiện tại; cần CI xanh trên acceptance SHA trước nghiệm thu. PC thật/firmware ngoài profile QEMU **NOT RUN**. M15 chưa DONE.
+- Bốn workflow GitHub Actions SUCCESS trên acceptance SHA `831748b5d65f0a88394745b20da82a56f69439c4`: Toolchain [41180666554](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666554), Harness [41180666561](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666561), Documentation [41180666589](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666589), Boot Contract [41180666560](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666560). Codex Review finding delta chuột 9-bit đã sửa, test ±200 thêm và thread resolved. PR #13 merge commit `eba0607607545638fe1569fa129abac1b283d7d1`; annotated tag `milestone/M15` object `69aa3ebdb5c2843487b73925c8b73f96893cd2d7` trỏ acceptance SHA. PC thật/firmware ngoài profile QEMU **NOT RUN**. M15 DONE; M16 chưa bắt đầu.
 
 ## M14 — Local APIC/IOAPIC và timer (DONE)
 
@@ -274,4 +274,4 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
 
 Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M14 DONE; M15 IN_PROGRESS; M16–M44 PLANNED.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M15 DONE; M16–M44 PLANNED.

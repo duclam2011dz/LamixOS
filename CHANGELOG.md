@@ -4,10 +4,10 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
-### M15 — IN_PROGRESS (2026-10-31)
+### M15 — DONE (2026-10-31)
 
 - Thêm kernel PS/2 keyboard/mouse, Set 1 decoder, US QWERTY ASCII và queue nội bộ SPSC 128 event; tích hợp IRQ1/IRQ12 vào APIC profile mới. QMP harness hỗ trợ kịch bản input sau marker.
-- Kernel cross-build, host ASan/UBSan, guest BIOS/UEFI 3/3 mỗi profile, hồi quy M07–M14 và docs validator hiện PASS local. Toolchain CI chưa chạy trên acceptance SHA; M15 chưa DONE. PC thật/firmware ngoài QEMU NOT RUN.
+- Kernel cross-build, host ASan/UBSan, guest BIOS/UEFI 3/3 mỗi profile, hồi quy M07–M14 và docs validator hiện PASS local. Bốn workflow GitHub Actions SUCCESS trên acceptance SHA `831748b5d65f0a88394745b20da82a56f69439c4`; M15 CTest 3/3, guest BIOS/UEFI 3/3 mỗi profile và hồi quy M07–M14 PASS. PR #13 merge commit `eba0607607545638fe1569fa129abac1b283d7d1`; annotated tag `milestone/M15` object `69aa3ebdb5c2843487b73925c8b73f96893cd2d7` trỏ acceptance SHA. PC thật/firmware ngoài QEMU NOT RUN.
 
 ### M14 — DONE (2026-10-31)
 
