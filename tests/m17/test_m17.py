@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from scripts.m07_image import create_image, check_image, verify_build_report
 from scripts.qemu_harness import Config, run
+from scripts.m17_qemu import qemu_command
 sys.path.insert(0, str(ROOT / "tests/m10"))
 from test_m10 import image_fingerprints
 
@@ -101,6 +102,29 @@ def ppm_dimensions(path):
     return width, height
 
 
+def test_manual_qemu_commands_use_single_virtio_vga(tmp_path):
+    image = tmp_path / "m17.img"
+    bios = qemu_command("bios", image, tmp_path, "qemu-system-x86_64",
+                        tmp_path / "seabios.bin", tmp_path / "OVMF_CODE.fd",
+                        tmp_path / "OVMF_VARS.fd")
+    assert bios[bios.index("-vga") + 1] == "none"
+    assert bios[bios.index("-device") + 1] == "virtio-vga"
+    assert bios[bios.index("-bios") + 1] == str(tmp_path / "seabios.bin")
+    assert any("snapshot=on" in arg for arg in bios)
+    assert "-display" not in bios
+
+    code = tmp_path / "OVMF_CODE.fd"
+    variables = tmp_path / "OVMF_VARS.template.fd"
+    code.write_bytes(b"code")
+    variables.write_bytes(b"variables")
+    uefi = qemu_command("uefi", image, tmp_path, "qemu-system-x86_64",
+                        tmp_path / "seabios.bin", code, variables)
+    assert uefi[uefi.index("-vga") + 1] == "none"
+    assert uefi[uefi.index("-device") + 1] == "virtio-vga"
+    assert any("snapshot=on" in arg for arg in uefi)
+    assert (tmp_path / "OVMF_VARS.fd").read_bytes() == b"variables"
+
+
 def ppm_to_png(source):
     data = Path(source).read_bytes()
     cursor = 3
@@ -133,23 +157,9 @@ def run_guest(image, profile, purpose, with_gpu):
     output = ROOT / "out/m17"
     image_commands = (["-vga", "none", "-device", "virtio-vga"]
                       if with_gpu else ["-vga", "std"])
-    def key(code, down):
-        return {"execute": "input-send-event", "arguments": {"events": [
-            {"type": "key", "data": {"key": {"type": "qcode", "data": code},
-                                             "down": down}}]}}
-    input_commands = [key("a", True), key("a", False), key("shift", True),
-        key("a", True), key("a", False), key("shift", False),
-        {"execute": "input-send-event", "arguments": {"events": [
-            {"type": "rel", "data": {"axis": "x", "value": 23}},
-            {"type": "rel", "data": {"axis": "y", "value": -11}}]}},
-        {"execute": "input-send-event", "arguments": {"events": [
-            {"type": "btn", "data": {"down": True, "button": "left"}}]}},
-        {"execute": "input-send-event", "arguments": {"events": [
-            {"type": "btn", "data": {"down": False, "button": "left"}}]}}]
     result = run(Config(profile=profile, purpose=purpose, image=image,
         success_marker="M17:PASS", panic_marker="M17:FAIL", timeout=120,
-        output_root=output / "runs", qmp_trigger_marker="M15:READY",
-        qmp_script=input_commands,
+        output_root=output / "runs",
         qmp_screendump_marker="M17:READY" if with_gpu else None,
         qmp_screendump_path="{run_dir}/screen.ppm" if with_gpu else None,
         extra_args=image_commands))
@@ -202,6 +212,7 @@ def test_m17_virtio_gpu_guest_and_screenshot(m17_image, profile, purpose):
                    "M17:TRANSPORT:PASS\n", "M17:GPU:2D:PASS\n",
                    "M17:SCANOUT:PASS\n", "M17:FRAME:PASS checksum=", "M17:PASS\n"):
         assert marker in serial, marker
+    assert "M15:SELFTEST:SKIPPED\n" in serial
     assert "M17:GPU:FALLBACK" not in serial
     assert screenshot.is_file() and screenshot.stat().st_size > 1024
     assert ppm_dimensions(screenshot) == (1024, 768)

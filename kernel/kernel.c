@@ -685,6 +685,10 @@ static int m15_input_init(void) {
     m15_unmask_route(&mouse);
     serial("M15:MOUSE:READY\n");
   } else serial("M15:MOUSE:UNAVAILABLE\n");
+#if defined(LAMIX_M17_VIRTIO_GPU)
+  serial("M15:SELFTEST:SKIPPED\n");
+  return 1;
+#else
   serial("M15:READY\n");
   __asm__ volatile("sti");
   uint8_t saw_plain_down = 0, saw_plain_up = 0, saw_shift_down = 0;
@@ -744,6 +748,7 @@ static int m15_input_init(void) {
   }
   serial("M15:QUEUE:PASS\nM15:PASS\n");
   return 1;
+#endif
 }
 #if defined(LAMIX_M17_VIRTIO_GPU)
 static int m17_config_byte(pci_bdf bdf, uint16_t offset, uint8_t *value) {
