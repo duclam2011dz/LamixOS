@@ -30,6 +30,7 @@ static uint32_t acpi_physical, acpi_length, acpi_revision;
 #ifdef LAMIX_M16_VIDEO
 static lbp_framebuffer video_framebuffer;
 static uint32_t have_framebuffer;
+static uint16_t vbe_version;
 #endif
 static void serial(const char *p);
 static void hex(uint64_t n);
@@ -144,11 +145,19 @@ static int video_mode(uint16_t mode, uint32_t wanted_width,
   const uint8_t *info = (const uint8_t *)(uintptr_t)0x5900;
   uint16_t attributes = read16(info);
   uint32_t width = read16(info + 18), height = read16(info + 20);
-  uint32_t pitch = read16(info + 16), bpp = info[25];
-  uint32_t red = vbe_mask(info[31], info[32]);
-  uint32_t green = vbe_mask(info[33], info[34]);
-  uint32_t blue = vbe_mask(info[35], info[36]);
-  uint32_t reserved = info[37] ? vbe_mask(info[37], info[38]) : 0;
+  uint32_t pitch = read16(info + (vbe_version >= 0x0300 ? 50 : 16));
+  uint32_t bpp = info[25];
+  uint32_t red = vbe_mask(info[vbe_version >= 0x0300 ? 54 : 31],
+                          info[vbe_version >= 0x0300 ? 55 : 32]);
+  uint32_t green = vbe_mask(info[vbe_version >= 0x0300 ? 56 : 33],
+                            info[vbe_version >= 0x0300 ? 57 : 34]);
+  uint32_t blue = vbe_mask(info[vbe_version >= 0x0300 ? 58 : 35],
+                           info[vbe_version >= 0x0300 ? 59 : 36]);
+  uint8_t reserved_size = info[vbe_version >= 0x0300 ? 60 : 37];
+  uint32_t reserved = reserved_size
+                          ? vbe_mask(reserved_size,
+                                     info[vbe_version >= 0x0300 ? 61 : 38])
+                          : 0;
   uint32_t physical = read32(info + 40);
   if ((attributes & 0x91) != 0x91 || info[27] != 6 || bpp != 32 ||
       width != wanted_width || height != wanted_height ||
@@ -177,6 +186,7 @@ static void discover_vbe(void) {
   if (!bios_video_call(0x4f00, 0, 0, 0, 0, 0x5800) ||
       read32(controller) != UINT32_C(0x41534556) || read16(controller + 4) < 0x0200)
     return;
+  vbe_version = read16(controller + 4);
   uint32_t list = ((uint32_t)read16(controller + 16) << 4) +
                   read16(controller + 14);
   if (list < 0x400 || list > 0x100000 - 512) return;

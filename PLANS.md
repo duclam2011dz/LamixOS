@@ -8,8 +8,8 @@ Trạng thái M16: IN_PROGRESS; M17–M44: PLANNED
 - Thêm renderer freestanding `kernel/graphics.c` với backbuffer XRGB8888, channel-mask conversion, clipping, pixel/line/fill/outline, ASCII 8×16 bitmap font, union damage rectangle, present và FNV-1a 64-bit checksum. Backbuffer cấp từ kernel heap; framebuffer thiết bị không đi qua PMM.
 - BIOS M16 profile gọi VBE, ưu tiên 1024×768×32 rồi 800×600×32, phát LBP framebuffer record v1 và map vùng uncached; VBE không bật trong profile cũ. UEFI tiếp tục GOP hiện hành. Stage1 và wire ABI không đổi.
 - Kiểm thử native ASan/UBSan xác nhận checksum golden, ASCII printable, mask conversion, pitch, clipping, damage và bounds lỗi. M16 CTest local hiện 3/3 PASS; guest cùng kernel/image SeaBIOS `pc` và OVMF `q35` mỗi profile 1/1 PASS, có marker render/present/checksum và protected hashes/cleanup sạch.
-- BIOS Stage2 Release build **PASS**: core file 41,768 byte, memory 176,128/262,144 byte; bootstrap 32,768 byte. Kernel cross-build/provenance **PASS**. Regression M07 + Stage2 host + M15 host: **54 PASS, 3 QEMU cases deselected**. Docs validator **PASS**, unittest tài liệu **41/41 PASS**. GitHub CI **NOT RUN**; PC thật/firmware ngoài profile QEMU **NOT RUN**.
-- M16 đang triển khai/kiểm chứng; chưa đánh dấu DONE, chưa tạo acceptance tag hoặc merge. Chi tiết phạm vi và kết quả sẽ cập nhật theo bằng chứng.
+- BIOS Stage2 Release build **PASS**: core file 42,024 byte, memory 176,128/262,144 byte; bootstrap 32,768 byte. Kernel cross-build/provenance **PASS**. Regression M07 + Stage2 host + M15 host: **54 PASS, 3 QEMU cases deselected**. Docs validator **PASS**, unittest tài liệu **41/41 PASS**.
+- PR #14 ban đầu có bốn workflow **PASS** trên `386549e9868286deeb6c55062184cb7b67879b3c`; review phát hiện VBE 3.0 cần dùng pitch/masks linear, đã sửa và M16 CTest local **3/3 PASS** sau sửa. CI/review trên commit sửa **PENDING**; chưa merge/chưa tạo acceptance tag. PC thật/firmware ngoài profile QEMU **NOT RUN**.
 
 ## M15 — Input bàn phím và chuột PS/2 (DONE)
 
