@@ -34,6 +34,8 @@ class Config:
     test_io_error_sector: int | None = None
     test_stage2_memory_mib: int | None = None
     test_stage2_cpu: str | None = None
+    qmp_trigger_marker: str | None = None
+    qmp_script: list | None = None
 
 
 @dataclass
@@ -127,11 +129,13 @@ def build_command(config, directory):
 class SerialScanner:
     """Theo dõi literal line bằng bộ đệm giới hạn, raw log vẫn giữ đầy đủ."""
 
-    def __init__(self, path, success, panic):
+    def __init__(self, path, success, panic, trigger=None):
         self.file = path.open("rb")
         self.markers = [value.encode("utf-8") if value else None for value in (success, panic)]
         self.success = False
         self.panic = False
+        self.trigger = trigger.encode("utf-8") if trigger else None
+        self.trigger_seen = False
         self.buffer = bytearray()
         self.discard = False
 
@@ -140,6 +144,7 @@ class SerialScanner:
             line = bytes(self.buffer).removesuffix(b"\r")
             self.success |= self.markers[0] is not None and line == self.markers[0]
             self.panic |= self.markers[1] is not None and line == self.markers[1]
+            self.trigger_seen |= self.trigger is not None and line == self.trigger
         self.buffer.clear()
         self.discard = False
 
@@ -183,9 +188,16 @@ class QMP:
         self.ready = False
         self.running = None
         self.eof = False
+        self.responses = {}
+        self.next_id = 10
+        self.script_active = None
+        self.script_done = False
 
-    def send(self, name, identity):
-        message = json.dumps({"execute": name, "id": identity}).encode() + b"\n"
+    def send(self, name, identity, arguments=None):
+        request = {"execute": name, "id": identity}
+        if arguments is not None:
+            request["arguments"] = arguments
+        message = json.dumps(request).encode() + b"\n"
         self.transcript.write(b"CLIENT " + message)
         self.transcript.flush()
         self.process.stdin.write(message)
@@ -230,9 +242,33 @@ class QMP:
                         raise ProtocolError("query-status thiếu running boolean")
                     self.running = value["running"]
                     self.ready = True
+            elif isinstance(message.get("id"), int):
+                self.responses[message["id"]] = message
         if len(self.buffer) > 1024 * 1024:
             raise ProtocolError("QMP record vượt giới hạn 1 MiB")
         return True
+
+    def advance_script(self, script, trigger_seen):
+        if not self.ready or not trigger_seen or self.script_done:
+            return
+        if self.script_active is not None:
+            response = self.responses.pop(self.script_active, None)
+            if response is None:
+                return
+            if "error" in response or "return" not in response:
+                raise ProtocolError("lệnh input QMP thất bại")
+            self.script_active = None
+        if self.script_active is None:
+            if not script:
+                self.script_done = True
+                return
+            item = script.pop(0)
+            if not isinstance(item, dict) or not isinstance(item.get("execute"), str):
+                raise ProtocolError("QMP script item không hợp lệ")
+            identity = self.next_id
+            self.next_id += 1
+            self.send(item["execute"], identity, item.get("arguments"))
+            self.script_active = identity
 
     def close(self):
         self.selector.close()
@@ -335,7 +371,11 @@ def run(config, command_factory=build_command):
             result.command = command_factory(config, directory)
             stderr = (directory / "stderr.log").open("wb")
             transcript = (directory / "qmp.log").open("wb")
-            scanner = SerialScanner(serial, config.success_marker, config.panic_marker)
+            if bool(config.qmp_trigger_marker) != bool(config.qmp_script):
+                raise ValueError("QMP script cần trigger marker và script cùng lúc")
+            script = list(config.qmp_script or [])
+            scanner = SerialScanner(serial, config.success_marker, config.panic_marker,
+                                    config.qmp_trigger_marker)
             child_env = os.environ.copy()
             child_env["TMPDIR"] = str(directory)  # Snapshot tạm thuộc đúng run, không /var/tmp host.
             process = subprocess.Popen(result.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -350,6 +390,7 @@ def run(config, command_factory=build_command):
                         raise ProtocolError("QMP EOF nhưng tiến trình không thoát")
                     raise DeadlineExpired("hết deadline monotonic")
                 scanner.scan()
+                qmp.advance_script(script, scanner.trigger_seen)
                 if scanner.panic:
                     result.status, result.detail = "PANIC", "đã nhận panic marker"
                     break

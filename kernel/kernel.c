@@ -17,6 +17,10 @@
 #if defined(LAMIX_M14_APIC)
 #include "apic.h"
 #endif
+#if defined(LAMIX_M15_INPUT)
+#include "input.h"
+#include "ps2.h"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -64,6 +68,13 @@ static volatile uint32_t m14_pit_irqs, m14_timer_irqs;
 static volatile uint32_t m14_pit_eois, m14_timer_eois;
 static volatile uint32_t m14_calibration_start, m14_calibration_end;
 static volatile uint8_t m14_active;
+#if defined(LAMIX_M15_INPUT)
+static acpi_madt_info m15_madt;
+static uint8_t m15_bsp_id;
+static input_state m15_input;
+static ps2_controller m15_ps2;
+static volatile uint32_t m15_keyboard_irqs, m15_mouse_irqs;
+#endif
 #define M14_PIT_CALIBRATION_INTERVALS 10u
 #define M14_PIT_CALIBRATION_IRQS (M14_PIT_CALIBRATION_INTERVALS + 1u)
 #endif
@@ -165,6 +176,21 @@ void interrupt_dispatch(interrupt_frame*f){if(f->vector==32){
     m14_lapic[0xb0 / 4] = 0;
     return;
   }
+#if defined(LAMIX_M15_INPUT)
+  if (f->vector == 0x32 || f->vector == 0x33) {
+    uint8_t byte;
+    int auxiliary;
+    if (f->vector == 0x32) ++m15_keyboard_irqs;
+    else ++m15_mouse_irqs;
+    if (ps2_read_irq_byte(&m15_ps2, &byte, &auxiliary)) {
+      if (auxiliary) input_mouse_byte(&m15_input, byte);
+      else input_keyboard_scancode(&m15_input, byte);
+    }
+    __asm__ volatile("mfence" ::: "memory");
+    m14_lapic[0xb0 / 4] = 0;
+    return;
+  }
+#endif
   if (f->vector == 0xff) return;
 #endif
   panic_frame(f);}
@@ -570,6 +596,129 @@ static int m13_platform_init(void) {
 #define M14_LAPIC_VA UINT64_C(0xfffff90000000000)
 #define M14_IOAPIC_VA UINT64_C(0xfffff91000000000)
 #define M14_PIT_DIVISOR 11931u
+#if defined(LAMIX_M15_INPUT)
+static uint32_t m14_io_read(volatile uint32_t *io, uint8_t reg);
+static void m14_io_write(volatile uint32_t *io, uint8_t reg, uint32_t value);
+typedef struct m15_route { size_t ioapic; uint32_t pin; uint8_t vector; } m15_route;
+static int m15_route_isa(uint8_t irq, uint8_t vector, m15_route *route) {
+  uint32_t gsi = irq;
+  apic_irq_mode mode = {0, 0};
+  for (size_t i = 0; i < m15_madt.override_count; ++i) {
+    if (m15_madt.overrides[i].source == irq) {
+      gsi = m15_madt.overrides[i].gsi;
+      if (apic_decode_isa_override(m15_madt.overrides[i].flags, &mode) != APIC_OK)
+        return 0;
+      break;
+    }
+  }
+  size_t owner = m15_madt.ioapic_count;
+  for (size_t i = 0; i < m15_madt.ioapic_count; ++i) {
+    uint32_t first = m15_madt.ioapics[i].gsi_base;
+    uint32_t last = first + m14_ioapic_max[i];
+    if (gsi >= first && gsi <= last) { owner = i; break; }
+  }
+  if (owner == m15_madt.ioapic_count) return 0;
+  uint32_t pin = gsi - m15_madt.ioapics[owner].gsi_base;
+  uint64_t redir;
+  if (apic_make_redirection(vector, m15_bsp_id, mode, 1, &redir) != APIC_OK)
+    return 0;
+  uint8_t reg = (uint8_t)(0x10 + pin * 2);
+  m14_io_write(m14_ioapics[owner], reg, (uint32_t)redir);
+  m14_io_write(m14_ioapics[owner], (uint8_t)(reg + 1), (uint32_t)(redir >> 32));
+  if (route) *route = (m15_route){owner, pin, vector};
+  return 1;
+}
+static void m15_unmask_route(const m15_route *route) {
+  uint8_t reg = (uint8_t)(0x10 + route->pin * 2);
+  m14_io_write(m14_ioapics[route->ioapic], reg,
+               m14_io_read(m14_ioapics[route->ioapic], reg) & ~(1u << 16));
+}
+static uint8_t m15_port_read(void *context, uint16_t port) {
+  (void)context; return in8(port);
+}
+static void m15_port_write(void *context, uint16_t port, uint8_t value) {
+  (void)context; out8(port, value);
+}
+static int m15_input_init(void) {
+  m15_route keyboard, mouse;
+  input_state_init(&m15_input);
+  if (!m15_route_isa(1, 0x32, &keyboard)) {
+    serial("M15:INIT:IRQ1_ROUTE\nM15:KEYBOARD:FAIL\nM15:FAIL\n"); return 0;
+  }
+  int mouse_route = m15_route_isa(12, 0x33, &mouse);
+  serial("M15:INIT:PS2\n");
+  ps2_status status = ps2_initialize(&m15_ps2,
+      (ps2_io){0, m15_port_read, m15_port_write}, mouse_route);
+  if (status != PS2_OK) {
+    serial("M15:KEYBOARD:FAIL status="); hex(status); serial("\nM15:FAIL\n"); return 0;
+  }
+  m15_unmask_route(&keyboard);
+  serial("M15:KEYBOARD:READY\n");
+  if (mouse_route && m15_ps2.mouse_available) {
+    m15_unmask_route(&mouse);
+    serial("M15:MOUSE:READY\n");
+  } else serial("M15:MOUSE:UNAVAILABLE\n");
+  serial("M15:READY\n");
+  __asm__ volatile("sti");
+  uint8_t saw_plain_down = 0, saw_plain_up = 0, saw_shift_down = 0;
+  uint8_t saw_shifted_down = 0, saw_shifted_up = 0, saw_shift_up = 0;
+  uint8_t saw_mouse_x = 0, saw_mouse_y = 0, saw_mouse_button = 0;
+  uint8_t saw_mouse_release = 0;
+  uint64_t sequence_plain_down = 0, sequence_plain_up = 0;
+  uint64_t sequence_shift_down = 0, sequence_shifted_down = 0;
+  uint64_t sequence_shifted_up = 0, sequence_shift_up = 0;
+  uint64_t last_sequence = 0;
+  for (uint32_t spin = 0; spin < 500000000u; ++spin) {
+    input_event event;
+    while (input_poll(&m15_input, &event)) {
+      if (event.sequence <= last_sequence) {
+        serial("M15:QUEUE:FAIL:SEQUENCE\nM15:FAIL\n"); __asm__ volatile("cli"); return 0;
+      }
+      last_sequence = event.sequence;
+      if (event.type == INPUT_EVENT_KEY) {
+        if (event.data.key.keycode == INPUT_KEY_A && event.data.key.pressed && event.data.key.ascii == 'a' && !saw_plain_down) { saw_plain_down = 1; sequence_plain_down = event.sequence; }
+        if (event.data.key.keycode == INPUT_KEY_A && !event.data.key.pressed && !event.data.key.ascii && saw_plain_down && !saw_plain_up) { saw_plain_up = 1; sequence_plain_up = event.sequence; }
+        if (event.data.key.keycode == INPUT_KEY_LEFT_SHIFT && event.data.key.pressed && saw_plain_up && !saw_shift_down) { saw_shift_down = 1; sequence_shift_down = event.sequence; }
+        if (event.data.key.keycode == INPUT_KEY_A && event.data.key.pressed && event.data.key.ascii == 'A' && (event.data.key.modifiers & INPUT_MOD_SHIFT) && saw_shift_down && !saw_shifted_down) { saw_shifted_down = 1; sequence_shifted_down = event.sequence; }
+        if (event.data.key.keycode == INPUT_KEY_A && !event.data.key.pressed && saw_shifted_down && !saw_shifted_up) { saw_shifted_up = 1; sequence_shifted_up = event.sequence; }
+        if (event.data.key.keycode == INPUT_KEY_LEFT_SHIFT && !event.data.key.pressed && saw_shifted_up && !saw_shift_up) { saw_shift_up = 1; sequence_shift_up = event.sequence; }
+      } else if (event.type == INPUT_EVENT_MOUSE) {
+        if (event.data.mouse.dx > 0) saw_mouse_x = 1;
+        if (event.data.mouse.dy < 0) saw_mouse_y = 1;
+        if (event.data.mouse.buttons & 1u) saw_mouse_button = 1;
+        else if (saw_mouse_button) saw_mouse_release = 1;
+      }
+    }
+    if (saw_plain_down && saw_plain_up && saw_shift_down && saw_shifted_down &&
+        saw_shifted_up && saw_shift_up &&
+        (!m15_ps2.mouse_available ||
+         (saw_mouse_x && saw_mouse_y && saw_mouse_button && saw_mouse_release))) break;
+    __asm__ volatile("pause");
+  }
+  __asm__ volatile("cli");
+  input_stats stats; input_get_stats(&m15_input, &stats);
+  if (!(saw_plain_down && saw_plain_up && saw_shift_down && saw_shifted_down &&
+        saw_shifted_up && saw_shift_up)) {
+    serial("M15:KEYBOARD:FAIL\nM15:FAIL\n"); return 0;
+  }
+  if (!(sequence_plain_down < sequence_plain_up &&
+        sequence_plain_up < sequence_shift_down &&
+        sequence_shift_down < sequence_shifted_down &&
+        sequence_shifted_down < sequence_shifted_up &&
+        sequence_shifted_up < sequence_shift_up)) {
+    serial("M15:KEYBOARD:FAIL:ORDER\nM15:FAIL\n"); return 0;
+  }
+  serial("M15:KEYBOARD:PASS\n");
+  if (m15_ps2.mouse_available && saw_mouse_x && saw_mouse_y && saw_mouse_button && saw_mouse_release) serial("M15:MOUSE:PASS\n");
+  else if (m15_ps2.mouse_available) { serial("M15:MOUSE:FAIL\nM15:FAIL\n"); return 0; }
+  else serial("M15:MOUSE:UNAVAILABLE\n");
+  if (stats.dropped_events || stats.malformed_keyboard_bytes || stats.malformed_mouse_packets) {
+    serial("M15:QUEUE:FAIL\nM15:FAIL\n"); return 0;
+  }
+  serial("M15:QUEUE:PASS\nM15:PASS\n");
+  return 1;
+}
+#endif
 static uint32_t m14_io_read(volatile uint32_t *io, uint8_t reg) {
   io[0] = reg;
   __asm__ volatile("mfence" ::: "memory");
@@ -606,6 +755,10 @@ static int m14_apic_init(void) {
   acpi_madt_info info;
   acs = acpi_madt_parse(m13_acpi_scratch, platform.madt_length, bsp_id, &info);
   if (acs != ACPI_OK) { serial("M14:INIT:MADT status="); hex(acs); serial("\n"); return 0; }
+#if defined(LAMIX_M15_INPUT)
+  m15_madt = info;
+  m15_bsp_id = bsp_id;
+#endif
   uint32_t msr_low, msr_high;
   __asm__ volatile("rdmsr" : "=a"(msr_low), "=d"(msr_high) : "c"(0x1b));
   if (msr_low & (1u << 10)) { serial("M14:INIT:X2APIC\n"); return 0; }
@@ -1091,6 +1244,9 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
     fail();
   }
   serial("M14:PASS\n");
+#endif
+#if defined(LAMIX_M15_INPUT)
+  if (!m15_input_init()) halt();
 #endif
   halt();
 }
