@@ -1,6 +1,28 @@
-# Kế hoạch và kết quả — M12
+# Kế hoạch và kết quả — M13
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=IN_PROGRESS
+
+## M13 — ACPI, PCI và device framework (IN_PROGRESS)
+
+### Thực hiện
+
+- Thêm `kernel/acpi.c`/`kernel/acpi.h`: parser RSDP rev0/rev2, RSDT/XSDT, checksum/bounds, MADT variable entries và MCFG discovery. Kernel đọc bảng qua VMM uncached physical mapping; không reclaim ACPI pages.
+- Thêm `kernel/pci.c`/`kernel/pci.h`: PCI mechanism #1, ECAM address calculation, MCFG segments, multifunction enumeration, BAR sizing với command decode/bus master tạm tắt và restore, uncached MMIO map API. Không cấp phát DMA buffer hay kích hoạt bus mastering.
+- Thêm `kernel/device.c`/`kernel/device.h`: static registry PCI, binding placeholder và owner/generation token cho DMA ownership. M13 profile giữ bitmap làm allocator VMM/heap, chạy Buddy self-test M12; không đổi LBP/loader/ABI.
+- Thêm `tests/m13/` host sanitizer, build provenance/image profile, BIOS/UEFI guest cùng kernel, M13 CTest và Toolchain CI report upload.
+
+### Kết quả đã chạy
+
+- M13 cross kernel build **PASS**; build profile `m13-kernel`, ELF SHA-256 hiện tại được ghi trong `build/m13-kernel/build.json` (artifact local, chưa acceptance).
+- M13 local CTest **3/3 PASS**: ASan/UBSan native, host provenance/image, guest BIOS/UEFI. Hai guest boot thật cùng kernel, enumerate 5 PCI functions, register 5 devices, kiểm tra BAR mapping/query/unmap; protected hashes giữ nguyên, cleanup sạch.
+- Hai guest đều ghi `M13:ACPI:ABSENT`; guest ACPI traversal **NOT RUN**. Host fixtures kiểm parser/checksum/bounds/MADT/MCFG malformed; đây không phải guest firmware evidence.
+- Hồi quy local M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3 và M12 6/6 **PASS**. GitHub CI **NOT RUN** do DNS không truy cập được remote. M13 **chưa DONE**; không tạo commit/tag, không mở M14.
+
+### Điều kiện còn thiếu
+
+Lấy RSDP/table thật từ một firmware profile được hỗ trợ và chứng minh ACPI parser trong guest, hoặc lập kế hoạch riêng nếu cần thay loader/handoff để cung cấp record. Không tự sửa LBP v1 hoặc loader trong phạm vi hiện duyệt.
+
+## M12 — Kế hoạch và kết quả đã nghiệm thu
 
 Trạng thái M12: **DONE (2026-10-30)**. PR #10 merge commit `385f835b5825528915080859156e963db15e6fd0`; acceptance commit/tag target `f3391d66eabc6b6d82a27800db6e229bb74f577b`; annotated tag object `b4a0ee9ed47e3e6b77a8658e5270d8af8338bffe`. Bốn workflow CI SUCCESS trên acceptance SHA: Toolchain [41084497139](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497139), Harness [41084497177](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497177), Documentation [41084497141](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497141), Boot Contract [41084497179](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497179). Bitmap M09 tiếp tục mặc định; Buddy là backend thử nghiệm riêng trong profile `m12-kernel`, VMM/heap chỉ dùng Buddy ở profile đó. Không đổi LBP v1, kernel entry ABI, loaders, BIOS Stage1 gate hoặc Stage2 budget.
 
@@ -218,4 +240,4 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
 
 Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M12 DONE; M13 trở đi PLANNED và chưa bắt đầu.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M12 DONE; M13 IN_PROGRESS; M14 trở đi PLANNED và chưa bắt đầu.

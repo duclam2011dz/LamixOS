@@ -1,6 +1,15 @@
-# Bàn giao M12 — DONE — 2026-10-30
+# Bàn giao phiên M13 — IN_PROGRESS — 2026-10-30
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=IN_PROGRESS
+
+## M13 hiện tại
+
+- Workspace bắt đầu từ `main`/`67229fe747f59a53c4e199858b091513770a2887`, clean trước thay đổi. Tạo branch bị chặn vì `.git` read-only; chưa commit/push. `git ls-remote origin main` **NOT RUN** do DNS.
+- Kernel M13 build PASS; CTest **3/3 PASS** local. Guest SeaBIOS `pc` và OVMF `q35` cùng kernel boot thật, mỗi guest báo 5 PCI functions/devices, BAR MMIO mapping PASS; protected hashes giữ nguyên và cleanup sạch.
+- ACPI trên cả hai firmware guest: `M13:ACPI:ABSENT`. Host ASan/UBSan fixtures kiểm RSDP/XSDT/MADT/MCFG, malformed inputs; ACPI traversal guest **NOT RUN**. Hồi quy local M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6 **PASS**; GitHub CI **NOT RUN** do DNS.
+- M13 vẫn **IN_PROGRESS**. Bitmap PMM vẫn cấp frame cho VMM/heap; Buddy chỉ self-test. Không DMA buffer/bus mastering, không đổi LBP/loader. Chưa bắt đầu M14.
+
+## M12 đã nghiệm thu
 
 ## M12 đã nghiệm thu
 
@@ -25,4 +34,4 @@ Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=D
 
 ## Tiếp theo
 
-M12 đã đóng. M13 vẫn **PLANNED**, chưa bắt đầu trong lượt này; cần yêu cầu và duyệt phạm vi riêng trước khi khảo sát hoặc triển khai.
+Tiếp tục M13 sau khi xử lý đường cấp ACPI guest được hỗ trợ và chạy regression M07–M12/GitHub CI. Chỉ chuyển M13 sang DONE khi guest ACPI và mọi tiêu chí Roadmap có bằng chứng. Không bắt đầu M14 trong lượt tiếp theo nếu chưa có kế hoạch/duyệt riêng.

@@ -4,6 +4,12 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M13 — IN_PROGRESS
+
+- Thêm ACPI table walker RSDT/XSDT, checksum/bounds validation, MADT entry parser và MCFG parser; không đổi LBP v1 hoặc thu hồi ACPI memory.
+- Thêm PCI segment 0 legacy config mechanism #1, ECAM theo MCFG, enumeration, BAR sizing/restoration, uncached MMIO mapping API và device registry với DMA ownership token; chưa cấp DMA buffer hoặc bật bus mastering.
+- Host ASan/UBSan, kernel cross build và guest BIOS/UEFI PCI enumeration/MMIO mapping local PASS. Cả hai guest báo ACPI absent; guest ACPI parsing NOT RUN, M13 chưa DONE. Xem [PLANS](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md).
+
 ### M12 — DONE (2026-10-30)
 
 - Thêm Buddy PMM thử nghiệm song song với bitmap; bitmap vẫn mặc định. API cấp frame order 0 và cấp block order 0–18; kernel profile M12 route VMM/heap qua Buddy.
