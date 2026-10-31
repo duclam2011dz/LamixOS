@@ -1,7 +1,16 @@
-# Kế hoạch và kết quả — M16 (M15 DONE)
+# Kế hoạch và kết quả — M17 (M16 DONE)
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17–M44: PLANNED
+Trạng thái M16: DONE; M17: IN_PROGRESS; M18–M44: PLANNED
+
+## M17 — VirtIO transport + VirtIO-GPU 2D (IN_PROGRESS)
+
+- Thêm `kernel/virtio_gpu.c`/`.h`: split virtqueue, modern PCI common/notify capabilities, VERSION_1 negotiation và GPU 2D resource/create, backing, scanout, transfer/flush. Kernel M17 dò VirtIO-GPU PCI, map BAR uncached, cấp backing từ kernel heap/PMM/VMM lifecycle và ưu tiên GPU; framebuffer M16/serial-only là fallback. LBP v1, entry ABI và profile cũ giữ nguyên.
+- Thêm profile `m17-kernel`, host sanitizer tests trên cùng implementation, host provenance/image checks, guest tests và QMP screendump PPM→PNG. Toolchain CI có job M17 và lưu reports/screenshots; không upload disk image hay firmware.
+- Sau khi gia cố đường reset DMA, kernel ELF SHA-256 cuối hiện tại `6f54966e40583891a9624743ca4e8c67002efced6a130ff4aabeef85c936d907`. Image raw GPT dùng chung BIOS/UEFI: [`out/m17/lamix-m17-6f54966e4058.img`](/home/lam/projects/LamixOS/out/m17/lamix-m17-6f54966e4058.img), SHA-256 chưa tính toàn image sparse 8 GiB; harness bảo vệ các extents cần thiết trong mỗi guest run. Chạy QEMU bằng lệnh ở [TESTING](docs/TESTING.md#virtio-gpu-2d-m17).
+- M17 CTest **3/3 PASS**: `m17-native-sanitize`, `m17-host`, `m17-bios-uefi-guest`; guest pytest **4/4 PASS**: GPU BIOS/UEFI và fallback BIOS/UEFI. Ảnh guest được chụp sau present và kiểm tra trực quan: [BIOS](</home/lam/projects/LamixOS/out/m17/runs/run-npe03jk9/screen.png>), [UEFI](</home/lam/projects/LamixOS/out/m17/runs/run-zho7bi7g/screen.png>). Cả hai có nền tối, panel xanh, khung trắng, chữ `LAMIX OS M17` và đường cam. PPM SHA-256 cùng nhau `384f38fe8378e781c72664243afa6981a248fa73c2defdcb1d8d42a49cc5e012`.
+- Hồi quy M15 host/sanitizer **2/2 PASS**, M16 host/sanitizer **2/2 PASS**, QMP harness fixtures **1/1 PASS**, M07 host **7/7 PASS** (một QEMU case deselected); BIOS Stage2 và UEFI regression build-only PASS. Lần chạy M07 ban đầu dùng build provenance cũ nên FAIL; suite được chạy lại trực tiếp với build mới trong `build/m17-regression-*` và đạt. Docs validator/unittest đang chờ lượt chạy cuối.
+- Docs validator **PASS**, unittest tài liệu **41/41 PASS**. GitHub CI chưa chạy trên SHA hiện tại (**PENDING**); chưa có review/merge/tag. PC thật và firmware ngoài profile QEMU **NOT RUN**. M17 vẫn **IN_PROGRESS**, không phải DONE.
 
 ## M16 — Software framebuffer renderer (DONE)
 
@@ -283,4 +292,4 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
 
 Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M16 DONE; M17–M44 PLANNED.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M16 DONE; M17 IN_PROGRESS; M18–M44 PLANNED.

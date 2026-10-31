@@ -36,6 +36,9 @@ class Config:
     test_stage2_cpu: str | None = None
     qmp_trigger_marker: str | None = None
     qmp_script: list | None = None
+    qmp_screendump_marker: str | None = None
+    qmp_screendump_path: Path | None = None
+    extra_args: list[str] | None = None
 
 
 @dataclass
@@ -123,19 +126,25 @@ def build_command(config, directory):
                      f"file.image.driver=file,file.image.filename={qemu_value(image)},"
                      "format=raw,if=ide,snapshot=on,rerror=report")
         command += ["-drive", drive]
+    if config.extra_args:
+        if any(not isinstance(value, str) for value in config.extra_args):
+            raise ValueError("extra_args phải là danh sách chuỗi")
+        command += config.extra_args
     return command
 
 
 class SerialScanner:
     """Theo dõi literal line bằng bộ đệm giới hạn, raw log vẫn giữ đầy đủ."""
 
-    def __init__(self, path, success, panic, trigger=None):
+    def __init__(self, path, success, panic, trigger=None, screendump=None):
         self.file = path.open("rb")
         self.markers = [value.encode("utf-8") if value else None for value in (success, panic)]
         self.success = False
         self.panic = False
         self.trigger = trigger.encode("utf-8") if trigger else None
         self.trigger_seen = False
+        self.screendump = screendump.encode("utf-8") if screendump else None
+        self.screendump_seen = False
         self.buffer = bytearray()
         self.discard = False
 
@@ -145,6 +154,7 @@ class SerialScanner:
             self.success |= self.markers[0] is not None and line == self.markers[0]
             self.panic |= self.markers[1] is not None and line == self.markers[1]
             self.trigger_seen |= self.trigger is not None and line == self.trigger
+            self.screendump_seen |= self.screendump is not None and line == self.screendump
         self.buffer.clear()
         self.discard = False
 
@@ -192,6 +202,8 @@ class QMP:
         self.next_id = 10
         self.script_active = None
         self.script_done = False
+        self.screendump_active = None
+        self.screendump_done = False
 
     def send(self, name, identity, arguments=None):
         request = {"execute": name, "id": identity}
@@ -269,6 +281,23 @@ class QMP:
             self.next_id += 1
             self.send(item["execute"], identity, item.get("arguments"))
             self.script_active = identity
+
+    def advance_screendump(self, trigger_seen, path):
+        if not self.ready or not trigger_seen or self.screendump_done:
+            return
+        if self.screendump_active is not None:
+            response = self.responses.pop(self.screendump_active, None)
+            if response is None:
+                return
+            if "error" in response or "return" not in response:
+                raise ProtocolError("QMP screendump thất bại")
+            self.screendump_active = None
+            self.screendump_done = True
+            return
+        identity = self.next_id
+        self.next_id += 1
+        self.send("screendump", identity, {"filename": str(path)})
+        self.screendump_active = identity
 
     def close(self):
         self.selector.close()
@@ -373,9 +402,22 @@ def run(config, command_factory=build_command):
             transcript = (directory / "qmp.log").open("wb")
             if bool(config.qmp_trigger_marker) != bool(config.qmp_script):
                 raise ValueError("QMP script cần trigger marker và script cùng lúc")
-            script = list(config.qmp_script or [])
+            if bool(config.qmp_screendump_marker) != bool(config.qmp_screendump_path):
+                raise ValueError("QMP screendump cần marker và đường dẫn cùng lúc")
+            script = json.loads(json.dumps(config.qmp_script or [])).copy()
+            def expand_run_directory(value):
+                if isinstance(value, str):
+                    return value.replace("{run_dir}", str(directory))
+                if isinstance(value, list):
+                    return [expand_run_directory(item) for item in value]
+                if isinstance(value, dict):
+                    return {key: expand_run_directory(item)
+                            for key, item in value.items()}
+                return value
+            script = expand_run_directory(script)
             scanner = SerialScanner(serial, config.success_marker, config.panic_marker,
-                                    config.qmp_trigger_marker)
+                                    config.qmp_trigger_marker,
+                                    config.qmp_screendump_marker)
             child_env = os.environ.copy()
             child_env["TMPDIR"] = str(directory)  # Snapshot tạm thuộc đúng run, không /var/tmp host.
             process = subprocess.Popen(result.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -391,6 +433,11 @@ def run(config, command_factory=build_command):
                     raise DeadlineExpired("hết deadline monotonic")
                 scanner.scan()
                 qmp.advance_script(script, scanner.trigger_seen)
+                screenshot_path = config.qmp_screendump_path
+                if screenshot_path is not None:
+                    screenshot_path = Path(str(screenshot_path).replace(
+                        "{run_dir}", str(directory)))
+                qmp.advance_screendump(scanner.screendump_seen, screenshot_path)
                 if scanner.panic:
                     result.status, result.detail = "PANIC", "đã nhận panic marker"
                     break
@@ -406,7 +453,11 @@ def run(config, command_factory=build_command):
                     else:
                         result.status, result.detail = "EXIT", f"thoát trước khi đạt tiêu chí, code={code}"
                     break
-                if qmp.ready and (config.launch_only or scanner.success):
+                if qmp.ready and (config.launch_only or
+                                  (scanner.success and
+                                   (not config.qmp_script or qmp.script_done) and
+                                   (not config.qmp_screendump_marker or
+                                    qmp.screendump_done))):
                     if config.launch_only and qmp.running is not False:
                         raise ProtocolError("launch-only cần VM paused, running=false")
                     result.status, result.detail = "PASS", "emulator launch paused, không phải OS boot" if config.launch_only else "đã nhận success marker"

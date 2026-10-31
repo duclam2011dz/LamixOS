@@ -24,6 +24,9 @@
 #if defined(LAMIX_M16_GRAPHICS)
 #include "graphics.h"
 #endif
+#if defined(LAMIX_M17_VIRTIO_GPU)
+#include "virtio_gpu.h"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -123,6 +126,26 @@ static pci_config_ops m13_config;
 static pci_function m13_functions[M13_MAX_DEVICES];
 static device_record m13_device_storage[M13_MAX_DEVICES];
 static device_registry m13_registry;
+#endif
+#if defined(LAMIX_M17_VIRTIO_GPU)
+#define M17_GPU_VA UINT64_C(0xfffff60000000000)
+#define M17_GPU_BAR_STRIDE UINT64_C(0x40000000)
+#define M17_GPU_RESOURCE_LIMIT (UINT64_C(16) * 1024 * 1024)
+typedef struct m17_gpu_pci_context {
+  volatile uint8_t *common;
+  volatile uint8_t *notify;
+  uint32_t notify_multiplier;
+  uint32_t notify_length;
+  uint8_t valid;
+} m17_gpu_pci_context;
+static m17_gpu_pci_context m17_pci_context;
+static virtio_gpu m17_gpu;
+static virtio_gpu_memory m17_memory;
+static uint8_t m17_descriptors[4096] __attribute__((aligned(4096)));
+static uint8_t m17_available[4096] __attribute__((aligned(4096)));
+static uint8_t m17_used[4096] __attribute__((aligned(4096)));
+static uint8_t m17_commands[sizeof(uint32_t) * 8 +
+    VIRTIO_GPU_MAX_BACKING_PAGES * 16] __attribute__((aligned(4096)));
 #endif
 static __attribute__((noreturn)) void fail(void);
 
@@ -721,8 +744,308 @@ static int m15_input_init(void) {
   serial("M15:QUEUE:PASS\nM15:PASS\n");
   return 1;
 }
+#if defined(LAMIX_M17_VIRTIO_GPU)
+static int m17_config_byte(pci_bdf bdf, uint16_t offset, uint8_t *value) {
+  uint32_t word = 0;
+  if (!value || !m13_config.read32(m13_config.context, bdf,
+                                    (uint16_t)(offset & ~3u), &word))
+    return 0;
+  *value = (uint8_t)(word >> ((offset & 3u) * 8));
+  return 1;
+}
+static int m17_config_dword(pci_bdf bdf, uint16_t offset, uint32_t *value) {
+  return m13_config.read32(m13_config.context, bdf, offset, value);
+}
+static int m17_config_write_dword(pci_bdf bdf, uint16_t offset,
+                                   uint32_t value) {
+  return m13_config.write32(m13_config.context, bdf, offset, value);
+}
+static int m17_dma_address(void *context, const void *pointer, size_t length,
+                           uint64_t *physical) {
+  (void)context;
+  if (!pointer || !length || !physical ||
+      (uintptr_t)pointer > UINT64_MAX - length)
+    return 0;
+  uint64_t first = 0;
+  size_t offset = 0;
+  while (offset < length) {
+    uint64_t at = (uintptr_t)pointer + offset, translated = 0, flags = 0;
+    uint32_t permissions = 0;
+    if (vmm_query(&kernel_space, at, &translated, &permissions, &flags) !=
+        VMM_OK) {
+      serial("M17:DMA:UNMAPPED at="); hex(at); serial("\n");
+      return 0;
+    }
+    translated &= ~(PAGE_SIZE - 1);
+    if (!offset) first = translated + (at & (PAGE_SIZE - 1));
+    else if (translated != ((first + offset) & ~(PAGE_SIZE - 1))) {
+      serial("M17:DMA:NONCONTIG at="); hex(at); serial("\n"); return 0;
+    }
+    size_t chunk = (size_t)(PAGE_SIZE - (at & (PAGE_SIZE - 1)));
+    if (chunk > length - offset) chunk = length - offset;
+    offset += chunk;
+  }
+  if (first >= PMM_PHYSICAL_LIMIT || length > PMM_PHYSICAL_LIMIT - first) {
+    serial("M17:DMA:HIGH first="); hex(first); serial(" length=");
+    hex(length); serial("\n");
+    return 0;
+  }
+  *physical = first;
+  return 1;
+}
+static uint32_t m17_read_common(void *context, uint16_t offset,
+                                unsigned width) {
+  m17_gpu_pci_context *pci = (m17_gpu_pci_context *)context;
+  if (!pci || !pci->valid || offset + width > 56) return 0;
+  if (width == 1) return *(volatile uint8_t *)(pci->common + offset);
+  if (width == 2) return *(volatile uint16_t *)(void *)(pci->common + offset);
+  if (width == 4) return *(volatile uint32_t *)(void *)(pci->common + offset);
+  return 0;
+}
+static void m17_write_common(void *context, uint16_t offset, unsigned width,
+                             uint32_t value) {
+  m17_gpu_pci_context *pci = (m17_gpu_pci_context *)context;
+  if (!pci || !pci->valid || offset + width > 56) return;
+  if (width == 1) *(volatile uint8_t *)(pci->common + offset) = (uint8_t)value;
+  else if (width == 2)
+    *(volatile uint16_t *)(void *)(pci->common + offset) = (uint16_t)value;
+  else if (width == 4)
+    *(volatile uint32_t *)(void *)(pci->common + offset) = value;
+  __asm__ volatile("mfence" ::: "memory");
+}
+static void m17_notify(void *context, uint16_t queue, uint16_t offset) {
+  m17_gpu_pci_context *pci = (m17_gpu_pci_context *)context;
+  if (!pci || !pci->valid) return;
+  uint64_t byte_offset = (uint64_t)offset * pci->notify_multiplier;
+  if (byte_offset + 2 > pci->notify_length) return;
+  *(volatile uint16_t *)(void *)(pci->notify + byte_offset) = queue;
+  __asm__ volatile("mfence" ::: "memory");
+}
+
+static int m17_find_device(void) {
+  for (size_t i = 0; i < m13_registry.count; ++i) {
+    pci_function *function = &m13_functions[i];
+    if (function->vendor_id != 0x1af4 ||
+        (function->device_id != 0x1050 && function->device_id != 0x1010) ||
+        function->class_code != 0x03)
+      continue;
+    uint32_t command_status = 0;
+    if (!m17_config_dword(function->bdf, 4, &command_status)) {
+      serial("M17:PCI:CONFIG_STATUS\n"); return 0;
+    }
+    uint32_t capabilities = 0;
+    if (!m17_config_dword(function->bdf, 4, &capabilities) ||
+        !(capabilities & (UINT32_C(1) << 20))) {
+      serial("M17:PCI:NO_CAP_LIST\n"); return 0;
+    }
+    uint16_t command = (uint16_t)command_status;
+    if (!m17_config_write_dword(function->bdf, 4,
+            (command_status & UINT32_C(0xffff0000)) | command | 6u))
+      return 0;
+    uint8_t cap = 0;
+    if (!m17_config_byte(function->bdf, 0x34, &cap)) {
+      serial("M17:PCI:CAP_PTR_READ\n"); return 0;
+    }
+    uint8_t common_bar = 0xff, notify_bar = 0xff;
+    uint32_t common_offset = 0, common_length = 0;
+    uint32_t notify_offset = 0, notify_length = 0, notify_multiplier = 0;
+    for (unsigned step = 0; cap && step < 48; ++step) {
+      if (cap < 0x40 || cap > 0xfc || (cap & 3)) return 0;
+      uint8_t id = 0, next = 0;
+      uint8_t length = 0, type = 0, bar = 0;
+      uint32_t region = 0, region_size = 0, multiplier = 0;
+      if (!m17_config_byte(function->bdf, cap, &id) ||
+          !m17_config_byte(function->bdf, (uint16_t)(cap + 1), &next))
+        return 0;
+      if (id != 0x09) { cap = next; continue; }
+      if (!m17_config_byte(function->bdf, (uint16_t)(cap + 2), &length) ||
+          !m17_config_byte(function->bdf, (uint16_t)(cap + 3), &type) ||
+          !m17_config_byte(function->bdf, (uint16_t)(cap + 4), &bar) ||
+          !m17_config_dword(function->bdf, (uint16_t)(cap + 8), &region) ||
+          !m17_config_dword(function->bdf, (uint16_t)(cap + 12),
+                            &region_size)) return 0;
+      uint32_t offset = region, size = region_size;
+      if (type != 1 && type != 2) { cap = next; continue; }
+      if (bar >= PCI_BAR_COUNT || !length || !size ||
+          offset > UINT32_MAX - size ||
+          !function->bars[bar].valid || function->bars[bar].is_io ||
+          offset + size > function->bars[bar].size)
+        { serial("M17:PCI:CAP:INVALID\n"); return 0; }
+      if (type == 1 && length >= 16) {
+        common_bar = bar; common_offset = offset; common_length = size;
+      } else if (type == 2 && length >= 20) {
+        if (!m17_config_dword(function->bdf, (uint16_t)(cap + 16),
+                              &multiplier)) return 0;
+        notify_bar = bar; notify_offset = offset; notify_length = size;
+        notify_multiplier = multiplier;
+      }
+      cap = next;
+    }
+    if (common_bar == 0xff || notify_bar == 0xff || !notify_multiplier) {
+      serial("M17:PCI:CAP:REQUIRED_MISSING\n"); return 0;
+    }
+    uint8_t bars_to_map[PCI_BAR_COUNT] = {0};
+    bars_to_map[common_bar] = 1; bars_to_map[notify_bar] = 1;
+    pci_mmio_ops mmio = {0, m13_map_bar, m13_unmap_bar};
+    uint64_t common_va = 0, notify_va = 0;
+    for (unsigned bar = 0; bar < PCI_BAR_COUNT; ++bar) {
+      if (!bars_to_map[bar]) continue;
+      uint64_t bar_va = M17_GPU_VA + (uint64_t)bar * M17_GPU_BAR_STRIDE;
+      uint64_t map_length = function->bars[bar].size;
+      if (!map_length || (map_length & (PAGE_SIZE - 1)) ||
+          pci_map_bar(&mmio, function, bar, 0, bar_va, map_length) != PCI_OK) {
+        serial("M17:PCI:BAR_MAP_FAIL bar="); hex(bar); serial(" size=");
+        hex(map_length); serial(" base="); hex(function->bars[bar].base);
+        serial("\n"); return 0;
+      }
+      if (bar == common_bar) common_va = bar_va + common_offset;
+      if (bar == notify_bar) notify_va = bar_va + notify_offset;
+    }
+    if ((common_offset & 3) || common_length < 56 || notify_length < 2 ||
+        common_va > UINT64_MAX - 56 || notify_va > UINT64_MAX - notify_length) {
+      serial("M17:PCI:CAP_RANGE_FAIL\n"); return 0;
+    }
+    m17_pci_context = (m17_gpu_pci_context){
+        (volatile uint8_t *)(uintptr_t)common_va,
+        (volatile uint8_t *)(uintptr_t)notify_va,
+        notify_multiplier, notify_length, 1};
+    return 1;
+  }
+  return 0;
+}
+
+static int m17_init_gpu(uint32_t width, uint32_t height, uint32_t *pixels,
+                        size_t bytes) {
+  if (!m17_find_device()) { serial("M17:PCI:INIT_FAIL\n"); return 0; }
+  uint64_t descriptors = 0, available = 0, used = 0;
+  if (!m17_dma_address(0, m17_descriptors, sizeof(m17_descriptors),
+                       &descriptors) ||
+      !m17_dma_address(0, m17_available, sizeof(m17_available), &available) ||
+      !m17_dma_address(0, m17_used, sizeof(m17_used), &used)) {
+    serial("M17:PCI:DMA_QUEUE_FAIL\n"); return 0;
+  }
+  m17_memory = (virtio_gpu_memory){
+      .descriptor_storage = m17_descriptors,
+      .descriptor_storage_size = sizeof(m17_descriptors),
+      .available_storage = m17_available,
+      .available_storage_size = sizeof(m17_available),
+      .used_storage = m17_used,
+      .used_storage_size = sizeof(m17_used),
+      .command_storage = m17_commands,
+      .command_storage_size = sizeof(m17_commands),
+      .backing_pages = 0,
+      .backing_page_capacity = VIRTIO_GPU_MAX_BACKING_PAGES};
+  m17_memory.queue.descriptors_physical = descriptors;
+  m17_memory.queue.available_physical = available;
+  m17_memory.queue.used_physical = used;
+  virtio_gpu_ops ops = {&m17_pci_context, m17_read_common,
+                        m17_write_common, m17_notify, m17_dma_address, 0};
+  virtio_gpu_status status = virtio_gpu_initialize(
+      &m17_gpu, &ops, &m17_memory, width, height, pixels, bytes);
+  if (status != VIRTIO_GPU_OK) {
+    serial("M17:TRANSPORT:FAIL status="); hex(status); serial("\n");
+    if (status == VIRTIO_GPU_RESET_TIMEOUT) return -1;
+    return 0;
+  }
+  return 1;
+}
+#endif
 #endif
 #if defined(LAMIX_M16_GRAPHICS)
+#if defined(LAMIX_M17_VIRTIO_GPU)
+static void m17_draw_frame(graphics_surface *surface, uint32_t width) {
+  graphics_clear(surface, UINT32_C(0x00101828));
+  graphics_fill_rect(surface, 24, 24, 192, 72, UINT32_C(0x003078d0));
+  graphics_rect_outline(surface, 20, 20, 200, 80, UINT32_C(0x00ffffff));
+  graphics_line(surface, 20, 110, (int32_t)width - 21, 110,
+                UINT32_C(0x00ffb020));
+  graphics_text(surface, 32, 48, "LAMIX OS M17", UINT32_C(0x00ffffff));
+}
+
+static int m17_renderer_init(const lbp_view *view) {
+  const uint8_t *raw = record(view, LBP_FRAMEBUFFER);
+  const lbp_framebuffer *fb = 0;
+  if (raw && ((const lbp_record *)raw)->size >= sizeof(lbp_framebuffer)) {
+    const lbp_framebuffer *candidate = (const lbp_framebuffer *)raw;
+    if (candidate->bpp == 32 && candidate->physical &&
+        candidate->physical <= UINTPTR_MAX && candidate->width &&
+        candidate->height && candidate->pitch >= candidate->width * 4u &&
+        (uint64_t)candidate->pitch * candidate->height <= candidate->length)
+      fb = candidate;
+  }
+  uint32_t width = fb ? fb->width : 1024u;
+  uint32_t height = fb ? fb->height : 768u;
+  uint64_t bytes64 = (uint64_t)width * height * sizeof(uint32_t);
+  if (!width || !height || bytes64 > SIZE_MAX ||
+      bytes64 > M17_GPU_RESOURCE_LIMIT) {
+    serial("M17:FRAMEBUFFER:UNAVAILABLE:SIZE\n");
+    return 0;
+  }
+  size_t bytes = (size_t)bytes64;
+  if (bytes > SIZE_MAX - 4095u) return 0;
+  void *allocation = kheap_alloc(&kernel_heap, bytes + 4095u);
+  if (!allocation) {
+    serial("M17:FRAMEBUFFER:UNAVAILABLE:OOM\n");
+    return 0;
+  }
+  uint32_t *back = (uint32_t *)(((uintptr_t)allocation + 4095u) &
+                                ~(uintptr_t)4095u);
+  graphics_surface surface;
+  int gpu_result = m17_init_gpu(width, height, back, bytes);
+  if (gpu_result < 0) {
+    /* Device reset was not confirmed; retain DMA backing and stay serial-only. */
+    serial("M17:GPU:FALLBACK:RESET_UNCONFIRMED\nM17:FAIL\n");
+    return -1;
+  }
+  int gpu_ready = gpu_result > 0;
+  if (gpu_ready) {
+    width = m17_gpu.width;
+    height = m17_gpu.height;
+    size_t gpu_bytes = (size_t)width * height * sizeof(uint32_t);
+    if (!graphics_init(&surface, back, bytes, (uint8_t *)back, gpu_bytes,
+                       width, height, width * 4u, UINT32_C(0x00ff0000),
+                       UINT32_C(0x0000ff00), UINT32_C(0x000000ff))) {
+      int reset = virtio_gpu_shutdown(&m17_gpu);
+      if (!reset) {
+        serial("M17:GPU:RESET_UNCONFIRMED\nM17:FAIL\n");
+        return -1;
+      }
+      gpu_ready = 0;
+    }
+  }
+  if (!gpu_ready) {
+    if (!fb || !graphics_init(&surface, back, bytes,
+          (uint8_t *)(uintptr_t)fb->physical, fb->length, fb->width,
+          fb->height, fb->pitch, fb->red_mask, fb->green_mask,
+          fb->blue_mask)) {
+      (void)kheap_free(&kernel_heap, allocation);
+      serial("M17:GPU:FALLBACK:SERIAL_ONLY\nM17:UNAVAILABLE\n");
+      return 0;
+    }
+    width = fb->width;
+    serial("M17:GPU:FALLBACK:LBP_FRAMEBUFFER\n");
+  } else {
+    serial("M17:PCI:PASS\nM17:TRANSPORT:PASS\nM17:GPU:2D:PASS\n");
+  }
+  m17_draw_frame(&surface, width);
+  uint64_t checksum = graphics_checksum(&surface);
+  if (!checksum || !graphics_present(&surface) ||
+      !graphics_verify_present(&surface) ||
+      (gpu_ready && virtio_gpu_present(&m17_gpu, back,
+          (size_t)surface.width * surface.height) != VIRTIO_GPU_OK)) {
+    int reset = !gpu_ready || virtio_gpu_shutdown(&m17_gpu);
+    if (reset) (void)kheap_free(&kernel_heap, allocation);
+    else serial("M17:GPU:RESET_UNCONFIRMED; backing retained\n");
+    serial("M17:FRAME:FAIL\nM17:FAIL\n");
+    return -1;
+  }
+  if (gpu_ready) serial("M17:SCANOUT:PASS\n");
+  serial("M17:FRAME:PASS checksum="); hex(checksum); serial("\n");
+  serial("M16:RENDERER:PASS\nM16:FRAME:PASS checksum="); hex(checksum);
+  serial("\nM17:READY\nM17:PASS\n");
+  return 1;
+}
+#else
 static int m16_renderer_init(const lbp_view *view) {
   const uint8_t *raw = record(view, LBP_FRAMEBUFFER);
   if (!raw || ((const lbp_record *)raw)->size < sizeof(lbp_framebuffer)) {
@@ -769,6 +1092,7 @@ static int m16_renderer_init(const lbp_view *view) {
   (void)kheap_free(&kernel_heap, back);
   return 1;
 }
+#endif
 #endif
 static uint32_t m14_io_read(volatile uint32_t *io, uint8_t reg) {
   io[0] = reg;
@@ -1300,16 +1624,30 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
   if (!m15_input_init()) halt();
 #endif
 #if defined(LAMIX_M16_GRAPHICS)
+#if defined(LAMIX_M17_VIRTIO_GPU)
+  int graphics_status = m17_renderer_init(&view);
+#else
   int graphics_status = m16_renderer_init(&view);
+#endif
   if (graphics_status < 0) {
+#if defined(LAMIX_M17_VIRTIO_GPU)
+    serial("M17:FAIL\n");
+#else
     serial("M16:FAIL\n");
+#endif
     fail();
   }
   if (!graphics_status) {
+#if defined(LAMIX_M17_VIRTIO_GPU)
+    serial("M17:UNAVAILABLE\n");
+#else
     serial("M16:UNAVAILABLE\n");
+#endif
     halt();
   }
+#if !defined(LAMIX_M17_VIRTIO_GPU)
   serial("M16:PASS\n");
+#endif
 #endif
   halt();
 }

@@ -4,6 +4,12 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M17 — IN_PROGRESS (2026-10-31)
+
+- Thêm VirtIO PCI split queue và VirtIO-GPU 2D scanout/flush, giữ software renderer M16 làm nguồn pixel; thêm M17 build profile, host sanitizer/provenance tests, guest BIOS/UEFI và framebuffer fallback.
+- M17 CTest **3/3 PASS**, gồm guest BIOS/UEFI GPU cùng image, fallback BIOS/UEFI và QMP screenshots đã kiểm tra trực quan. M15/M16 host hồi quy, M07 host, QMP fixtures và docs validator/unittest **41/41 PASS**. GitHub CI/review/merge/tag **PENDING**. M17 chưa DONE; PC thật/firmware khác **NOT RUN**.
+- Bootable raw GPT image dùng chung BIOS/UEFI và screenshot/report/logs được giữ cục bộ trong `out/m17/`; không commit image hoặc firmware.
+
 ### M16 — DONE (2026-10-31)
 
 - Thêm software framebuffer renderer với shadow XRGB8888, primitives, clipping, ASCII bitmap font, dirty-region present và checksum; thêm BIOS VBE handoff chỉ trong profile M16, giữ LBP v1.

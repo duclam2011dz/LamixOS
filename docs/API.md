@@ -30,6 +30,10 @@ Kernel dùng entry C/NASM qua LBP v1 và gọi `lbp_validate()` trước khi s�
 
 `kernel/input.h` định nghĩa `input_event`, keycode, modifier, `input_state`, `input_stats` cùng `input_state_init`, `input_keyboard_scancode`, `input_mouse_byte`, `input_poll`, `input_get_stats`. Queue SPSC 128 phần tử dành cho một consumer kernel; sequence tăng đơn điệu, khi đầy drop event mới và tăng `dropped_events`. Keyboard dùng Set 1 đã dịch và ASCII US QWERTY; mouse dùng packet 3 byte, `dy` dương hướng xuống. Đây không phải syscall hoặc user ABI. `kernel/ps2.h` cung cấp `ps2_initialize` callback-based và `ps2_read_irq_byte`; API chỉ dùng trong profile M15.
 
-## Software renderer M16 (nội bộ kernel, IN_PROGRESS)
+## Software renderer M16 (nội bộ kernel, DONE)
 
 `kernel/graphics.h` khai báo `graphics_surface`, `graphics_rect` và các thao tác `graphics_init`, `graphics_clear`, `graphics_pixel`, `graphics_fill_rect`, `graphics_rect_outline`, `graphics_line`, `graphics_text`, `graphics_present`, `graphics_verify_present`, `graphics_checksum`. Backbuffer XRGB8888 do caller cấp; renderer chỉ biết pointer/frontbuffer metadata, không tự cấp frame hoặc thay đổi LBP. API không phải public ABI và chưa ổn định ngoài M16.
+
+### VirtIO-GPU M17
+
+`kernel/virtio_gpu.h` cung cấp interface nội bộ `virtio_gpu_initialize`, `virtio_gpu_present`, `virtio_gpu_shutdown` và `virtio_gpu_queue_init`/`virtio_gpu_submit`. `virtio_gpu_shutdown` trả true chỉ khi status reset về 0; caller chỉ được thu hồi queue/backing sau xác nhận này. `virtio_gpu_ops` nối common configuration, notify, và ánh xạ con trỏ kernel sang địa chỉ DMA vật lý; `virtio_gpu_memory` nhận vùng queue/command do kernel sở hữu. Đây không phải public ABI. Profile M17 chỉ thương lượng `VIRTIO_F_VERSION_1`, dùng control queue cho resource 2D; không bật virgl/3D hoặc MSI. Thiếu thiết bị, feature hay scanout phù hợp thì renderer dùng framebuffer LBP nếu có.
