@@ -302,11 +302,15 @@ static void m19_run(void) {
   serial("\nM19:RR:PASS\n");
 
   scheduler_thread *aging_high = 0, *aging_low = 0;
+  uintptr_t aging_setup_flags = m19_irq_save(0);
   m19_aging_start = scheduler_tick_count(&m19_scheduler);
-  if (scheduler_create(&m19_scheduler, m19_aging_high, 0, 3,
-                       &aging_high) != SCHED_OK ||
+  int aging_workers_created =
+      scheduler_create(&m19_scheduler, m19_aging_high, 0, 3,
+                       &aging_high) == SCHED_OK &&
       scheduler_create(&m19_scheduler, m19_aging_low, 0, 0,
-                       &aging_low) != SCHED_OK) {
+                       &aging_low) == SCHED_OK;
+  m19_irq_restore(0, aging_setup_flags);
+  if (!aging_workers_created) {
     serial("M19:AGING:OOM\nM19:FAIL\n"); halt();
   }
   (void)aging_high; (void)aging_low;
@@ -319,11 +323,14 @@ static void m19_run(void) {
 
   scheduler_mutex_init(&m19_test_mutex);
   scheduler_thread *owner = 0, *medium = 0, *high = 0;
-  if (scheduler_create(&m19_scheduler, m19_mutex_owner, 0, 3,
-                       &owner) != SCHED_OK) {
+  uintptr_t owner_setup_flags = m19_irq_save(0);
+  int owner_created = scheduler_create(&m19_scheduler, m19_mutex_owner, 0, 3,
+                                       &owner) == SCHED_OK;
+  if (owner_created) m19_owner_thread = owner;
+  m19_irq_restore(0, owner_setup_flags);
+  if (!owner_created) {
     serial("M19:MUTEX:OOM\nM19:FAIL\n"); halt();
   }
-  m19_owner_thread = owner;
   scheduler_yield(&m19_scheduler);
   serial("M19:MUTEX:MAIN_RESUMED_OWNER\n");
   uintptr_t setup_flags = m19_irq_save(0);
