@@ -1,12 +1,12 @@
 # ROADMAP — Lamix OS
 
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
-> **Cập nhật:** 2026-10-30
+> **Cập nhật:** 2026-10-31
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 IN_PROGRESS; M14–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=IN_PROGRESS
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE
 
 ## 0. Tầm nhìn và giới hạn
 
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 IN_PROGRESS; M14–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -113,7 +113,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ### P3 — Thiết bị nền tảng, ngắt hiện đại và đồ họa QEMU sớm
 
-**M13 — ACPI cơ bản, PCI enumeration, device framework.** **Trạng thái: IN_PROGRESS (2026-10-30).** Đã thêm parser ACPI RSDP/RSDT/XSDT/MADT/MCFG, PCI config mechanism #1/ECAM, BAR probing/MMIO mapping và registry/ownership API; host sanitizer cùng guest PCI BIOS/UEFI local PASS. Guest hiện không nhận ACPI record hợp lệ (`M13:ACPI:ABSENT`) nên guest parsing ACPI chưa được chứng minh; M13 chưa nghiệm thu. Chi tiết trạng thái và evidence tại [PLANS](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md). Phạm vi: ACPI RSDP/XSDT/MADT tối thiểu; PCI config/BAR, MMIO, DMA ownership và abstraction drivers. Nghiệm thu vẫn cần phát hiện thiết bị ảo/tài nguyên đúng trong QEMU và xử lý malformed tables an toàn.
+**M13 — ACPI cơ bản, PCI enumeration, device framework.** **Trạng thái: DONE (2026-10-31).** PR #11 merge commit `26f3b3698f803fbcc8c8a39e7c9b4f01a631a7e5`; acceptance commit `12d3ef1ac9040f9d523bb05a82066dadcaec6ecf`; annotated tag `milestone/M13` object `ff2b1fbbae53d37af78aed566f381ac1b122f2d6` trỏ acceptance commit. Bốn GitHub Actions workflows SUCCESS trên đúng acceptance SHA. Host ASan/UBSan kiểm bảng hợp lệ và malformed; guest BIOS/UEFI cùng kernel tìm PCI functions và BAR/MMIO resources chính xác. Firmware guest không cung cấp RSDP qua LBP (`M13:ACPI:ABSENT`), do đó ACPI traversal guest **NOT RUN**; PC thật và firmware ngoài profile **NOT RUN**. Chi tiết tại [PLANS](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md). M14 chưa bắt đầu.
 
 **M14 — Local APIC/IOAPIC, timers.** Chuyển từ PIC bootstrap sang APIC/IOAPIC, IRQ routing, clock source/timer có kiểm tra, chuẩn bị MSI/MSI-X sau. Nghiệm thu: interrupts/ticks hoạt động qua nhiều lần khởi động, không double-ack/routing sai.
 

@@ -4,11 +4,12 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
-### M13 — IN_PROGRESS
+### M13 — DONE (2026-10-31)
 
 - Thêm ACPI table walker RSDT/XSDT, checksum/bounds validation, MADT entry parser và MCFG parser; không đổi LBP v1 hoặc thu hồi ACPI memory.
 - Thêm PCI segment 0 legacy config mechanism #1, ECAM theo MCFG, enumeration, BAR sizing/restoration, uncached MMIO mapping API và device registry với DMA ownership token; chưa cấp DMA buffer hoặc bật bus mastering.
-- Host ASan/UBSan, kernel cross build và guest BIOS/UEFI PCI enumeration/MMIO mapping local PASS. Cả hai guest báo ACPI absent; guest ACPI parsing NOT RUN, M13 chưa DONE. Xem [PLANS](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md).
+- Host ASan/UBSan, kernel cross build và guest BIOS/UEFI PCI enumeration/MMIO mapping local PASS; M13 CTest 3/3, regression M07–M12 PASS, docs unittest 40/40 PASS. Bốn workflow GitHub Actions SUCCESS trên acceptance SHA `12d3ef1ac9040f9d523bb05a82066dadcaec6ecf`.
+- PR #11 merge commit `26f3b3698f803fbcc8c8a39e7c9b4f01a631a7e5`; annotated tag `milestone/M13` object `ff2b1fbbae53d37af78aed566f381ac1b122f2d6` trỏ acceptance commit. Cả hai guest báo ACPI absent nên guest traversal **NOT RUN**; PC thật/firmware khác **NOT RUN**. Xem [PLANS](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md).
 
 ### M12 — DONE (2026-10-30)
 

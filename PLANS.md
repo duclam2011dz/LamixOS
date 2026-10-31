@@ -1,8 +1,8 @@
 # Kế hoạch và kết quả — M13
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=IN_PROGRESS
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE
 
-## M13 — ACPI, PCI và device framework (IN_PROGRESS)
+## M13 — ACPI, PCI và device framework (DONE, 2026-10-31)
 
 ### Thực hiện
 
@@ -13,14 +13,16 @@ Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=D
 
 ### Kết quả đã chạy
 
-- M13 cross kernel build **PASS**; build profile `m13-kernel`, ELF SHA-256 hiện tại được ghi trong `build/m13-kernel/build.json` (artifact local, chưa acceptance).
+- Acceptance commit `12d3ef1ac9040f9d523bb05a82066dadcaec6ecf`; PR #11 merge commit `26f3b3698f803fbcc8c8a39e7c9b4f01a631a7e5`. Annotated tag `milestone/M13` object `ff2b1fbbae53d37af78aed566f381ac1b122f2d6` trỏ acceptance commit.
+- M13 cross kernel build **PASS**; kernel ELF SHA-256 `95739a537da548a93a957a34b5567e95011a7c583d368bcccab22acae11bd8a3`.
 - M13 local CTest **3/3 PASS**: ASan/UBSan native, host provenance/image, guest BIOS/UEFI. Hai guest boot thật cùng kernel, enumerate 5 PCI functions, register 5 devices, kiểm tra BAR mapping/query/unmap; protected hashes giữ nguyên, cleanup sạch.
-- Hai guest đều ghi `M13:ACPI:ABSENT`; guest ACPI traversal **NOT RUN**. Host fixtures kiểm parser/checksum/bounds/MADT/MCFG malformed; đây không phải guest firmware evidence.
-- Hồi quy local M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3 và M12 6/6 **PASS**. GitHub CI **NOT RUN** do DNS không truy cập được remote. M13 **chưa DONE**; không tạo commit/tag, không mở M14.
+- Bốn GitHub workflows **SUCCESS** trên acceptance SHA: [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371900), [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371899), [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371842), [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371849). Hồi quy local M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6 **PASS**; docs validator và unittest 40/40 **PASS**.
+- Hai firmware guest ghi `M13:ACPI:ABSENT`; ACPI traversal guest **NOT RUN**. Host ASan/UBSan fixtures kiểm RSDP/RSDT/XSDT/MADT/MCFG, malformed tables, XSDT-to-RSDT fallback và ECAM nonzero start bus. Review hai lỗi ECAM offset/ACPI fallback đã sửa trong acceptance commit; review threads resolved.
+- PC thật và firmware ngoài profile QEMU **NOT RUN**. Không đổi LBP v1, loader, entry ABI, PMM default, không reclaim LOADER/ACPI, không DMA buffer/bus mastering. M14 chưa bắt đầu.
 
-### Điều kiện còn thiếu
+### Giới hạn đã ghi nhận
 
-Lấy RSDP/table thật từ một firmware profile được hỗ trợ và chứng minh ACPI parser trong guest, hoặc lập kế hoạch riêng nếu cần thay loader/handoff để cung cấp record. Không tự sửa LBP v1 hoặc loader trong phạm vi hiện duyệt.
+Hai firmware guest hiện hành không cung cấp ACPI RSDP trong LBP (`M13:ACPI:ABSENT`), nên chỉ host tests chứng minh parser ACPI; đây là **NOT RUN** cho guest traversal, không phải PASS. LBP v1, loaders và handoff không đổi. Thay đổi cách cấp ACPI record sẽ cần kế hoạch/duyệt riêng.
 
 ## M12 — Kế hoạch và kết quả đã nghiệm thu
 
@@ -240,4 +242,4 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
 
 Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M12 DONE; M13 IN_PROGRESS; M14 trở đi PLANNED và chưa bắt đầu.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M13 DONE; M14 trở đi PLANNED và chưa bắt đầu.

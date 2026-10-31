@@ -1,15 +1,14 @@
-# Bàn giao phiên M13 — IN_PROGRESS — 2026-10-30
+# Bàn giao M13 — DONE — 2026-10-31
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=IN_PROGRESS
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE
 
-## M13 hiện tại
+## M13 đã nghiệm thu
 
-- Workspace bắt đầu từ `main`/`67229fe747f59a53c4e199858b091513770a2887`, clean trước thay đổi. Tạo branch bị chặn vì `.git` read-only; chưa commit/push. `git ls-remote origin main` **NOT RUN** do DNS.
-- Kernel M13 build PASS; CTest **3/3 PASS** local. Guest SeaBIOS `pc` và OVMF `q35` cùng kernel boot thật, mỗi guest báo 5 PCI functions/devices, BAR MMIO mapping PASS; protected hashes giữ nguyên và cleanup sạch.
-- ACPI trên cả hai firmware guest: `M13:ACPI:ABSENT`. Host ASan/UBSan fixtures kiểm RSDP/XSDT/MADT/MCFG, malformed inputs; ACPI traversal guest **NOT RUN**. Hồi quy local M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6 **PASS**; GitHub CI **NOT RUN** do DNS.
-- M13 vẫn **IN_PROGRESS**. Bitmap PMM vẫn cấp frame cho VMM/heap; Buddy chỉ self-test. Không DMA buffer/bus mastering, không đổi LBP/loader. Chưa bắt đầu M14.
-
-## M12 đã nghiệm thu
+- PR [#11](https://github.com/duclam2011dz/LamixOS/pull/11) merged vào `main` tại `26f3b3698f803fbcc8c8a39e7c9b4f01a631a7e5`. Acceptance commit `12d3ef1ac9040f9d523bb05a82066dadcaec6ecf`; annotated tag `milestone/M13` object `ff2b1fbbae53d37af78aed566f381ac1b122f2d6` trỏ acceptance commit. Commit được CI kiểm tra trước merge.
+- Bốn workflow SUCCESS trên acceptance SHA: [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371900), [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371899), [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371842), [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371849). Automated review phát hiện ECAM offset nonzero-start và ACPI RSDT fallback; cả hai đã sửa trong acceptance commit, regression tests thêm, review threads resolved.
+- Kernel M13 cross-build **PASS**; CTest **3/3 PASS** local. Guest SeaBIOS `pc` và OVMF `q35` cùng kernel boot thật, mỗi guest báo 5 PCI functions/devices, BAR MMIO mapping PASS; protected hashes giữ nguyên và cleanup sạch. Hồi quy local M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6 **PASS**; docs validator và unittest **40/40 PASS**.
+- ACPI trên cả hai firmware guest: `M13:ACPI:ABSENT`. Host ASan/UBSan fixtures kiểm RSDP/RSDT/XSDT/MADT/MCFG, malformed inputs, RSDT fallback và ECAM range. Guest ACPI traversal **NOT RUN**, không được tính là guest PASS. PC thật và firmware ngoài profile QEMU **NOT RUN**.
+- M13 **DONE** theo acceptance Roadmap. Bitmap PMM tiếp tục cấp frame cho VMM/heap; Buddy chỉ self-test. Không DMA buffer/bus mastering, không đổi LBP/loader/ABI. M14 vẫn PLANNED, chưa bắt đầu.
 
 ## M12 đã nghiệm thu
 
@@ -34,4 +33,4 @@ Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=D
 
 ## Tiếp theo
 
-Tiếp tục M13 sau khi xử lý đường cấp ACPI guest được hỗ trợ và chạy regression M07–M12/GitHub CI. Chỉ chuyển M13 sang DONE khi guest ACPI và mọi tiêu chí Roadmap có bằng chứng. Không bắt đầu M14 trong lượt tiếp theo nếu chưa có kế hoạch/duyệt riêng.
+M13 đã đóng. M14 là milestone tiếp theo trong Roadmap nhưng chưa được lập kế hoạch hoặc triển khai trong lượt này; trước khi bắt đầu cần Plan Mode thật, khảo sát và kế hoạch riêng rồi chờ duyệt rõ ràng. Nghiệm thu M13 không cho phép tự động bắt đầu M14.

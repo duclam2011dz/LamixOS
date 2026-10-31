@@ -18,7 +18,7 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=IN_PROGRESS
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M13 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -320,9 +320,9 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m13-tests
 PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m13-tests --no-tests=error --output-on-failure
 ```
 
-Native ASan/UBSan kiểm RSDP/XSDT/MADT/MCFG, checksum/length/entry sai, config failure, multifunction enumeration, 64-bit BAR sizing, MMIO range và device/DMA ownership token. Guest suite tạo image/kernel riêng rồi boot thật cùng kernel qua SeaBIOS `pc` và OVMF `q35`; cần PCI enumeration, BAR sizing, uncached MMIO map/query/unmap, M08–M13 serial markers, protected hashes không đổi và cleanup sạch. Không có driver chức năng, DMA buffer hay bus mastering.
+Native ASan/UBSan kiểm RSDP/RSDT/XSDT/MADT/MCFG, checksum/length/entry sai, RSDT fallback, ECAM nonzero start bus, config failure, multifunction enumeration, 64-bit BAR sizing, MMIO range và device/DMA ownership token. Guest suite tạo image/kernel riêng rồi boot thật cùng kernel qua SeaBIOS `pc` và OVMF `q35`; cần PCI enumeration, BAR sizing, uncached MMIO map/query/unmap, M08–M13 serial markers, protected hashes không đổi và cleanup sạch. Không có driver chức năng, DMA buffer hay bus mastering.
 
-Local CTest **3/3 PASS**; hai guest tìm 5 PCI functions, đăng ký 5 devices và map/query/unmap một BAR MMIO. Cả hai guest ghi `M13:ACPI:ABSENT`; ACPI traversal guest **NOT RUN**, malformed ACPI hiện chỉ có host sanitizer evidence. Hồi quy local M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6 **PASS**. M13 GitHub CI **NOT RUN**; M13 chưa nghiệm thu.
+Local CTest **3/3 PASS**; hai guest tìm 5 PCI functions, đăng ký 5 devices và map/query/unmap một BAR MMIO. Hồi quy local M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6 **PASS**; docs validator và unittest **40/40 PASS**. Bốn GitHub workflows SUCCESS trên acceptance SHA `12d3ef1ac9040f9d523bb05a82066dadcaec6ecf`: [Toolchain](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371900), [Harness](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371899), [Documentation](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371842), [Boot Contract](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371849). M13 **DONE**; PR #11 merged; tag `milestone/M13` trỏ acceptance SHA.
 
 ## ACPI, PCI và device framework M13
 
@@ -338,4 +338,4 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m13-tests --no-test
 
 Native ASan/UBSan kiểm RSDP/XSDT/MADT/MCFG, checksum/length/entry lỗi, ECAM offset, config failure, multifunction enumeration, 64-bit BAR sizing, resource map bounds, registry duplicate/ownership và generation token. Guest cùng kernel qua SeaBIOS `pc` và OVMF `q35` phải boot thật, enumerate PCI, probe BAR, map/query/unmap MMIO, phát M08–M13 markers, giữ protected hashes và cleanup sạch. Local CTest **3/3 PASS**; hai guest đều tìm 5 PCI functions và map MMIO BAR thành công.
 
-Giới hạn hiện tại: hai firmware guest không phát ACPI record hợp lệ; serial báo `M13:ACPI:ABSENT`. Guest ACPI traversal **NOT RUN**; ACPI malformed cases hiện được chứng minh bằng host sanitizer fixtures. PC thật/firmware khác và M13 GitHub CI **NOT RUN**. Vì acceptance ACPI guest chưa được kiểm chứng, M13 vẫn **IN_PROGRESS**, không đánh dấu DONE.
+Giới hạn: hai firmware guest không phát ACPI record hợp lệ; serial báo `M13:ACPI:ABSENT`. Guest ACPI traversal **NOT RUN**; parser malformed cases được chứng minh bằng host sanitizer fixtures. Đây không được trình bày là guest ACPI PASS. PC thật và firmware ngoài profile QEMU **NOT RUN**. M13 DONE theo acceptance Roadmap; đổi cách firmware/loader cấp ACPI record cần kế hoạch và duyệt riêng.
