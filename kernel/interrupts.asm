@@ -53,7 +53,11 @@ interrupt_common:
     mov rdi, rbx
     and rsp, -16
     call interrupt_dispatch
+%ifdef LAMIX_M19_SCHEDULER
+    mov rsp, rax
+%else
     mov rsp, rbx
+%endif
     pop r15
     pop r14
     pop r13

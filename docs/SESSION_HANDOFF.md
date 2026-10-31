@@ -1,7 +1,17 @@
-# Bàn giao M17 — DONE — 2026-10-31
+# Bàn giao hiện hành — M19 IN_PROGRESS — 2026-10-31
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: IN_PROGRESS; M20–M44: PLANNED
+
+## Tiến độ M19 hiện tại
+
+- M19 được triển khai trong profile BSP riêng dựa trên M17. M18 vẫn PLANNED/để dành, không được build hoặc dùng làm dependency.
+- Đã thêm `kernel/scheduler.c`/`.h`, context-switch return-frame path, build profile `m19-kernel`, host sanitizer cases và BIOS/UEFI guest harness ba lần mỗi firmware. Đã cho phép `m19-kernel` trong M07 image checker.
+- Cross-build **PASS**; native ASan/UBSan **PASS**; BIOS/UEFI guest **3/3 mỗi firmware PASS**, gồm CPU-bound preemption, aging 300 tick, mutex priority inheritance/direct handoff và wakeup. CTest M19 **3/3 PASS** sau khi thêm host test inheritance nhiều cấp; M17 guest regression **4/4 PASS**. Lượt guest ban đầu FAIL với `#GP` do synthetic IRET frame thiếu RSP/SS; frame đã sửa.
+- Docs validator **PASS**, unittest tài liệu **41/41 PASS**; bốn workflow GitHub CI chưa chạy trên acceptance SHA. M19 chưa được nghiệm thu, chưa merge/tag.
+- Local checkout `.git` read-only; không thể tạo branch/commit bằng Git CLI. Remote feature ref `feat/m19-bsp-scheduler` đã được chuẩn bị từ remote main qua GitHub API; chưa đưa code lên remote trong handoff này.
+
+## Bàn giao M17 — DONE — 2026-10-31
 
 ## Kết quả M17
 

@@ -30,6 +30,10 @@ Kernel dùng entry C/NASM qua LBP v1 và gọi `lbp_validate()` trước khi s�
 
 `kernel/input.h` định nghĩa `input_event`, keycode, modifier, `input_state`, `input_stats` cùng `input_state_init`, `input_keyboard_scancode`, `input_mouse_byte`, `input_poll`, `input_get_stats`. Queue SPSC 128 phần tử dành cho một consumer kernel; sequence tăng đơn điệu, khi đầy drop event mới và tăng `dropped_events`. Keyboard dùng Set 1 đã dịch và ASCII US QWERTY; mouse dùng packet 3 byte, `dy` dương hướng xuống. Đây không phải syscall hoặc user ABI. `kernel/ps2.h` cung cấp `ps2_initialize` callback-based và `ps2_read_irq_byte`; API chỉ dùng trong profile M15.
 
+## Scheduler BSP M19 (nội bộ kernel, IN_PROGRESS)
+
+`kernel/scheduler.h` định nghĩa scheduler, TCB, context frame, bốn mức priority, `scheduler_create`, `scheduler_begin`, `scheduler_yield`, `scheduler_exit`, `scheduler_set_priority`, `scheduler_on_tick`, `scheduler_on_reschedule` và mutex nội bộ. TCB/stack 16 KiB cấp từ kernel heap; mutex hỗ trợ priority inheritance và direct handoff. `interrupt_dispatch` trả frame cho NASM interrupt restore path trong profile M19. Đây chỉ là kernel-thread API BSP; không có join/cancel, syscall hoặc user ABI. M18 không được dùng hay kích hoạt bởi profile M19.
+
 ## Software renderer M16 (nội bộ kernel, DONE)
 
 `kernel/graphics.h` khai báo `graphics_surface`, `graphics_rect` và các thao tác `graphics_init`, `graphics_clear`, `graphics_pixel`, `graphics_fill_rect`, `graphics_rect_outline`, `graphics_line`, `graphics_text`, `graphics_present`, `graphics_verify_present`, `graphics_checksum`. Backbuffer XRGB8888 do caller cấp; renderer chỉ biết pointer/frontbuffer metadata, không tự cấp frame hoặc thay đổi LBP. API không phải public ABI và chưa ổn định ngoài M16.
