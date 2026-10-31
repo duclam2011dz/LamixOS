@@ -19,7 +19,7 @@ Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc đ
 
 ```text
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái hiện hành: M16 DONE; M17 IN_PROGRESS; M18–M44 PLANNED
+Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 IN_PROGRESS; M20–M44 PLANNED
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M15 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -414,3 +414,24 @@ Chọn firmware riêng hoặc chỉ build image:
 Script yêu cầu toolchain và QEMU/SeaBIOS/OVMF theo [TOOLCHAIN](TOOLCHAIN.md); không tự cài dependencies. Có thể đổi đường dẫn firmware bằng `--seabios`, `--ovmf-code`, `--ovmf-vars` hoặc biến môi trường `LAMIX_SEABIOS`, `LAMIX_OVMF_CODE`, `LAMIX_OVMF_VARS`. Serial hiện trực tiếp trong terminal, VARS riêng và dữ liệu từng lần chạy nằm `out/m17/runs/manual-*`; image dùng snapshot và không bị ghi đè khi build lại.
 
 VirtIO-GPU là VGA adapter duy nhất (`-vga none` trước `virtio-vga`). Giữ terminal mở và đợi serial in `M17:PASS`; OVMF có thể còn hiện thông báo BDS trong lúc handoff. PC thật/firmware ngoài profile QEMU **NOT RUN**.
+
+## Scheduler BSP M19
+
+Script chạy thử tổng quát: `./scripts/lamix_qemu.py` mặc định build profile mới nhất (hiện là M19), tạo image BIOS/UEFI trong `out/m19/`, rồi mở cả hai firmware lần lượt. Dùng `--firmware bios` hoặc `--firmware uefi` để chạy riêng; `--build-only` chỉ build. `--profile m17` chọn profile cũ. Cập nhật `LATEST_PROFILE` khi milestone mới trở thành profile chạy thử mới nhất. Script dùng toolchain/QEMU/SeaBIOS/OVMF đã cài, không cài dependencies. Script M17 cũ vẫn có thể dùng để tái hiện riêng M17.
+
+```sh
+./scripts/lamix_qemu.py
+./scripts/lamix_qemu.py --firmware bios
+./scripts/lamix_qemu.py --firmware uefi
+./scripts/lamix_qemu.py --build-only
+```
+
+```sh
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m19 -B build/m19-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m19-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m19-tests --no-tests=error --output-on-failure --output-junit "$PWD/out/m19/ctest.xml"
+```
+
+`m19-native-sanitize` chạy cùng `kernel/scheduler.c` với ASan/UBSan. Host pytest kiểm build provenance; guest pytest tạo image M19 dựa trên M17 và boot cùng kernel qua SeaBIOS `pc` cùng OVMF `q35`, ba lần mỗi firmware. Guest gắn `virtio-vga`, yêu cầu preemption thật từ hai CPU-bound worker, priority aging đến mức chạy, mutex priority inheritance/direct handoff và wakeup. Serial evidence và JSON ở `out/m19/`; image, firmware và logs không đưa vào Git. Profile chỉ định nghĩa `LAMIX_M19_SCHEDULER`, không build M18.
+
+Trạng thái kiểm chứng cập nhật theo lần chạy; CTest local M19 hiện **3/3 PASS** gồm native sanitizer, host provenance và sáu guest boots. BIOS/UEFI đều phát marker M19, aging đo 300 tick, mutex inheritance/handoff đạt và protected inputs/cleanup sạch. Cross-build riêng `m19-kernel` **PASS**. PC thật và firmware khác profile QEMU **NOT RUN**; milestone vẫn IN_PROGRESS cho đến review và CI acceptance.

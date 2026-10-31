@@ -1,7 +1,15 @@
-# Kế hoạch và kết quả — M17 (M16 DONE)
+# Kế hoạch và kết quả — M19 (M18 PLANNED, M17 DONE)
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: IN_PROGRESS; M20–M44: PLANNED
+
+## M19 — Preemptive priority round-robin scheduler BSP (IN_PROGRESS)
+
+- Thêm `kernel/scheduler.c`/`.h`: TCB, bootstrap/idle, stack 16 KiB từ kernel heap, bốn ready queue priority, RR theo tick, aging mỗi 100 tick, mutex non-recursive, FIFO theo effective priority, direct handoff, priority inheritance/deadlock detection và trì hoãn thu hồi stack thread đã exit.
+- Profile `m19-kernel` mở rộng M17, không bật/đòi hỏi M18. LAPIC timer vector `0x31` gọi scheduler sau đúng một EOI; software reschedule vector `0x34` không gửi EOI. NASM nhận frame được chọn; synthetic frame gồm RSP/SS theo long-mode IRETQ. `-mgeneral-regs-only` và boot contracts giữ nguyên.
+- Có native scheduler tests với ASan/UBSan và guest harness BIOS/UEFI ba lần mỗi profile. Cross-build **PASS**; M19 CTest **3/3 PASS**; guest BIOS/UEFI **3/3 mỗi firmware PASS** với CPU-bound workers, priority aging 300 tick và mutex inheritance/direct handoff/wakeup. M17 guest regression **4/4 PASS**. Native tests bao gồm waiter FIFO, transitive inheritance, self-lock, non-owner unlock, exit khi đang giữ mutex và OOM.
+- Khi chạy guest đầu tiên, frame ban đầu thiếu `RSP`/`SS`, gây `#GP` tại `iretq`. Đã sửa frame 160→176 byte, thêm stack pointer canonic và `SS=0x10`; guest BIOS thử lại đã đạt marker M19. Đây là test finding đã sửa, không tính lần lỗi là PASS.
+- Docs validator và unittest 41/41 **PASS**. Bốn workflow GitHub CI trên acceptance SHA còn **PENDING**; M19 chưa DONE và chưa có acceptance SHA/tag.
 
 ## M17 — VirtIO transport + VirtIO-GPU 2D (DONE, 2026-10-31)
 

@@ -133,6 +133,12 @@ jobs:
           cmake -S tests/m17 -B build/m17-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m17-tests
           ctest --test-dir build/m17-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m17/ctest.xml"
+      - name: M19 BSP scheduler sanitizer và guest BIOS/UEFI
+        timeout-minutes: 45
+        run: |
+          cmake -S tests/m19 -B build/m19-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m19-tests
+          ctest --test-dir build/m19-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m19/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -338,4 +344,19 @@ jobs:
             out/m17/runs/**/screen.png
             build/m17-*/build.json
             build/m17-*/kernel.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M19 scheduler reports và guest serial, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m19-scheduler-reports
+          path: |
+            out/m19/*.xml
+            out/m19/results/*.json
+            out/m19/runs/**/result.json
+            out/m19/runs/**/serial.log
+            out/m19/runs/**/stderr.log
+            out/m19/runs/**/qmp.log
+            build/m19-*/build.json
+            build/m19-*/kernel.inspection.txt
           if-no-files-found: warn

@@ -4,6 +4,11 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M19 — IN_PROGRESS
+
+- Bắt đầu scheduler kernel-thread BSP với priority RR, tick aging, mutex priority inheritance và context switch qua LAPIC timer; thêm profile M19 và host/guest test harness. Không đổi LBP v1, entry ABI hoặc kích hoạt M18.
+- Cross-build M19 và CTest **3/3 PASS**, gồm ASan/UBSan, host provenance và guest BIOS/UEFI ba lần mỗi firmware. Guest xác nhận preemption CPU-bound, aging 300 tick, mutex inheritance/direct handoff và wakeup. M17 guest regression 4/4 PASS; docs validator và unittest 41/41 PASS. Bốn workflow CI chưa chạy trên acceptance SHA; M19 chưa DONE.
+
 ### M17 — DONE (2026-10-31)
 
 - Thêm VirtIO PCI split queue và VirtIO-GPU 2D scanout/flush, giữ software renderer M16 làm nguồn pixel; thêm M17 build profile, host sanitizer/provenance tests, guest BIOS/UEFI và framebuffer fallback.

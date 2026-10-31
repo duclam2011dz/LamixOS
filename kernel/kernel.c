@@ -27,6 +27,9 @@
 #if defined(LAMIX_M17_VIRTIO_GPU)
 #include "virtio_gpu.h"
 #endif
+#if defined(LAMIX_M19_SCHEDULER)
+#include "scheduler.h"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -148,6 +151,17 @@ static uint8_t m17_commands[sizeof(uint32_t) * 8 +
     VIRTIO_GPU_MAX_BACKING_PAGES * 16] __attribute__((aligned(4096)));
 static uint8_t m17_responses[1024] __attribute__((aligned(16)));
 #endif
+#if defined(LAMIX_M19_SCHEDULER)
+static scheduler m19_scheduler;
+static uint8_t m19_scheduler_ready;
+static volatile uint8_t m19_aging_seen, m19_owner_ready, m19_high_waiting;
+static volatile uint8_t m19_high_done, m19_owner_done, m19_medium_done;
+static volatile uint8_t m19_guest_failure;
+static volatile uint64_t m19_aging_start, m19_aging_observed;
+static volatile uint64_t m19_medium_progress, m19_medium_at_inheritance;
+static scheduler_thread *m19_owner_thread;
+static scheduler_mutex m19_test_mutex;
+#endif
 static __attribute__((noreturn)) void fail(void);
 
 static inline uint8_t in8(uint16_t p){uint8_t x;__asm__ volatile("inb %1,%0":"=a"(x):"Nd"(p));return x;}
@@ -166,6 +180,171 @@ __attribute__((noreturn)) static void panic_frame(const interrupt_frame*f){
 #endif
   halt();
 }
+#if defined(LAMIX_M19_SCHEDULER)
+static uint64_t m19_start_tick;
+static void *m19_allocate(void *context, size_t size) {
+  (void)context;
+  return kheap_alloc(&kernel_heap, size);
+}
+static void m19_deallocate(void *context, void *pointer) {
+  (void)context;
+  if (kheap_free(&kernel_heap, pointer) != KHEAP_OK) fail();
+}
+static uintptr_t m19_irq_save(void *context) {
+  (void)context;
+  uintptr_t flags;
+  __asm__ volatile("pushfq; pop %0; cli" : "=r"(flags) :: "memory");
+  return flags;
+}
+static void m19_irq_restore(void *context, uintptr_t flags) {
+  (void)context;
+  if (flags & (uintptr_t)(1u << 9)) __asm__ volatile("sti" ::: "memory");
+}
+static int m19_request_reschedule(void *context) {
+  (void)context;
+  __asm__ volatile("int $0x34" ::: "memory");
+  return 1;
+}
+static void m19_fatal(void *context, uint64_t reason) {
+  (void)context;
+  serial("M19:KERNEL_ERROR reason="); hex(reason); serial("\nM19:FAIL\n");
+  halt();
+}
+static void m19_idle(void *argument) {
+  (void)argument;
+  for (;;) __asm__ volatile("sti; hlt" ::: "memory");
+}
+static volatile uint64_t m19_progress[2];
+static volatile uint8_t m19_done[2];
+static void m19_worker(void *argument) {
+  uintptr_t worker = (uintptr_t)argument;
+  while (scheduler_tick_count(&m19_scheduler) - m19_start_tick < 40)
+    ++m19_progress[worker];
+  m19_done[worker] = 1;
+}
+static void m19_aging_high(void *argument) {
+  (void)argument;
+  while (!m19_aging_seen) __asm__ volatile("pause" ::: "memory");
+}
+static void m19_aging_low(void *argument) {
+  (void)argument;
+  m19_aging_observed = scheduler_tick_count(&m19_scheduler);
+  m19_aging_seen = 1;
+}
+static void m19_mutex_owner(void *argument) {
+  (void)argument;
+  serial("M19:MUTEX:OWNER_START\n");
+  if (scheduler_mutex_lock(&m19_scheduler, &m19_test_mutex) != SCHED_OK ||
+      scheduler_set_priority(m19_owner_thread, 0) != SCHED_OK) {
+    m19_guest_failure = 1;
+    return;
+  }
+  m19_owner_ready = 1;
+  serial("M19:MUTEX:OWNER_HELD\n");
+  while (!m19_high_waiting) __asm__ volatile("pause" ::: "memory");
+  m19_medium_at_inheritance = m19_medium_progress;
+  if (m19_owner_thread->effective_priority != 3 ||
+      m19_medium_at_inheritance != 0) m19_guest_failure = 1;
+  serial("M19:MUTEX:DONATED\n");
+  if (scheduler_mutex_unlock(&m19_scheduler, &m19_test_mutex) != SCHED_OK)
+    m19_guest_failure = 1;
+  serial("M19:MUTEX:OWNER_UNLOCKED\n");
+  m19_owner_done = 1;
+}
+static void m19_mutex_high(void *argument) {
+  (void)argument;
+  serial("M19:MUTEX:HIGH_START\n");
+  m19_high_waiting = 1;
+  if (scheduler_mutex_lock(&m19_scheduler, &m19_test_mutex) != SCHED_OK) {
+    m19_guest_failure = 1;
+    return;
+  }
+  serial("M19:MUTEX:HIGH_ACQUIRED\n");
+  if (m19_test_mutex.owner != m19_scheduler.current)
+    m19_guest_failure = 1;
+  if (scheduler_mutex_unlock(&m19_scheduler, &m19_test_mutex) != SCHED_OK)
+    m19_guest_failure = 1;
+  m19_high_done = 1;
+  serial("M19:MUTEX:HIGH_DONE\n");
+}
+static void m19_mutex_medium(void *argument) {
+  (void)argument;
+  while (!m19_high_done) ++m19_medium_progress;
+  m19_medium_done = 1;
+  serial("M19:MUTEX:MEDIUM_DONE\n");
+}
+static void m19_run(void) {
+  scheduler_operations operations = {0, m19_allocate, m19_deallocate,
+      m19_irq_save, m19_irq_restore, m19_request_reschedule, m19_fatal};
+  scheduler_thread *workers[2] = {0, 0};
+  if (scheduler_init(&m19_scheduler, &operations, m19_idle) != SCHED_OK ||
+      scheduler_create(&m19_scheduler, m19_worker, (void *)0, 1,
+                       &workers[0]) != SCHED_OK ||
+      scheduler_create(&m19_scheduler, m19_worker, (void *)1, 1,
+                       &workers[1]) != SCHED_OK ||
+      scheduler_begin(&m19_scheduler) != SCHED_OK) {
+    serial("M19:INIT:FAIL\nM19:FAIL\n"); halt();
+  }
+  (void)workers;
+  m19_start_tick = scheduler_tick_count(&m19_scheduler);
+  m19_scheduler_ready = 1;
+  serial("M19:SCHEDULER:READY\nM19:PREEMPT:RUNNING\n");
+  __asm__ volatile("sti" ::: "memory");
+  while (!m19_done[0] || !m19_done[1]) scheduler_yield(&m19_scheduler);
+  if (!m19_progress[0] || !m19_progress[1] ||
+      scheduler_tick_count(&m19_scheduler) - m19_start_tick < 40) {
+    serial("M19:PREEMPT:FAIL\nM19:FAIL\n"); halt();
+  }
+  serial("M19:PREEMPT:PASS ticks=");
+  hex(scheduler_tick_count(&m19_scheduler) - m19_start_tick);
+  serial(" worker0="); hex(m19_progress[0]);
+  serial(" worker1="); hex(m19_progress[1]);
+  serial("\nM19:RR:PASS\n");
+
+  scheduler_thread *aging_high = 0, *aging_low = 0;
+  m19_aging_start = scheduler_tick_count(&m19_scheduler);
+  if (scheduler_create(&m19_scheduler, m19_aging_high, 0, 3,
+                       &aging_high) != SCHED_OK ||
+      scheduler_create(&m19_scheduler, m19_aging_low, 0, 0,
+                       &aging_low) != SCHED_OK) {
+    serial("M19:AGING:OOM\nM19:FAIL\n"); halt();
+  }
+  (void)aging_high; (void)aging_low;
+  while (!m19_aging_seen) scheduler_yield(&m19_scheduler);
+  uint64_t aging_elapsed = m19_aging_observed - m19_aging_start;
+  if (aging_elapsed < 200 || aging_elapsed > 400 || m19_guest_failure) {
+    serial("M19:AGING:FAIL ticks="); hex(aging_elapsed); serial("\nM19:FAIL\n"); halt();
+  }
+  serial("M19:AGING:PASS ticks="); hex(aging_elapsed); serial("\n");
+
+  scheduler_mutex_init(&m19_test_mutex);
+  scheduler_thread *owner = 0, *medium = 0, *high = 0;
+  if (scheduler_create(&m19_scheduler, m19_mutex_owner, 0, 3,
+                       &owner) != SCHED_OK) {
+    serial("M19:MUTEX:OOM\nM19:FAIL\n"); halt();
+  }
+  m19_owner_thread = owner;
+  scheduler_yield(&m19_scheduler);
+  serial("M19:MUTEX:MAIN_RESUMED_OWNER\n");
+  if (!m19_owner_ready ||
+      scheduler_create(&m19_scheduler, m19_mutex_medium, 0, 2,
+                       &medium) != SCHED_OK ||
+      scheduler_create(&m19_scheduler, m19_mutex_high, 0, 3,
+                       &high) != SCHED_OK) {
+    serial("M19:MUTEX:SETUP_FAIL\nM19:FAIL\n"); halt();
+  }
+  (void)medium; (void)high;
+  serial("M19:MUTEX:MAIN_CREATED\n");
+  while (!m19_owner_done || !m19_high_done || !m19_medium_done)
+    scheduler_yield(&m19_scheduler);
+  if (m19_guest_failure || m19_test_mutex.owner ||
+      m19_medium_at_inheritance != 0) {
+    serial("M19:MUTEX:FAIL\nM19:FAIL\n"); halt();
+  }
+  serial("M19:MUTEX:PI_HANDOFF:PASS\nM19:WAKEUP:PASS\n");
+  serial("M19:PASS\n"); halt();
+}
+#endif
 static uint16_t gate_selector=KCODE;
 static void gate(unsigned v,uintptr_t a,uint8_t ist){idt[v]=(idt_gate){(uint16_t)a,gate_selector,(uint8_t)(ist&7),0x8e,(uint16_t)(a>>16),(uint32_t)(a>>32),0};}
 static void idt_init(uint16_t selector,int final){
@@ -184,11 +363,11 @@ static void gdt_init(uint16_t prior_cs){
   __asm__ volatile("pushq $0x08; lea 1f(%%rip),%%rax; push %%rax; lretq; 1: mov $0x10,%%ax; mov %%ax,%%ds; mov %%ax,%%es; mov %%ax,%%ss; mov %0,%%ax; ltr %%ax" ::"i"(KTSS):"rax","memory");
 }
 static void pic_pit_init(void){out8(0x21,0xff);out8(0xa1,0xff);out8(PIC1,0x11);out8(PIC2,0x11);out8(PIC1+1,0x20);out8(PIC2+1,0x28);out8(PIC1+1,4);out8(PIC2+1,2);out8(PIC1+1,1);out8(PIC2+1,1);out8(0x21,0xfe);out8(0xa1,0xff);uint16_t divisor=(uint16_t)(1193182/100);out8(PIT+3,0x36);out8(PIT,(uint8_t)divisor);out8(PIT,(uint8_t)(divisor>>8));}
-void interrupt_dispatch(interrupt_frame*f){if(f->vector==32){
+void *interrupt_dispatch(interrupt_frame*f){if(f->vector==32){
 #if defined(LAMIX_M14_APIC)
   if (m14_active) panic_frame(f);
 #endif
-  ticks++;serial("M08:TICK\n");out8(PIC1,0x20);return;}
+  ticks++;serial("M08:TICK\n");out8(PIC1,0x20);return f;}
 #if defined(LAMIX_M14_APIC)
   if (f->vector == 0x30 || f->vector == 0x31) {
     if (!m14_lapic) panic_frame(f);
@@ -201,7 +380,11 @@ void interrupt_dispatch(interrupt_frame*f){if(f->vector==32){
     } else { ++m14_timer_irqs; ++m14_timer_eois; }
     __asm__ volatile("mfence" ::: "memory");
     m14_lapic[0xb0 / 4] = 0;
-    return;
+#if defined(LAMIX_M19_SCHEDULER)
+    if (f->vector == 0x31 && m19_scheduler_ready)
+      return scheduler_on_tick(&m19_scheduler, f);
+#endif
+    return f;
   }
 #if defined(LAMIX_M15_INPUT)
   if (f->vector == 0x32 || f->vector == 0x33) {
@@ -215,10 +398,14 @@ void interrupt_dispatch(interrupt_frame*f){if(f->vector==32){
     }
     __asm__ volatile("mfence" ::: "memory");
     m14_lapic[0xb0 / 4] = 0;
-    return;
+    return f;
   }
 #endif
-  if (f->vector == 0xff) return;
+  if (f->vector == 0xff) return f;
+#endif
+#if defined(LAMIX_M19_SCHEDULER)
+  if (f->vector == 0x34 && m19_scheduler_ready)
+    return scheduler_on_reschedule(&m19_scheduler, f);
 #endif
   panic_frame(f);}
 static const uint8_t *record(const lbp_view*v,uint32_t type){for(uint32_t i=0;i<v->count;i++){uint64_t at;if(lbp_record_at(v,i,&at)!=LBP_OK) return 0;const uint8_t*p=v->bytes+at;if(*(const uint32_t*)p==type)return p;}return 0;}
@@ -1656,6 +1843,9 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
 #if !defined(LAMIX_M17_VIRTIO_GPU)
   serial("M16:PASS\n");
 #endif
+#endif
+#if defined(LAMIX_M19_SCHEDULER)
+  m19_run();
 #endif
   halt();
 }
