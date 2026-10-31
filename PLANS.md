@@ -14,7 +14,7 @@ Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=D
 
 - Kernel cross-build **PASS**; BIOS Stage2 build-only **PASS**; UEFI build-only **PASS**; host ASan/UBSan M14 **PASS**.
 - Guest M14 cùng kernel/image: BIOS SeaBIOS `pc` 3/3 và UEFI OVMF `q35` 3/3 **PASS**, đầy đủ marker ACPI/APIC/IOAPIC/PIT reference/LAPIC timer/M14; protected hashes giữ nguyên, cleanup sạch.
-- CTest M14 **3/3 PASS**; hồi quy M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6, M13 3/3 **PASS**. Docs validator **PASS** và unittest **41/41 PASS**.
+- CTest M14 **3/3 PASS**; hồi quy M05 4/4, M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6, M13 3/3 **PASS**. Docs validator **PASS** và unittest **41/41 PASS**.
 - GitHub CI **PENDING** vì thay đổi chưa được commit/push; acceptance/review chưa thực hiện. Chưa đánh dấu M14 DONE.
 - M14 chưa có acceptance SHA/tag/PR. M15 trở đi chưa bắt đầu.
 

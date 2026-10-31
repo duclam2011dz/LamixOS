@@ -7,7 +7,7 @@ Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=D
 - Nhánh làm việc `codex/m14-apic-timer`, bắt đầu từ M13 handoff `718416b86df3e9a621a38685047ac383a7a67fda`.
 - Kernel cross-build, BIOS Stage2 build-only (core 172,032/262,144 byte; bootstrap 32 KiB), UEFI build-only và native ASan/UBSan M14 **PASS**.
 - Guest cùng kernel/image: SeaBIOS `pc` **3/3 PASS**, OVMF `q35` **3/3 PASS**; đủ marker RSDP/MADT, xAPIC, IOAPIC, PIT reference, LAPIC timer và M14; protected hashes không đổi, cleanup sạch. Reports: `out/m14/results/bios.json`, `out/m14/results/uefi.json`.
-- M14 CTest **3/3 PASS**; hồi quy M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6, M13 3/3 **PASS**. Docs validator **PASS**, unittest tài liệu **41/41 PASS**. GitHub Actions chưa chạy trên acceptance SHA, **PENDING**.
+- M14 CTest **3/3 PASS**; hồi quy M05 4/4, M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6, M13 3/3 **PASS**. M05 bao gồm case kernel yêu cầu ACPI, nay xác nhận LBP required/provided feature hợp lệ. Docs validator **PASS**, unittest tài liệu **41/41 PASS**. GitHub Actions chưa hoàn tất trên acceptance SHA, **PENDING**.
 - CI/acceptance còn chờ commit/push và review; chưa ghi M14 DONE hoặc tạo tag. PC thật và firmware ngoài profile QEMU **NOT RUN**. M15 chưa bắt đầu.
 
 ## M13 đã nghiệm thu
