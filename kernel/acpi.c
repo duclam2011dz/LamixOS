@@ -76,8 +76,9 @@ acpi_status acpi_discover(const void *rsdp_pointer, size_t rsdp_size,
       return ACPI_BAD_LENGTH;
     if (!checksum(rsdp, rsdp_size))
       return ACPI_BAD_CHECKSUM;
-    root_physical = read64(rsdp + 24);
-    if (root_physical) {
+    uint64_t xsdt_physical = read64(rsdp + 24);
+    if (xsdt_physical) {
+      root_physical = xsdt_physical;
       xsdt = 1;
       entry_size = 8;
     }

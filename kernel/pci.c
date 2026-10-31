@@ -40,7 +40,8 @@ pci_status pci_parse_mcfg(const void *table_pointer, size_t size,
     if (!base || (base & ((UINT64_C(1) << 20) - 1)) || start > end ||
         read32(entry + 12) != 0)
       return PCI_BAD_CONFIG;
-    uint64_t span = ((uint64_t)end - start + 1) << 20;
+    /* MCFG base is the ECAM address for bus 0, not start_bus. */
+    uint64_t span = ((uint64_t)end + 1) << 20;
     if (base > UINT64_MAX - span)
       return PCI_BAD_CONFIG;
     parsed[i] = (pci_mcfg_region){base, segment, start, end};
@@ -359,7 +360,7 @@ int pci_ecam_access(void *context, pci_bdf bdf, uint16_t offset,
     if (region->segment != bdf.segment || bdf.bus < region->start_bus ||
         bdf.bus > region->end_bus)
       continue;
-    uint64_t bus_offset = ((uint64_t)bdf.bus - region->start_bus) << 20;
+    uint64_t bus_offset = (uint64_t)bdf.bus << 20;
     uint64_t device_offset = (uint64_t)bdf.device << 15;
     uint64_t function_offset = (uint64_t)bdf.function << 12;
     uint64_t physical = region->base + bus_offset + device_offset +

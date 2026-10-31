@@ -78,6 +78,16 @@ static void test_acpi(void) {
   assert(pci_ecam_access(&ecam, ecam_bdf, 0x40, &ecam_value, 0, 0));
   assert(ecam_value == UINT32_C(0xfeedc0de) &&
          mapped_address == UINT64_C(0xe0311040));
+  mcfg[54] = 64; mcfg[55] = 127; set_sum(mcfg, 60, 9);
+  assert(pci_parse_mcfg(mcfg, 60, regions, 2, &count) == PCI_OK);
+  ecam_bdf.bus = 64;
+  assert(pci_ecam_access(&ecam, ecam_bdf, 0x40, &ecam_value, 0, 0));
+  assert(mapped_address == UINT64_C(0xe4011040));
+  put64(mcfg + 44, UINT64_C(0xfffffffffff00000));
+  mcfg[54] = 64; mcfg[55] = 64; set_sum(mcfg, 60, 9);
+  assert(pci_parse_mcfg(mcfg, 60, regions, 2, &count) == PCI_BAD_CONFIG);
+  put64(mcfg + 44, UINT64_C(0xe0000000));
+  mcfg[54] = 0; mcfg[55] = 255; set_sum(mcfg, 60, 9);
   uint8_t invalid_mcfg[60]; memcpy(invalid_mcfg, mcfg, sizeof(invalid_mcfg));
   invalid_mcfg[59] ^= 1;
   assert(pci_parse_mcfg(invalid_mcfg, sizeof(invalid_mcfg), regions, 2,
@@ -95,6 +105,15 @@ static void test_acpi(void) {
   assert(acpi_discover(rsdp, 36, phys_read, 0, scratch, sizeof(scratch),
                        &platform) == ACPI_BAD_CHECKSUM);
   xsdt[51] ^= 1;
+  uint8_t *rsdt = physical + 0x4000;
+  table_header(rsdt, "RSDT", 40); put32(rsdt + 36, 0x2000);
+  set_sum(rsdt, 40, 9);
+  put32(rsdp + 16, 0x4000); put64(rsdp + 24, 0);
+  set_sum(rsdp, 20, 8); set_sum(rsdp, 36, 32);
+  assert(acpi_discover(rsdp, 36, phys_read, 0, scratch, sizeof(scratch),
+                       &platform) == ACPI_OK);
+  assert(!platform.root.xsdt && platform.root.physical == 0x4000 &&
+         platform.madt_physical == 0x2000);
   mcfg[54] = 250; mcfg[55] = 1; set_sum(mcfg, 60, 9);
   assert(pci_parse_mcfg(mcfg, 60, regions, 2, &count) == PCI_BAD_CONFIG);
 }
