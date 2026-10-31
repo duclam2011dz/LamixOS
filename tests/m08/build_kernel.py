@@ -14,7 +14,9 @@ SOURCES=("kernel/entry.asm","kernel/interrupts.asm","kernel/kernel.c","kernel/li
 def sha(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def build(output, fault="none", m09_pmm=False, m10_vmm=False,
           m11_heap=False, m12_buddy=False, m13_devices=False, m14_apic=False,
-          m15_input=False, m16_graphics=False):
+          m15_input=False, m16_graphics=False, m17_virtio_gpu=False):
+    if m17_virtio_gpu:
+        m16_graphics = True
     if m16_graphics:
         m15_input = True
     if m15_input:
@@ -65,6 +67,9 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
         sources.extend(("kernel/input.c", "kernel/input.h", "kernel/ps2.c", "kernel/ps2.h", "tests/m15/build_kernel.py"))
     if m16_graphics:
         sources.extend(("kernel/graphics.c", "kernel/graphics.h", "kernel/font8x16.h", "tests/m16/build_kernel.py"))
+    if m17_virtio_gpu:
+        sources.extend(("kernel/virtio_gpu.c", "kernel/virtio_gpu.h",
+                        "tests/m17/build_kernel.py"))
     common=[x["gcc"],"-std=c11","-m64","-mcmodel=kernel","-mno-red-zone","-mgeneral-regs-only","-ffreestanding","-fno-builtin","-fno-pie","-fno-pic","-fno-stack-protector","-fno-asynchronous-unwind-tables","-fno-unwind-tables","-fno-exceptions","-Wall","-Wextra","-Werror","-I",ROOT/"include","-I",ROOT/"kernel","-O2"]
     run("nasm","--reproducible","-f","elf64",*( ["-D", "LAMIX_M14_APIC=1"] if m14_apic else []),"-o",output/"entry.o",ROOT/"kernel/entry.asm")
     run("nasm","--reproducible","-f","elf64","-o",output/"interrupts.o",ROOT/"kernel/interrupts.asm")
@@ -85,6 +90,8 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
         compile_sources.extend(("kernel/input.c", "kernel/ps2.c"))
     if m16_graphics:
         compile_sources.append("kernel/graphics.c")
+    if m17_virtio_gpu:
+        compile_sources.append("kernel/virtio_gpu.c")
     for source in compile_sources:
         obj=output/(Path(source).stem+".o"); args=common.copy()
         if source=="kernel/kernel.c" and not m10_vmm and variants[fault]: args += ["-D"+variants[fault]+"=1"]
@@ -104,6 +111,8 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
             args += ["-DLAMIX_M15_INPUT=1"]
         if source=="kernel/kernel.c" and m16_graphics:
             args += ["-DLAMIX_M16_GRAPHICS=1"]
+        if source=="kernel/kernel.c" and m17_virtio_gpu:
+            args += ["-DLAMIX_M17_VIRTIO_GPU=1"]
         if source=="kernel/pci.c" and m13_devices:
             args += ["-DLAMIX_KERNEL=1"]
         run(*args,"-c",ROOT/source,"-o",obj);objects.append(obj)
@@ -147,7 +156,7 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
         if ".init_array" in sections or ".ctors" in sections:
             raise ValueError("kernel M11 không được có static constructors")
     if b"INTERP" in subprocess.check_output([str(x["readelf"]),"-l",str(elf)]): raise ValueError("PT_INTERP không freestanding")
-    report={"status":"PASS","mode":"m16-kernel" if m16_graphics else "m15-kernel" if m15_input else "m14-kernel" if m14_apic else "m13-kernel" if m13_devices else "m12-kernel" if m12_buddy else "m11-kernel" if m11_heap else "m10-kernel" if m10_vmm else "m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"commands":commands,
+    report={"status":"PASS","mode":"m17-kernel" if m17_virtio_gpu else "m16-kernel" if m16_graphics else "m15-kernel" if m15_input else "m14-kernel" if m14_apic else "m13-kernel" if m13_devices else "m12-kernel" if m12_buddy else "m11-kernel" if m11_heap else "m10-kernel" if m10_vmm else "m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"commands":commands,
             "tool_versions":{"gcc":subprocess.check_output([str(x["gcc"]),"--version"],text=True).splitlines()[0],"g++":subprocess.check_output([str(x["g++"]),"--version"],text=True).splitlines()[0] if m11_heap else None,"ld":subprocess.check_output([str(x["ld"]),"--version"],text=True).splitlines()[0],"nasm":subprocess.check_output(["nasm","-v"],text=True).strip()},
             "source_hashes":{s:sha(ROOT/s) for s in sources},"hashes":{elf.name:sha(elf)},"elf_inspection":elf.stem+".inspection.txt","load_segments":loads}
     (output/"build.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n")

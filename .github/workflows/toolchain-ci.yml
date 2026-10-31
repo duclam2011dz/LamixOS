@@ -127,6 +127,12 @@ jobs:
           cmake -S tests/m16 -B build/m16-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m16-tests
           ctest --test-dir build/m16-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m16/ctest.xml"
+      - name: M17 VirtIO-GPU 2D, fallback và guest screenshot BIOS/UEFI
+        timeout-minutes: 45
+        run: |
+          cmake -S tests/m17 -B build/m17-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m17-tests
+          ctest --test-dir build/m17-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m17/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -315,4 +321,21 @@ jobs:
             out/m16/**/qmp.log
             build/m16-*/build.json
             build/m16-*/kernel.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M17 VirtIO-GPU reports và guest screenshots, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m17-virtio-gpu-reports
+          path: |
+            out/m17/*.xml
+            out/m17/results/*.json
+            out/m17/runs/**/result.json
+            out/m17/runs/**/serial.log
+            out/m17/runs/**/stderr.log
+            out/m17/runs/**/qmp.log
+            out/m17/runs/**/screen.ppm
+            out/m17/runs/**/screen.png
+            build/m17-*/build.json
+            build/m17-*/kernel.inspection.txt
           if-no-files-found: warn

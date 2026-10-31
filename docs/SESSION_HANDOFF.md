@@ -1,7 +1,18 @@
-# Bàn giao M16 — DONE — 2026-10-31
+# Bàn giao M17 — IN_PROGRESS — 2026-10-31
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17–M44: PLANNED
+Trạng thái M16: DONE; M17: IN_PROGRESS; M18–M44: PLANNED
+
+## Tiếp tục M17
+
+- VirtIO PCI/GPU 2D đã tích hợp với renderer M16; profile M17 ưu tiên scanout GPU, fallback sang framebuffer LBP hoặc serial-only. Không đổi LBP v1/entry ABI; không bắt đầu M18.
+- Image raw GPT dùng chung BIOS/UEFI: `out/m17/lamix-m17-5d6e8d50ed79.img`. Mở bằng lệnh BIOS/UEFI tại [TESTING](TESTING.md#virtio-gpu-2d-m17). Screenshots mới nhất đã kiểm tra trực quan: BIOS `out/m17/runs/run-9_1xpo9k/screen.png`, UEFI `out/m17/runs/run-ssviqhl7/screen.png`. JSON results ở `out/m17/results/`; serial/QMP logs, PPM và PNG ở `out/m17/runs/`.
+- Kernel ELF SHA-256 `5d6e8d50ed798d6c4bd6de857f2132f1e3d521b5ad2c04a065d7672c5d9f1e3d`. CTest **3/3 PASS**; guest pytest **4/4 PASS** (GPU và fallback trên cả hai firmware); hình ảnh BIOS/UEFI cho thấy frame M17. M15 host 2/2, M16 host 2/2, QMP fixtures 1/1, M07 host 7/7 PASS; M07 một QEMU test được deselect. Stage2/UEFI regression build-only PASS. Native ASan/UBSan thêm late DMA response sau timeout/reset.
+- M07 suite đầu tiên thất bại do build provenance cũ tại `build/m07-input`; chạy lại trực tiếp với build mới `build/m17-regression-bios`/`uefi` thành công. Không dùng CTest wrapper M07 hiện tại vì cấu hình CTest ghim đường dẫn build cũ.
+- Docs validator **PASS**, unittest tài liệu **41/41 PASS**, `git diff --check` **PASS**. PR #15 trên `f78eac4` có Documentation CI **FAIL** vì artifact links tuyệt đối bị validator từ chối; commit `bd0a5f7` sửa lỗi đó, Documentation/Boot Contract/Harness CI **SUCCESS** và Toolchain CI đang chạy. Codex review tìm P1 về response buffer DMA có vòng đời stack sau timeout; đã chuyển request/response sang persistent storage, thêm late-response regression và M17 CTest hiện **3/3 PASS**. Sửa review cần commit/push rồi CI xác nhận trên SHA cuối. Chưa merge/tag nghiệm thu. M17 **IN_PROGRESS**, chưa DONE. PC thật và firmware ngoài SeaBIOS `pc`/OVMF `q35` **NOT RUN**.
+- Bước tiếp theo trong phạm vi M17: commit/push sửa review, xác minh bốn workflow trên đúng SHA cuối, resolve review thread rồi merge và tạo annotated tag. Không triển khai M18 trong lần bàn giao này.
+
+## Bàn giao M16 — DONE
 
 ## Tiếp tục M16
 

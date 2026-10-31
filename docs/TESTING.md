@@ -19,6 +19,7 @@ Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc đ
 
 ```text
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
+Trạng thái hiện hành: M16 DONE; M17 IN_PROGRESS; M18–M44 PLANNED
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M15 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -376,3 +377,38 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m16-tests --no-test
 CTest chạy native ASan/UBSan trên cùng `kernel/graphics.c`, host kernel provenance và guest BIOS/UEFI. Guest dùng QMP để hoàn tất input PS/2 M15 trước renderer; cùng kernel/image phải boot qua SeaBIOS `pc` và OVMF `q35`, thấy framebuffer record hợp lệ, render/present và checksum, giữ protected hashes và cleanup sạch. BIOS Stage2 M16 được build bằng `--m16-video`, kiểm tra VBE handoff và hard budgets. Host checksum không thay guest boot; compile/launch-only không tính là guest PASS. Reports ở `out/m16/`, không upload disk image hoặc firmware.
 
 M16 nghiệm thu: CTest **3/3 PASS**, guest SeaBIOS `pc` và OVMF `q35` **1/1 mỗi firmware**; BIOS Stage2 core/BSS **176,128/262,144 byte**, bootstrap **32 KiB**. Regression M07 + Stage2 host + M15 host **54 PASS, 57 deselected**; docs validator **PASS**, unittest tài liệu **41/41 PASS**. PR #14 merge commit `e37b0b6c3f5423ae518c32e2fc325a2dd5a4a19b`, acceptance SHA `09c4248dece6273295c28639090883d00a3af9c0`; bốn workflow SUCCESS: Toolchain [41197034264](https://github.com/duclam2011dz/LamixOS/actions/runs/41197034264), Harness [41197034242](https://github.com/duclam2011dz/LamixOS/actions/runs/41197034242), Documentation [41197034318](https://github.com/duclam2011dz/LamixOS/actions/runs/41197034318), Boot Contract [41197034328](https://github.com/duclam2011dz/LamixOS/actions/runs/41197034328). Tag `milestone/M16` object `a66b7f9a0fbf1d52cb3df1be2b9d09e0c0862a63`. PC thật/firmware ngoài profile QEMU **NOT RUN**. M16 DONE.
+
+## VirtIO-GPU 2D M17
+
+```sh
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m17 -B build/m17-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m17-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m17-tests --no-tests=error --output-on-failure --output-junit "$PWD/out/m17/ctest.xml"
+```
+
+CTest gồm `m17-native-sanitize`, host provenance và guest. Host dùng cùng `kernel/virtio_gpu.c` với ASan/UBSan; guest dùng cùng image qua SeaBIOS `pc`/OVMF `q35`, gửi QMP input cho M15, chụp QMP screenshot sau `M17:READY`, kiểm tra protected hashes/cleanup và chạy cả profile không gắn VirtIO-GPU để chứng minh fallback. Ảnh PPM gốc và PNG review được giữ trong `out/m17/runs/`; kết quả JSON ở `out/m17/results/`. CI chỉ upload reports, serial/QMP logs và screenshots; không upload image hoặc firmware.
+
+CTest local **3/3 PASS**: native sanitizer, host provenance và guest. Guest pytest **4/4 PASS** (GPU BIOS/UEFI và fallback BIOS/UEFI). Native sanitizer bao gồm queue errors, ring index wrap, DMA reset timeout và response đến muộn trong persistent storage. Ảnh BIOS và UEFI đã được mở kiểm tra; cả hai thể hiện frame M17 với nền tối, panel xanh, chữ trắng và đường màu cam. Hồi quy M15 host/sanitizer 2/2, M16 host/sanitizer 2/2, M07 host 7/7 (một QEMU case deselected) và QMP fixtures 1/1 PASS. M07 CTest wrapper trỏ build provenance cũ nên lần chạy đó FAIL; chạy lại suite trực tiếp với Stage2/UEFI build mới đạt. Docs validator **PASS**, unittest **41/41 PASS**; CI cần chạy lại trên commit cuối. M17 còn **IN_PROGRESS**, không phải nghiệm thu.
+
+Sau khi guest test tạo image trong `out/m17/`, tìm tên file theo kernel hash trong build report. Chạy BIOS với cửa sổ QEMU:
+
+```sh
+IMAGE="out/m17/lamix-m17-5d6e8d50ed79.img"
+qemu-system-x86_64 -machine pc -accel tcg -smp 1 -m 256M \
+  -bios /usr/share/seabios/bios.bin -vga none -device virtio-vga \
+  -drive "file=$IMAGE,format=raw,if=ide,snapshot=on" -serial stdio
+```
+
+Chạy UEFI dùng cùng image, OVMF CODE chỉ đọc và VARS riêng cho lần chạy:
+
+```sh
+IMAGE="out/m17/lamix-m17-5d6e8d50ed79.img"
+cp /usr/share/OVMF/OVMF_VARS.fd out/m17/OVMF_VARS.run.fd
+qemu-system-x86_64 -machine q35 -accel tcg -smp 1 -m 256M \
+  -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE.fd \
+  -drive if=pflash,format=raw,unit=1,file=out/m17/OVMF_VARS.run.fd \
+  -device virtio-vga -drive "file=$IMAGE,format=raw,if=ide,snapshot=on" \
+  -serial stdio
+```
+
+Các câu lệnh này dùng QEMU display mặc định để mở cửa sổ. Image ở chế độ snapshot nên thay đổi ổ đĩa trong lần chạy không được ghi lại. PC thật/firmware ngoài profile QEMU **NOT RUN**.
