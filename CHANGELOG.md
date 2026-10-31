@@ -4,10 +4,12 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
-### M19 — IN_PROGRESS
+### M19 — DONE
 
-- Bắt đầu scheduler kernel-thread BSP với priority RR, tick aging, mutex priority inheritance và context switch qua LAPIC timer; thêm profile M19 và host/guest test harness. Không đổi LBP v1, entry ABI hoặc kích hoạt M18.
-- Cross-build M19 và CTest **3/3 PASS**, gồm ASan/UBSan, host provenance và guest BIOS/UEFI ba lần mỗi firmware. Guest xác nhận preemption CPU-bound, aging 300 tick, mutex inheritance/direct handoff và wakeup. M17 guest regression 4/4 PASS; docs validator và unittest 41/41 PASS. Bốn workflow CI chưa chạy trên acceptance SHA; M19 chưa DONE.
+- Thêm scheduler kernel-thread BSP với priority RR, tick aging, mutex priority inheritance/FIFO/direct handoff và context switch qua LAPIC timer; thêm profile M19. Không đổi LBP v1, entry ABI hoặc kích hoạt M18.
+- Native ASan/UBSan, host provenance và guest BIOS/UEFI **PASS**; guest chạy ba lần mỗi firmware, xác nhận preemption CPU-bound, aging 300 tick, mutex inheritance/handoff/wakeup. M17 guest regression **4/4 PASS**; docs validator và unittest **41/41 PASS**. Codex review sạch; các race trong guest fixture và FIFO đã sửa, không còn review thread mở.
+- PR [#18](https://github.com/duclam2011dz/LamixOS/pull/18) merge commit `c550210f4ba69f7181ed4a3cf0001e20059ea52a`; acceptance commit `9a0861ec4b152e189144251ece884bc6ffd466d5`. Annotated tag `milestone/M19` object `6d055839a1dce6356eba49c0e2a22e6630708b8a` trỏ acceptance SHA. Bốn workflow SUCCESS trên đúng SHA: Toolchain [41213184919](https://github.com/duclam2011dz/LamixOS/actions/runs/41213184919), Harness [41213184786](https://github.com/duclam2011dz/LamixOS/actions/runs/41213184786), Documentation [41213184903](https://github.com/duclam2011dz/LamixOS/actions/runs/41213184903), Boot Contract [41213184777](https://github.com/duclam2011dz/LamixOS/actions/runs/41213184777). PC thật/firmware ngoài profile QEMU **NOT RUN**.
+- Thêm [scripts/lamix_qemu.py](scripts/lamix_qemu.py), script build/run tổng quát mặc định M19 hiện tại, vẫn chọn được M17; `--build-only` PASS và tạo image raw GPT dùng chung BIOS/UEFI trong `out/m19/`.
 
 ### M17 — DONE (2026-10-31)
 
