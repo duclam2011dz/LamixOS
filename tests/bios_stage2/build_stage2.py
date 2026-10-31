@@ -14,7 +14,7 @@ sys.path.insert(0,str(ROOT))
 from scripts.toolchain import cross_tools
 from build_gate import inspect_elf, STAGE1_HASH
 
-def build(output,profile,test_fault=None):
+def build(output,profile,test_fault=None,m16_video=False):
     x=cross_tools(); output=output.resolve()
     if not output.is_relative_to(ROOT/'build'):raise ValueError('output ngoài build/')
     output.mkdir(parents=True,exist_ok=True)
@@ -27,6 +27,7 @@ def build(output,profile,test_fault=None):
         flags=['-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-fno-unwind-tables','-fno-asynchronous-unwind-tables',
                '-mgeneral-regs-only','-Wall','-Wextra','-Werror','-I'+str(ROOT/'include'),'-O0' if profile=='Debug' else '-O2']
         if test_fault:flags += ['-DLAMIX_TEST_'+test_fault.upper()+'_CORRUPT=1']
+        if m16_video:flags += ['-DLAMIX_M16_VIDEO=1']
         objects=[]
         for src in ['boot/bios/stage2/core.c','boot/bios/stage2/div64.c','lib/boot/contract.c','lib/boot/memory.c','lib/boot/loader.c']:
             obj=output/(Path(src).stem+'.o');objects.append(obj)
@@ -38,7 +39,9 @@ def build(output,profile,test_fault=None):
         symbols={parts[2]:int(parts[0],16) for line in subprocess.check_output([str(x['nm']),'-n',str(output/'core.elf')],text=True).splitlines() if len(parts:=line.split())==3}
         core=(output/'core.bin').read_bytes();memory=symbols['__core_end']-0x20000
         if len(core)>memory or memory>0x40000:raise ValueError('core vượt 256KiB')
-        run('nasm','--reproducible','-f','bin','-l',output/'bootstrap.lst','-o',output/'bootstrap.bin','boot/bios/stage2/bootstrap.asm')
+        nasm_args=['nasm','--reproducible','-f','bin','-l',output/'bootstrap.lst','-o',output/'bootstrap.bin']
+        if m16_video:nasm_args += ['-D','LAMIX_M16_VIDEO=1']
+        run(*nasm_args,'boot/bios/stage2/bootstrap.asm')
         bootstrap=bytearray((output/'bootstrap.bin').read_bytes())
         if len(bootstrap)!=32768:raise ValueError('bootstrap vượt 32KiB')
         header=bytearray(64);struct.pack_into('<8sHH7I',header,0,b'LAMIXS2\0',1,64,64,len(core),memory,0x20000,symbols['stage2_core_entry']-0x20000,zlib.crc32(core),0)
@@ -61,9 +64,9 @@ def build(output,profile,test_fault=None):
         run('nasm','--reproducible','-f','bin','-o',output/'stage1.bin','boot/bios/stage1.asm')
         if hashlib.sha256((output/'stage1.bin').read_bytes()).hexdigest()!=STAGE1_HASH:raise ValueError('Stage1 thay đổi')
     source_files=[* (ROOT/'boot/bios/stage2').glob('*'),*(ROOT/'include/lamix/boot').glob('*.h'),*(ROOT/'lib/boot').glob('*.c'),ROOT/'tests/bios_stage2/probe.c',ROOT/'tests/bios_stage2/probe.asm',ROOT/'tests/bios_stage2/probe.ld',Path(__file__).resolve(),ROOT/'scripts/toolchain.py',ROOT/'tests/bios_stage2/build_gate.py']
-    report=dict(source_hashes={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in source_files if p.is_file()},status='PASS',mode='build-only',profile=profile,test_fault=test_fault,core_bytes=len(core),core_memory=memory,bootstrap_bytes=32768,
+    report=dict(source_hashes={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in source_files if p.is_file()},status='PASS',mode='build-only',profile=profile,test_fault=test_fault,m16_video=m16_video,core_bytes=len(core),core_memory=memory,bootstrap_bytes=32768,
                 hashes={n:hashlib.sha256((output/n).read_bytes()).hexdigest() for n in ('stage1.bin','stage2.bin','kernel.elf')},commands=commands)
     (output/'build.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS: build-only',len(core),'file bytes,',memory,'core memory; chưa phải boot PASS')
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--build',type=Path,required=True);p.add_argument('--profile',choices=['Debug','Release'],default='Debug');p.add_argument('--test-fault',choices=['lbp','map']);a=p.parse_args();build(a.build,a.profile,a.test_fault)
+    p=argparse.ArgumentParser();p.add_argument('--build',type=Path,required=True);p.add_argument('--profile',choices=['Debug','Release'],default='Debug');p.add_argument('--test-fault',choices=['lbp','map']);p.add_argument('--m16-video',action='store_true');a=p.parse_args();build(a.build,a.profile,a.test_fault,a.m16_video)

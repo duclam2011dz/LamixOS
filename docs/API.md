@@ -1,6 +1,6 @@
 # Chỉ mục API và ABI
 
-LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader, M06 EFI loader, M07 parity probe; kernel bootstrap M08, PMM M09, VMM BSP M10, kernel heap M11, Buddy PMM thử nghiệm M12 và ACPI/PCI/device framework M13 đã DONE; input PS/2 M15 đã DONE. API M13 dưới đây là nội bộ, không phải public ABI. Chưa có process address spaces hoặc kernel sản phẩm. On-wire structs khác với API native (`lbp_span`, `lbp_view`, status enum).
+LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader, M06 EFI loader, M07 parity probe; kernel bootstrap M08, PMM M09, VMM BSP M10, kernel heap M11, Buddy PMM thử nghiệm M12, ACPI/PCI/device framework M13, input PS/2 M15 đã DONE; renderer software M16 đang IN_PROGRESS. API M13/M15/M16 dưới đây là nội bộ, không phải public ABI. Chưa có process address spaces hoặc kernel sản phẩm. On-wire structs khác với API native (`lbp_span`, `lbp_view`, status enum).
 
 | Giao diện | Nguồn |
 |---|---|
@@ -29,3 +29,7 @@ Kernel dùng entry C/NASM qua LBP v1 và gọi `lbp_validate()` trước khi s�
 ## Input PS/2 M15 (nội bộ kernel)
 
 `kernel/input.h` định nghĩa `input_event`, keycode, modifier, `input_state`, `input_stats` cùng `input_state_init`, `input_keyboard_scancode`, `input_mouse_byte`, `input_poll`, `input_get_stats`. Queue SPSC 128 phần tử dành cho một consumer kernel; sequence tăng đơn điệu, khi đầy drop event mới và tăng `dropped_events`. Keyboard dùng Set 1 đã dịch và ASCII US QWERTY; mouse dùng packet 3 byte, `dy` dương hướng xuống. Đây không phải syscall hoặc user ABI. `kernel/ps2.h` cung cấp `ps2_initialize` callback-based và `ps2_read_irq_byte`; API chỉ dùng trong profile M15.
+
+## Software renderer M16 (nội bộ kernel, IN_PROGRESS)
+
+`kernel/graphics.h` khai báo `graphics_surface`, `graphics_rect` và các thao tác `graphics_init`, `graphics_clear`, `graphics_pixel`, `graphics_fill_rect`, `graphics_rect_outline`, `graphics_line`, `graphics_text`, `graphics_present`, `graphics_verify_present`, `graphics_checksum`. Backbuffer XRGB8888 do caller cấp; renderer chỉ biết pointer/frontbuffer metadata, không tự cấp frame hoặc thay đổi LBP. API không phải public ABI và chưa ổn định ngoài M16.

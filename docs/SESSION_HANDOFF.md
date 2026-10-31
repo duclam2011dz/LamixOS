@@ -1,6 +1,13 @@
-# Bàn giao M15 — DONE — 2026-10-31
+# Bàn giao M16 — IN_PROGRESS — 2026-10-31
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
+Trạng thái M16: IN_PROGRESS; M17–M44: PLANNED
+
+## Tiếp tục M16
+
+- Renderer XRGB8888, backbuffer kernel heap, primitives/text ASCII, damage/present/checksum và profile BIOS VBE đã được thêm. Chi tiết thiết kế và lệnh kiểm thử ở [PLANS](../PLANS.md), [GRAPHICS](GRAPHICS.md), [TESTING](TESTING.md).
+- M16 CTest local **3/3 PASS** sau khi xử lý review VBE 3.0: native ASan/UBSan, host provenance và guest BIOS/UEFI; SeaBIOS `pc` **1/1 PASS**, OVMF `q35` **1/1 PASS**. VBE 3.0 đọc pitch/masks linear; VBE 2.x giữ trường tương thích. BIOS Stage2 Release core file **42,024 byte**, core/BSS **176,128/262,144 byte**, bootstrap **32 KiB**; kernel cross-build PASS.
+- Regression M07 + Stage2 host + M15 host **54 PASS, 3 QEMU cases deselected**; M16 guest suite tự kiểm BIOS/UEFI thật. Docs validator **PASS**, unittest tài liệu **41/41 PASS**. PR #14 bốn workflow PASS trên commit ban đầu `386549e`; workflow/review của commit sửa đang **PENDING**. PC thật/firmware ngoài profile QEMU **NOT RUN**. M16 chưa DONE; chưa merge/tạo tag. Chưa bắt đầu M17.
 
 ## M15 đã nghiệm thu
 

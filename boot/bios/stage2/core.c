@@ -27,6 +27,13 @@ static uint8_t idt32[2048];
 static uint32_t pool, pool_used, nx_enabled, io_failed;
 static uint8_t acpi_bytes[36];
 static uint32_t acpi_physical, acpi_length, acpi_revision;
+#ifdef LAMIX_M16_VIDEO
+static lbp_framebuffer video_framebuffer;
+static uint32_t have_framebuffer;
+static uint16_t vbe_version;
+#endif
+static void serial(const char *p);
+static void hex(uint64_t n);
 
 static void bytes(void *to, const void *from, uint32_t n) {
   uint8_t *a = to;
@@ -81,6 +88,130 @@ static void discover_acpi(void) {
   for (uint32_t p = 0xe0000; p + 36 <= 0x100000; p += 16)
     if (rsdp_at(p)) return;
 }
+#ifdef LAMIX_M16_VIDEO
+static int bios_video_call(uint16_t ax, uint16_t bx, uint16_t cx, uint16_t dx,
+                           uint16_t es, uint16_t di) {
+  *(volatile uint8_t *)(uintptr_t)0x5080 = 1;
+  *(volatile uint16_t *)(uintptr_t)0x5082 = ax;
+  *(volatile uint16_t *)(uintptr_t)0x5084 = bx;
+  *(volatile uint16_t *)(uintptr_t)0x5086 = cx;
+  *(volatile uint16_t *)(uintptr_t)0x5088 = dx;
+  *(volatile uint16_t *)(uintptr_t)0x508a = es;
+  *(volatile uint16_t *)(uintptr_t)0x508c = di;
+  int (*thunk)(void) = (void *)(uintptr_t)STATE[8];
+  int success = thunk();
+  *(volatile uint8_t *)(uintptr_t)0x5080 = 0;
+  return success && *(volatile uint16_t *)(uintptr_t)0x508e == 0x004f;
+}
+static uint16_t read16(const uint8_t *p) {
+  return (uint16_t)p[0] | (uint16_t)((uint16_t)p[1] << 8);
+}
+static uint32_t read32(const uint8_t *p) {
+  return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+         ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+static uint32_t vbe_mask(uint8_t bits, uint8_t position) {
+  if (!bits || bits > 32 || position >= 32 || bits + position > 32)
+    return 0;
+  uint64_t value = bits == 32 ? UINT32_MAX : (UINT64_C(1) << bits) - 1;
+  return (uint32_t)(value << position);
+}
+static int contiguous_mask(uint32_t mask) {
+  if (!mask) return 0;
+  while (!(mask & 1u)) mask >>= 1;
+  return (mask & (mask + 1u)) == 0;
+}
+static int video_range_safe(const lbp_framebuffer *fb) {
+  uint64_t end = fb->physical + fb->length;
+  if (end < fb->physical) return 0;
+  for (uint32_t i = 0; i < normalized_count; ++i) {
+    uint64_t base = normalized[i].base;
+    uint64_t limit = base + normalized[i].length;
+    if (base < end && fb->physical < limit &&
+        (normalized[i].type == LBP_USABLE ||
+         normalized[i].type == LBP_LOADER_RECLAIM))
+      return 0;
+  }
+  for (uint32_t i = 0; i < res_count; ++i) {
+    uint64_t base = reservations[i].base;
+    uint64_t limit = base + reservations[i].length;
+    if (base < end && fb->physical < limit) return 0;
+  }
+  return 1;
+}
+static int video_mode(uint16_t mode, uint32_t wanted_width,
+                      uint32_t wanted_height, lbp_framebuffer *out) {
+  if (!bios_video_call(0x4f01, 0, mode, 0, 0, 0x5900)) return 0;
+  const uint8_t *info = (const uint8_t *)(uintptr_t)0x5900;
+  uint16_t attributes = read16(info);
+  uint32_t width = read16(info + 18), height = read16(info + 20);
+  uint32_t pitch = read16(info + (vbe_version >= 0x0300 ? 50 : 16));
+  uint32_t bpp = info[25];
+  uint32_t red = vbe_mask(info[vbe_version >= 0x0300 ? 54 : 31],
+                          info[vbe_version >= 0x0300 ? 55 : 32]);
+  uint32_t green = vbe_mask(info[vbe_version >= 0x0300 ? 56 : 33],
+                            info[vbe_version >= 0x0300 ? 57 : 34]);
+  uint32_t blue = vbe_mask(info[vbe_version >= 0x0300 ? 58 : 35],
+                           info[vbe_version >= 0x0300 ? 59 : 36]);
+  uint8_t reserved_size = info[vbe_version >= 0x0300 ? 60 : 37];
+  uint32_t reserved = reserved_size
+                          ? vbe_mask(reserved_size,
+                                     info[vbe_version >= 0x0300 ? 61 : 38])
+                          : 0;
+  uint32_t physical = read32(info + 40);
+  if ((attributes & 0x91) != 0x91 || info[27] != 6 || bpp != 32 ||
+      width != wanted_width || height != wanted_height ||
+      pitch < width * 4 || (pitch & 3) || !physical || (physical & 4095) ||
+      !contiguous_mask(red) || !contiguous_mask(green) ||
+      !contiguous_mask(blue) || (reserved && !contiguous_mask(reserved)) ||
+      (red & green) || (red & blue) || (green & blue) ||
+      (reserved & (red | green | blue)))
+    return 0;
+  uint64_t bytes = (uint64_t)pitch * height;
+  if (!bytes || bytes > UINT32_MAX - 4095 ||
+      bytes > UINT64_MAX - 4095 || physical > UINT32_MAX - bytes)
+    return 0;
+  uint32_t length = (uint32_t)((bytes + 4095) & ~UINT64_C(4095));
+  if (physical > UINT32_MAX - length) return 0;
+  *out = (lbp_framebuffer){{LBP_FRAMEBUFFER, 0, sizeof(lbp_framebuffer)},
+                           physical, length, width, height, pitch, bpp,
+                           red, green, blue, reserved};
+  return 1;
+}
+static void discover_vbe(void) {
+  uint8_t *controller = (uint8_t *)(uintptr_t)0x5800;
+  clear(controller, 512);
+  controller[0] = 'V'; controller[1] = 'B';
+  controller[2] = 'E'; controller[3] = '2';
+  if (!bios_video_call(0x4f00, 0, 0, 0, 0, 0x5800) ||
+      read32(controller) != UINT32_C(0x41534556) || read16(controller + 4) < 0x0200)
+    return;
+  vbe_version = read16(controller + 4);
+  uint32_t list = ((uint32_t)read16(controller + 16) << 4) +
+                  read16(controller + 14);
+  if (list < 0x400 || list > 0x100000 - 512) return;
+  const uint16_t *modes = (const uint16_t *)(uintptr_t)list;
+  const uint32_t widths[2] = {1024, 800}, heights[2] = {768, 600};
+  for (unsigned preference = 0; preference < 2; ++preference) {
+    for (unsigned i = 0; i < 256 && modes[i] != 0xffff; ++i) {
+      lbp_framebuffer candidate;
+      if (!video_mode(modes[i], widths[preference], heights[preference],
+                      &candidate) || !video_range_safe(&candidate))
+        continue;
+      if (!bios_video_call(0x4f02, (uint16_t)(modes[i] | 0x4000), 0, 0, 0, 0))
+        continue;
+      video_framebuffer = candidate;
+      have_framebuffer = 1;
+      serial("M16:VBE:MODE=");
+      serial(candidate.width == 1024 ? "1024x768\n" : "800x600\n");
+      serial("M16:VBE:BASE="); hex(candidate.physical); serial(" LENGTH=");
+      hex(candidate.length); serial(" PITCH="); hex(candidate.pitch); serial("\n");
+      return;
+    }
+  }
+  serial("M16:VBE:UNAVAILABLE\n");
+}
+#endif
 static void serial(const char *p) {
   for (; *p; p++) {
     for (uint32_t n = 65535; n && !(in8(0x3fd) & 32); n--) {
@@ -179,7 +310,13 @@ static void map_page(uint64_t virtual_address, uint32_t physical,
   if (table[i] & 1)
     fail("ENTRY");
   table[i] = (uint64_t)physical | 1 | ((perms & LBP_WRITE) ? 2 : 0) |
-             ((nx_enabled && !(perms & LBP_EXECUTE)) ? NX : 0);
+             ((nx_enabled && !(perms & LBP_EXECUTE)) ? NX : 0)
+#ifdef LAMIX_M16_VIDEO
+             | (have_framebuffer && physical >= video_framebuffer.physical &&
+                        physical < video_framebuffer.physical + video_framebuffer.length
+                    ? UINT64_C(0x18) : 0)
+#endif
+      ;
 }
 static void identity(uint32_t p, uint32_t size, uint32_t perms) {
   mapping(p, p, size, perms);
@@ -393,8 +530,20 @@ static uint32_t bootinfo(uint32_t physical, uint32_t stack) {
     wr32(r + 28, acpi_revision);
     at += sizeof(lbp_acpi);
   }
+#ifdef LAMIX_M16_VIDEO
+  if (have_framebuffer) {
+    record(at, LBP_FRAMEBUFFER, sizeof(video_framebuffer),
+           sizeof(video_framebuffer), 0);
+    ((lbp_record *)(void *)at)->flags = 0;
+    bytes(at, &video_framebuffer, sizeof(video_framebuffer));
+    at += sizeof(video_framebuffer);
+  }
+#endif
   uint64_t provided = nx_enabled ? LBP_FEATURE_NX : 0;
   if (acpi_length) provided |= LBP_FEATURE_ACPI;
+#ifdef LAMIX_M16_VIDEO
+  if (have_framebuffer) provided |= LBP_FEATURE_FRAMEBUFFER;
+#endif
   lbp_header header = {{'L', 'A', 'M', 'I', 'X', 'L', 'B', 'P'},
                        1,
                        0,
@@ -403,7 +552,11 @@ static uint32_t bootinfo(uint32_t physical, uint32_t stack) {
                        elf.required_features,
                        provided,
                        64,
-                       5 + !!acpi_length,
+                       5 + !!acpi_length
+#ifdef LAMIX_M16_VIDEO
+                           + !!have_framebuffer
+#endif
+                       ,
                        0,
                        physical};
   bytes(blob, &header, 64);
@@ -419,9 +572,13 @@ static uint32_t bootinfo(uint32_t physical, uint32_t stack) {
 #endif
   lbp_view view;
   lbp_span acpi_span = {acpi_physical, acpi_bytes, acpi_length};
-  if (lbp_validate(blob, header.total_size, acpi_length ? &acpi_span : 0,
-                   acpi_length ? 1 : 0, &view) != LBP_OK)
+  lbp_status validation = lbp_validate(blob, header.total_size,
+                                       acpi_length ? &acpi_span : 0,
+                                       acpi_length ? 1 : 0, &view);
+  if (validation != LBP_OK) {
+    serial("M16:LBP:STATUS="); hex(validation); serial("\n");
     fail("LBP");
+  }
   return (uint32_t)header.total_size;
 }
 static void hex(uint64_t n) {
@@ -463,12 +620,17 @@ static void report(void) {
   }
 }
 void stage2_main(void) {
+  *(volatile uint8_t *)(uintptr_t)0x5080 = 0;
+  *(volatile uint16_t *)(uintptr_t)0x508e = 0;
   early_idt();
   cpu();
   if (!division_check())
     fail("S2");
   memory();
   discover_acpi();
+#ifdef LAMIX_M16_VIDEO
+  discover_vbe();
+#endif
   lamix_reader drive = {0, disk_read, (uint64_t)STATE[3] * 512};
   if (lamix_gpt_open(drive, STATE[1], STATE[2], gpt_array, sizeof gpt_array,
                      &disk) != LBP_OK)
@@ -476,9 +638,13 @@ void stage2_main(void) {
   if (lamix_fat_open(&disk, &fat) != LBP_OK)
     fail("FAT");
   lamix_reader file = {&fat, lamix_fat_read, fat.file_size};
-  lbp_status status =
-      lamix_elf_inspect(file, (nx_enabled ? LBP_FEATURE_NX : 0) |
-                                  (acpi_length ? LBP_FEATURE_ACPI : 0), &elf);
+  uint64_t available_features =
+      (nx_enabled ? LBP_FEATURE_NX : 0) |
+      (acpi_length ? LBP_FEATURE_ACPI : 0);
+#ifdef LAMIX_M16_VIDEO
+  if (have_framebuffer) available_features |= LBP_FEATURE_FRAMEBUFFER;
+#endif
+  lbp_status status = lamix_elf_inspect(file, available_features, &elf);
   if (status != LBP_OK)
     fail(status == LBP_UNSUPPORTED ? "NOTE" : "ELF");
   status = lamix_elf_load(file, &elf, kernel_allocate, 0, kernel_segments, 32);
@@ -503,6 +669,11 @@ void stage2_main(void) {
   identity(info, 1048576, LBP_READ);
   identity(stack, 65536, LBP_READ | LBP_WRITE);
   identity(pool, 128 * PAGE, LBP_READ | LBP_WRITE);
+#ifdef LAMIX_M16_VIDEO
+  if (have_framebuffer)
+    identity((uint32_t)video_framebuffer.physical,
+             (uint32_t)video_framebuffer.length, LBP_READ | LBP_WRITE);
+#endif
   final_tables(stack, info);
   (void)bootinfo(info, stack);
   for (uint32_t i = 0; i < map_count; i++)

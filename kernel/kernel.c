@@ -21,6 +21,9 @@
 #include "input.h"
 #include "ps2.h"
 #endif
+#if defined(LAMIX_M16_GRAPHICS)
+#include "graphics.h"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -719,6 +722,54 @@ static int m15_input_init(void) {
   return 1;
 }
 #endif
+#if defined(LAMIX_M16_GRAPHICS)
+static int m16_renderer_init(const lbp_view *view) {
+  const uint8_t *raw = record(view, LBP_FRAMEBUFFER);
+  if (!raw || ((const lbp_record *)raw)->size < sizeof(lbp_framebuffer)) {
+    serial("M16:FRAMEBUFFER:UNAVAILABLE:ABSENT\n");
+    return 0;
+  }
+  const lbp_framebuffer *fb = (const lbp_framebuffer *)raw;
+  if (fb->bpp != 32 || !fb->physical || fb->physical > UINTPTR_MAX ||
+      (uint64_t)fb->width * fb->height > SIZE_MAX / sizeof(uint32_t)) {
+    serial("M16:FRAMEBUFFER:UNAVAILABLE:INVALID\n");
+    return 0;
+  }
+  size_t bytes = (size_t)fb->width * fb->height * sizeof(uint32_t);
+  uint32_t *back = (uint32_t *)kheap_alloc(&kernel_heap, bytes);
+  if (!back) {
+    serial("M16:FRAMEBUFFER:UNAVAILABLE:OOM\n");
+    return 0;
+  }
+  graphics_surface surface;
+  if (!graphics_init(&surface, back, bytes,
+                     (uint8_t *)(uintptr_t)fb->physical, fb->length,
+                     fb->width, fb->height, fb->pitch, fb->red_mask,
+                     fb->green_mask, fb->blue_mask)) {
+    (void)kheap_free(&kernel_heap, back);
+    serial("M16:FRAMEBUFFER:UNAVAILABLE:INVALID\n");
+    return 0;
+  }
+  graphics_clear(&surface, UINT32_C(0x00101828));
+  graphics_fill_rect(&surface, 24, 24, 192, 72, UINT32_C(0x003078d0));
+  graphics_rect_outline(&surface, 20, 20, 200, 80, UINT32_C(0x00ffffff));
+  graphics_line(&surface, 20, 110, (int32_t)fb->width - 21, 110,
+                UINT32_C(0x00ffb020));
+  graphics_text(&surface, 32, 48, "LAMIX OS M16", UINT32_C(0x00ffffff));
+  uint64_t checksum = graphics_checksum(&surface);
+  if (!checksum || !graphics_present(&surface) ||
+      !graphics_verify_present(&surface)) {
+    (void)kheap_free(&kernel_heap, back);
+    serial("M16:FRAME:FAIL\n");
+    return -1;
+  }
+  serial("M16:RENDERER:PASS\nM16:FRAME:PASS checksum=");
+  hex(checksum);
+  serial("\n");
+  (void)kheap_free(&kernel_heap, back);
+  return 1;
+}
+#endif
 static uint32_t m14_io_read(volatile uint32_t *io, uint8_t reg) {
   io[0] = reg;
   __asm__ volatile("mfence" ::: "memory");
@@ -1247,6 +1298,18 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
 #endif
 #if defined(LAMIX_M15_INPUT)
   if (!m15_input_init()) halt();
+#endif
+#if defined(LAMIX_M16_GRAPHICS)
+  int graphics_status = m16_renderer_init(&view);
+  if (graphics_status < 0) {
+    serial("M16:FAIL\n");
+    fail();
+  }
+  if (!graphics_status) {
+    serial("M16:UNAVAILABLE\n");
+    halt();
+  }
+  serial("M16:PASS\n");
 #endif
   halt();
 }
