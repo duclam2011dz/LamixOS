@@ -386,29 +386,31 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m17-tests
 PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m17-tests --no-tests=error --output-on-failure --output-junit "$PWD/out/m17/ctest.xml"
 ```
 
-CTest gồm `m17-native-sanitize`, host provenance và guest. Host dùng cùng `kernel/virtio_gpu.c` với ASan/UBSan; guest dùng cùng image qua SeaBIOS `pc`/OVMF `q35`, gửi QMP input cho M15, chụp QMP screenshot sau `M17:READY`, kiểm tra protected hashes/cleanup và chạy cả profile không gắn VirtIO-GPU để chứng minh fallback. Ảnh PPM gốc và PNG review được giữ trong `out/m17/runs/`; kết quả JSON ở `out/m17/results/`. CI chỉ upload reports, serial/QMP logs và screenshots; không upload image hoặc firmware.
+CTest gồm `m17-native-sanitize`, host provenance và guest. Host dùng cùng `kernel/virtio_gpu.c` với ASan/UBSan; guest BIOS/UEFI boot image M17 không cần QMP input, chụp QMP screenshot sau `M17:READY`, kiểm tra protected hashes/cleanup và chạy cả profile không gắn VirtIO-GPU để chứng minh fallback. M15 synthetic keyboard/mouse test chạy riêng trong M15 guest suite. Ảnh PPM gốc và PNG review được giữ trong `out/m17/runs/`; kết quả JSON ở `out/m17/results/`. CI chỉ upload reports, serial/QMP logs và screenshots; không upload image hoặc firmware.
 
 CTest local **3/3 PASS**: native sanitizer, host provenance và guest. Guest pytest **4/4 PASS** (GPU BIOS/UEFI và fallback BIOS/UEFI). Native sanitizer bao gồm queue errors, ring index wrap, DMA reset timeout và response đến muộn trong persistent storage. Ảnh BIOS và UEFI đã được mở kiểm tra; cả hai thể hiện frame M17 với nền tối, panel xanh, chữ trắng và đường màu cam. Hồi quy M15 host/sanitizer 2/2, M16 host/sanitizer 2/2, M07 host 7/7 (một QEMU case deselected) và QMP fixtures 1/1 PASS. M07 CTest wrapper trỏ build provenance cũ nên lần chạy đó FAIL; chạy lại suite trực tiếp với Stage2/UEFI build mới đạt. Docs validator **PASS**, unittest **41/41 PASS**. PR #15 merge commit `8afa222fc493c2adbac71bb415adacc03b4510f7`; acceptance SHA `292eb59f3c368c2933a7dbb0d135b89f4fb74415`, tag `milestone/M17`. Bốn workflow trên SHA này SUCCESS: Toolchain [41200982371](https://github.com/duclam2011dz/LamixOS/actions/runs/41200982371), Harness [41200982402](https://github.com/duclam2011dz/LamixOS/actions/runs/41200982402), Documentation [41200982454](https://github.com/duclam2011dz/LamixOS/actions/runs/41200982454), Boot Contract [41200982320](https://github.com/duclam2011dz/LamixOS/actions/runs/41200982320). M17 DONE; PC thật/firmware ngoài profile **NOT RUN**.
 
-Sau khi guest test tạo image trong `out/m17/`, tìm tên file theo kernel hash trong build report. Chạy BIOS với cửa sổ QEMU:
+### Sửa đường boot trực tiếp M17
+
+- Người dùng báo màn hình đen. Serial dừng ở `M15:READY`, không có `M17:*`: profile M17 gọi M15 self-test trước renderer; test chờ QMP keyboard/mouse events mà lệnh chạy trực tiếp không gửi. M17 guest CI trước đó tự gửi các event này nên không phát hiện lỗi đường chạy trực tiếp.
+- Trong profile M17, PS/2 vẫn khởi tạo nhưng self-test tương tác M15 được bỏ qua (`M15:SELFTEST:SKIPPED`); luồng M15 của profile M15 giữ nguyên. M17 guest test không còn gửi input QMP và kiểm tra renderer chạy không cần scripted input.
+- M17 CTest sau sửa **3/3 PASS**; guest BIOS/UEFI GPU và fallback **4/4 PASS**. M15 guest regression **2/2 PASS** với build hiện hành. Người dùng xác nhận trực tiếp màn hình đã hiển thị bình thường khi boot cả BIOS và UEFI. Tag `milestone/M17` không bị di chuyển; lần sửa này được ghi nhận như follow-up sau acceptance.
+- Thêm `scripts/m17_qemu.py` để build kernel/loaders/image và mở QEMU; image đặt tên theo hash kernel, Stage2 và EFI. Script build-only **PASS**; image do script tạo boot BIOS và UEFI không có QMP input, cả hai phát `M17:PASS` và QMP screenshot xác nhận frame. CTest host có regression cho cấu hình lệnh script. Kernel SHA-256 `d9863e4027da20e1787ab99baf1e4e566ca96750b08a496442ce53d85b00bcf5`; image debug `out/m17/lamix-m17-d9863e4027da-a3ffdf82-c504fc33.img`.
+
+Chạy script từ root workspace (mặc định build image rồi chạy BIOS, sau khi đóng cửa sổ sẽ chạy UEFI):
 
 ```sh
-IMAGE="out/m17/lamix-m17-5d6e8d50ed79.img"
-qemu-system-x86_64 -machine pc -accel tcg -smp 1 -m 256M \
-  -bios /usr/share/seabios/bios.bin -vga none -device virtio-vga \
-  -drive "file=$IMAGE,format=raw,if=ide,snapshot=on" -serial stdio
+./scripts/m17_qemu.py
 ```
 
-Chạy UEFI dùng cùng image, OVMF CODE chỉ đọc và VARS riêng cho lần chạy:
+Chọn firmware riêng hoặc chỉ build image:
 
 ```sh
-IMAGE="out/m17/lamix-m17-5d6e8d50ed79.img"
-cp /usr/share/OVMF/OVMF_VARS.fd out/m17/OVMF_VARS.run.fd
-qemu-system-x86_64 -machine q35 -accel tcg -smp 1 -m 256M \
-  -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE.fd \
-  -drive if=pflash,format=raw,unit=1,file=out/m17/OVMF_VARS.run.fd \
-  -device virtio-vga -drive "file=$IMAGE,format=raw,if=ide,snapshot=on" \
-  -serial stdio
+./scripts/m17_qemu.py --firmware bios
+./scripts/m17_qemu.py --firmware uefi
+./scripts/m17_qemu.py --build-only
 ```
 
-Các câu lệnh này dùng QEMU display mặc định để mở cửa sổ. Image ở chế độ snapshot nên thay đổi ổ đĩa trong lần chạy không được ghi lại. PC thật/firmware ngoài profile QEMU **NOT RUN**.
+Script yêu cầu toolchain và QEMU/SeaBIOS/OVMF theo [TOOLCHAIN](TOOLCHAIN.md); không tự cài dependencies. Có thể đổi đường dẫn firmware bằng `--seabios`, `--ovmf-code`, `--ovmf-vars` hoặc biến môi trường `LAMIX_SEABIOS`, `LAMIX_OVMF_CODE`, `LAMIX_OVMF_VARS`. Serial hiện trực tiếp trong terminal, VARS riêng và dữ liệu từng lần chạy nằm `out/m17/runs/manual-*`; image dùng snapshot và không bị ghi đè khi build lại.
+
+VirtIO-GPU là VGA adapter duy nhất (`-vga none` trước `virtio-vga`). Giữ terminal mở và đợi serial in `M17:PASS`; OVMF có thể còn hiện thông báo BDS trong lúc handoff. PC thật/firmware ngoài profile QEMU **NOT RUN**.
