@@ -10,6 +10,8 @@ apic_status apic_decode_isa_override(uint16_t flags, apic_irq_mode *mode);
 apic_status apic_make_redirection(uint8_t vector, uint8_t destination,
                                   apic_irq_mode mode, int masked,
                                   uint64_t *value);
+apic_status apic_elapsed_counts(uint32_t start_count, uint32_t end_count,
+                                uint32_t *elapsed_counts);
 apic_status apic_calibrate_periodic(uint32_t elapsed_lapic_counts,
                                     uint32_t reference_ticks,
                                     uint16_t pit_divisor,

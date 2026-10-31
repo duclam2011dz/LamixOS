@@ -24,6 +24,14 @@ apic_status apic_make_redirection(uint8_t vector, uint8_t destination,
   return APIC_OK;
 }
 
+apic_status apic_elapsed_counts(uint32_t start_count, uint32_t end_count,
+                                uint32_t *elapsed_counts) {
+  if (!elapsed_counts) return APIC_INVALID;
+  if (end_count >= start_count) return APIC_RANGE;
+  *elapsed_counts = start_count - end_count;
+  return APIC_OK;
+}
+
 apic_status apic_calibrate_periodic(uint32_t elapsed_lapic_counts,
                                     uint32_t reference_ticks,
                                     uint16_t pit_divisor,

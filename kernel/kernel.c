@@ -62,7 +62,10 @@ static volatile uint32_t *m14_ioapics[ACPI_MADT_MAX_IOAPICS];
 static uint32_t m14_ioapic_max[ACPI_MADT_MAX_IOAPICS];
 static volatile uint32_t m14_pit_irqs, m14_timer_irqs;
 static volatile uint32_t m14_pit_eois, m14_timer_eois;
+static volatile uint32_t m14_calibration_start, m14_calibration_end;
 static volatile uint8_t m14_active;
+#define M14_PIT_CALIBRATION_INTERVALS 10u
+#define M14_PIT_CALIBRATION_IRQS (M14_PIT_CALIBRATION_INTERVALS + 1u)
 #endif
 static uint64_t acpi_scratch_base, acpi_scratch_pages;
 #if defined(LAMIX_M09_PMM)
@@ -151,8 +154,13 @@ void interrupt_dispatch(interrupt_frame*f){if(f->vector==32){
 #if defined(LAMIX_M14_APIC)
   if (f->vector == 0x30 || f->vector == 0x31) {
     if (!m14_lapic) panic_frame(f);
-    if (f->vector == 0x30) { ++m14_pit_irqs; ++m14_pit_eois; }
-    else { ++m14_timer_irqs; ++m14_timer_eois; }
+    if (f->vector == 0x30) {
+      uint32_t irq = ++m14_pit_irqs;
+      if (irq == 1) m14_calibration_start = m14_lapic[0x390 / 4];
+      else if (irq == M14_PIT_CALIBRATION_IRQS)
+        m14_calibration_end = m14_lapic[0x390 / 4];
+      ++m14_pit_eois;
+    } else { ++m14_timer_irqs; ++m14_timer_eois; }
     __asm__ volatile("mfence" ::: "memory");
     m14_lapic[0xb0 / 4] = 0;
     return;
@@ -663,7 +671,6 @@ static int m14_apic_init(void) {
   m14_io_write(io, (uint8_t)(redir_reg + 1), (uint32_t)(redirection >> 32));
   m14_lapic[0x320 / 4] = (1u << 16) | 0x31;
   m14_lapic[0x3e0 / 4] = 0x3;
-  m14_lapic[0x380 / 4] = UINT32_MAX;
   out8(0x21, 0xff); out8(0xa1, 0xff);
   out8(PIT + 3, 0x36);
   out8(PIT, (uint8_t)M14_PIT_DIVISOR);
@@ -671,11 +678,13 @@ static int m14_apic_init(void) {
   m14_io_write(io, redir_reg, (uint32_t)redirection);
   m14_active = 1;
   serial("M14:ACPI:PASS\nM14:APIC:PASS\nM14:IOAPIC:PASS\n");
+  m14_lapic[0x380 / 4] = UINT32_MAX;
   __asm__ volatile("sti");
-  for (uint32_t n = 0; n < 20000000u && m14_pit_irqs < 10; ++n)
+  for (uint32_t n = 0; n < 20000000u &&
+       m14_pit_irqs < M14_PIT_CALIBRATION_IRQS; ++n)
     __asm__ volatile("pause");
   __asm__ volatile("cli");
-  if (m14_pit_irqs < 10) {
+  if (m14_pit_irqs < M14_PIT_CALIBRATION_IRQS) {
     serial("M14:INIT:PIT_TIMEOUT gsi="); hex(gsi);
     serial(" mode="); hex((mode.active_low ? 1u : 0u) |
                            (mode.level_triggered ? 2u : 0u));
@@ -686,13 +695,17 @@ static int m14_apic_init(void) {
     serial("\n");
     return 0;
   }
-  uint32_t current = m14_lapic[0x390 / 4];
-  uint32_t elapsed = UINT32_MAX - current;
   m14_io_write(io, redir_reg, (uint32_t)redirection | (1u << 16));
-  if (!elapsed || m14_pit_eois != m14_pit_irqs) { serial("M14:INIT:PIT_EOI\n"); return 0; }
+  uint32_t elapsed;
+  if (m14_pit_eois != m14_pit_irqs ||
+      apic_elapsed_counts(m14_calibration_start, m14_calibration_end,
+                          &elapsed) != APIC_OK) {
+    serial("M14:INIT:PIT_EOI_OR_SAMPLE\n"); return 0;
+  }
   serial("M14:PIT_REF:PASS\n");
   uint32_t periodic;
-  if (apic_calibrate_periodic(elapsed, m14_pit_irqs, M14_PIT_DIVISOR,
+  if (apic_calibrate_periodic(elapsed, M14_PIT_CALIBRATION_INTERVALS,
+                              M14_PIT_DIVISOR,
                               100, &periodic) != APIC_OK)
     { serial("M14:INIT:CALIBRATION\n"); return 0; }
   m14_lapic[0x320 / 4] = (1u << 17) | 0x31;

@@ -79,6 +79,10 @@ static void test_apic_helpers(void) {
          (redirection&(1u<<13)) && (redirection&(1u<<15)) &&
          (redirection&(1u<<16)));
   assert(apic_make_redirection(0xff,2,mode,0,&redirection)==APIC_INVALID);
+  assert(apic_elapsed_counts(1000,900,&count)==APIC_OK && count==100);
+  assert(apic_elapsed_counts(900,1000,&count)==APIC_RANGE);
+  assert(apic_elapsed_counts(1000,1000,&count)==APIC_RANGE);
+  assert(apic_elapsed_counts(1000,900,0)==APIC_INVALID);
   assert(apic_calibrate_periodic(62500000,10,11931,100,&count)==APIC_OK &&
          count>6000000 && count<6500000);
   assert(apic_calibrate_periodic(UINT32_MAX,0,11931,100,&count)==APIC_INVALID);
