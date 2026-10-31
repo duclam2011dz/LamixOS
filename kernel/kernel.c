@@ -234,12 +234,16 @@ static void m19_aging_low(void *argument) {
 static void m19_mutex_owner(void *argument) {
   (void)argument;
   serial("M19:MUTEX:OWNER_START\n");
-  if (scheduler_mutex_lock(&m19_scheduler, &m19_test_mutex) != SCHED_OK ||
-      scheduler_set_priority(m19_owner_thread, 0) != SCHED_OK) {
+  uintptr_t owner_start_flags = m19_irq_save(0);
+  int owner_started =
+      scheduler_mutex_lock(&m19_scheduler, &m19_test_mutex) == SCHED_OK &&
+      scheduler_set_priority(m19_owner_thread, 0) == SCHED_OK;
+  if (owner_started) m19_owner_ready = 1;
+  m19_irq_restore(0, owner_start_flags);
+  if (!owner_started) {
     m19_guest_failure = 1;
     return;
   }
-  m19_owner_ready = 1;
   serial("M19:MUTEX:OWNER_HELD\n");
   while (!m19_high_waiting) __asm__ volatile("pause" ::: "memory");
   m19_medium_at_inheritance = m19_medium_progress;
