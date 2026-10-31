@@ -59,6 +59,8 @@ typedef struct virtio_gpu_memory {
   size_t used_storage_size;
   uint8_t *command_storage;
   size_t command_storage_size;
+  uint8_t *response_storage;
+  size_t response_storage_size;
   uint64_t *backing_pages;
   size_t backing_page_capacity;
 } virtio_gpu_memory;

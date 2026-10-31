@@ -146,6 +146,7 @@ static uint8_t m17_available[4096] __attribute__((aligned(4096)));
 static uint8_t m17_used[4096] __attribute__((aligned(4096)));
 static uint8_t m17_commands[sizeof(uint32_t) * 8 +
     VIRTIO_GPU_MAX_BACKING_PAGES * 16] __attribute__((aligned(4096)));
+static uint8_t m17_responses[1024] __attribute__((aligned(16)));
 #endif
 static __attribute__((noreturn)) void fail(void);
 
@@ -933,6 +934,8 @@ static int m17_init_gpu(uint32_t width, uint32_t height, uint32_t *pixels,
       .used_storage_size = sizeof(m17_used),
       .command_storage = m17_commands,
       .command_storage_size = sizeof(m17_commands),
+      .response_storage = m17_responses,
+      .response_storage_size = sizeof(m17_responses),
       .backing_pages = 0,
       .backing_page_capacity = VIRTIO_GPU_MAX_BACKING_PAGES};
   m17_memory.queue.descriptors_physical = descriptors;

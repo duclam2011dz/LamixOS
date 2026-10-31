@@ -388,12 +388,12 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m17-tests --no-test
 
 CTest gồm `m17-native-sanitize`, host provenance và guest. Host dùng cùng `kernel/virtio_gpu.c` với ASan/UBSan; guest dùng cùng image qua SeaBIOS `pc`/OVMF `q35`, gửi QMP input cho M15, chụp QMP screenshot sau `M17:READY`, kiểm tra protected hashes/cleanup và chạy cả profile không gắn VirtIO-GPU để chứng minh fallback. Ảnh PPM gốc và PNG review được giữ trong `out/m17/runs/`; kết quả JSON ở `out/m17/results/`. CI chỉ upload reports, serial/QMP logs và screenshots; không upload image hoặc firmware.
 
-CTest local **3/3 PASS**: native sanitizer, host provenance và guest. Guest pytest **4/4 PASS** (GPU BIOS/UEFI và fallback BIOS/UEFI). Ảnh BIOS và UEFI đã được mở kiểm tra; cả hai thể hiện frame M17 với nền tối, panel xanh, chữ trắng và đường màu cam. Hồi quy M15 host/sanitizer 2/2, M16 host/sanitizer 2/2, M07 host 7/7 (một QEMU case deselected) và QMP fixtures 1/1 PASS. M07 CTest wrapper trỏ build provenance cũ nên lần chạy đó FAIL; chạy lại suite trực tiếp với Stage2/UEFI build mới đạt. Docs validator **PASS**, unittest **41/41 PASS**; GitHub CI **PENDING/NOT RUN**. M17 còn **IN_PROGRESS**, không phải nghiệm thu.
+CTest local **3/3 PASS**: native sanitizer, host provenance và guest. Guest pytest **4/4 PASS** (GPU BIOS/UEFI và fallback BIOS/UEFI). Native sanitizer bao gồm queue errors, ring index wrap, DMA reset timeout và response đến muộn trong persistent storage. Ảnh BIOS và UEFI đã được mở kiểm tra; cả hai thể hiện frame M17 với nền tối, panel xanh, chữ trắng và đường màu cam. Hồi quy M15 host/sanitizer 2/2, M16 host/sanitizer 2/2, M07 host 7/7 (một QEMU case deselected) và QMP fixtures 1/1 PASS. M07 CTest wrapper trỏ build provenance cũ nên lần chạy đó FAIL; chạy lại suite trực tiếp với Stage2/UEFI build mới đạt. Docs validator **PASS**, unittest **41/41 PASS**; CI cần chạy lại trên commit cuối. M17 còn **IN_PROGRESS**, không phải nghiệm thu.
 
 Sau khi guest test tạo image trong `out/m17/`, tìm tên file theo kernel hash trong build report. Chạy BIOS với cửa sổ QEMU:
 
 ```sh
-IMAGE="out/m17/lamix-m17-6f54966e4058.img"
+IMAGE="out/m17/lamix-m17-5d6e8d50ed79.img"
 qemu-system-x86_64 -machine pc -accel tcg -smp 1 -m 256M \
   -bios /usr/share/seabios/bios.bin -vga none -device virtio-vga \
   -drive "file=$IMAGE,format=raw,if=ide,snapshot=on" -serial stdio
@@ -402,7 +402,7 @@ qemu-system-x86_64 -machine pc -accel tcg -smp 1 -m 256M \
 Chạy UEFI dùng cùng image, OVMF CODE chỉ đọc và VARS riêng cho lần chạy:
 
 ```sh
-IMAGE="out/m17/lamix-m17-6f54966e4058.img"
+IMAGE="out/m17/lamix-m17-5d6e8d50ed79.img"
 cp /usr/share/OVMF/OVMF_VARS.fd out/m17/OVMF_VARS.run.fd
 qemu-system-x86_64 -machine q35 -accel tcg -smp 1 -m 256M \
   -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE.fd \

@@ -105,6 +105,15 @@ static int valid_ops(const virtio_gpu_ops *ops) {
          ops->dma_address;
 }
 
+static int storage_contains(const uint8_t *storage, size_t capacity,
+                            const void *pointer, size_t length) {
+  uintptr_t base = (uintptr_t)storage, address = (uintptr_t)pointer;
+  if (!storage || !pointer || !length || address < base ||
+      capacity > UINTPTR_MAX - base || length > UINTPTR_MAX - address)
+    return 0;
+  return address + length <= base + capacity;
+}
+
 virtio_gpu_status virtio_gpu_queue_init(
     virtio_gpu_queue *queue, const virtio_gpu_ops *ops, uint16_t size,
     uint8_t *descriptor_storage, size_t descriptor_storage_size,
@@ -146,7 +155,13 @@ virtio_gpu_status virtio_gpu_submit(virtio_gpu *gpu, const void *request,
                                     size_t response_size) {
   if (!gpu || !gpu->memory || !gpu->memory->queue.ready || !request ||
       !request_size || !response || response_size < sizeof(gpu_header) ||
-      request_size > UINT32_MAX || response_size > UINT32_MAX)
+      request_size > UINT32_MAX || response_size > UINT32_MAX ||
+      !storage_contains(gpu->memory->command_storage,
+                        gpu->memory->command_storage_size, request,
+                        request_size) ||
+      !storage_contains(gpu->memory->response_storage,
+                        gpu->memory->response_storage_size, response,
+                        response_size))
     return VIRTIO_GPU_INVALID_ARGUMENT;
   virtio_gpu_queue *queue = &gpu->memory->queue;
   uint64_t request_physical = 0, response_physical = 0;
@@ -209,14 +224,14 @@ static gpu_header header(uint32_t type) {
   return (gpu_header){.type = type};
 }
 
-static int prepare_backing(virtio_gpu *gpu, uint32_t *pixels,
-                           size_t pixel_count) {
+static virtio_gpu_status prepare_backing(virtio_gpu *gpu, uint32_t *pixels,
+                                         size_t pixel_count) {
   size_t byte_count = pixel_count * sizeof(uint32_t);
   size_t page_count = (byte_count + 4095u) / 4096u;
   if (page_count > gpu->memory->backing_page_capacity ||
       gpu->memory->command_storage_size <
           sizeof(gpu_attach_request) + page_count * sizeof(gpu_memory_entry))
-    return 0;
+    return VIRTIO_GPU_OUT_OF_RANGE;
   gpu_attach_request *attach =
       (gpu_attach_request *)gpu->memory->command_storage;
   attach->header = header(GPU_CMD_RESOURCE_ATTACH_BACKING);
@@ -230,31 +245,33 @@ static int prepare_backing(virtio_gpu *gpu, uint32_t *pixels,
     uint64_t physical = 0;
     if (!gpu->ops.dma_address(gpu->ops.context, (const void *)pointer,
                               length, &physical))
-      return 0;
+      return VIRTIO_GPU_DMA_ERROR;
     entries[i] = (gpu_memory_entry){physical, (uint32_t)length, 0};
   }
-  uint8_t response[sizeof(gpu_header)];
+  uint8_t *response = gpu->memory->response_storage;
   return command(gpu, attach, sizeof(*attach) + page_count * sizeof(*entries),
-                 response, sizeof(response), GPU_RESP_OK_NODATA) == VIRTIO_GPU_OK;
+                 response, sizeof(gpu_header), GPU_RESP_OK_NODATA);
 }
 
 static virtio_gpu_status transfer_and_flush(virtio_gpu *gpu) {
-  gpu_transfer_request transfer = {
+  gpu_transfer_request *transfer =
+      (gpu_transfer_request *)gpu->memory->command_storage;
+  *transfer = (gpu_transfer_request){
       .header = header(GPU_CMD_TRANSFER_TO_HOST_2D),
-      .rect = {0, 0, gpu->width, gpu->height},
-      .offset = 0,
+      .rect = {0, 0, gpu->width, gpu->height}, .offset = 0,
       .resource_id = gpu->resource_id};
-  uint8_t response[sizeof(gpu_header)];
-  virtio_gpu_status status = command(gpu, &transfer, sizeof(transfer),
-                                     response, sizeof(response),
+  uint8_t *response = gpu->memory->response_storage;
+  virtio_gpu_status status = command(gpu, transfer, sizeof(*transfer),
+                                     response, sizeof(gpu_header),
                                      GPU_RESP_OK_NODATA);
   if (status != VIRTIO_GPU_OK)
     return status;
-  gpu_flush_request flush = {
+  gpu_flush_request *flush = (gpu_flush_request *)gpu->memory->command_storage;
+  *flush = (gpu_flush_request){
       .header = header(GPU_CMD_RESOURCE_FLUSH),
       .rect = {0, 0, gpu->width, gpu->height},
       .resource_id = gpu->resource_id};
-  return command(gpu, &flush, sizeof(flush), response, sizeof(response),
+  return command(gpu, flush, sizeof(*flush), response, sizeof(gpu_header),
                  GPU_RESP_OK_NODATA);
 }
 
@@ -266,6 +283,10 @@ virtio_gpu_status virtio_gpu_initialize(virtio_gpu *gpu,
                                         size_t backbuffer_size) {
   if (!gpu || !valid_ops(ops) || !memory || !backbuffer || !width ||
       !height || width > GPU_MAX_WIDTH || height > GPU_MAX_HEIGHT ||
+      !memory->command_storage ||
+      memory->command_storage_size < sizeof(gpu_transfer_request) ||
+      !memory->response_storage ||
+      memory->response_storage_size < sizeof(gpu_display_response) ||
       (uint64_t)width * height > SIZE_MAX / sizeof(uint32_t) ||
       backbuffer_size < (uint64_t)width * height * sizeof(uint32_t))
     return VIRTIO_GPU_INVALID_ARGUMENT;
@@ -329,34 +350,38 @@ virtio_gpu_status virtio_gpu_initialize(virtio_gpu *gpu,
   if (!(common_read(ops, 20, 1) & VIRTIO_STATUS_DRIVER_OK))
     goto bad_device;
   gpu->initialized = 1;
-  gpu_header request = header(GPU_CMD_GET_DISPLAY_INFO);
-  gpu_display_response display;
-  virtio_gpu_status result = command(gpu, &request, sizeof(request), &display,
-      sizeof(display), GPU_RESP_OK_DISPLAY_INFO);
+  gpu_header *request = (gpu_header *)memory->command_storage;
+  *request = header(GPU_CMD_GET_DISPLAY_INFO);
+  gpu_display_response *display =
+      (gpu_display_response *)memory->response_storage;
+  virtio_gpu_status result = command(gpu, request, sizeof(*request), display,
+      sizeof(*display), GPU_RESP_OK_DISPLAY_INFO);
   if (result != VIRTIO_GPU_OK)
     goto fail;
-  if (!display.modes[0].enabled || !display.modes[0].rect.width ||
-      !display.modes[0].rect.height)
+  if (!display->modes[0].enabled || !display->modes[0].rect.width ||
+      !display->modes[0].rect.height)
     goto unsupported_after_ready;
-  if (gpu->width > display.modes[0].rect.width)
-    gpu->width = display.modes[0].rect.width;
-  if (gpu->height > display.modes[0].rect.height)
-    gpu->height = display.modes[0].rect.height;
-  gpu_create_request create = {.header = header(GPU_CMD_RESOURCE_CREATE_2D),
+  if (gpu->width > display->modes[0].rect.width)
+    gpu->width = display->modes[0].rect.width;
+  if (gpu->height > display->modes[0].rect.height)
+    gpu->height = display->modes[0].rect.height;
+  gpu_create_request *create = (gpu_create_request *)memory->command_storage;
+  *create = (gpu_create_request){.header = header(GPU_CMD_RESOURCE_CREATE_2D),
       .resource_id = GPU_RESOURCE_ID, .format = VIRTIO_GPU_FORMAT_B8G8R8X8_UNORM,
       .width = gpu->width, .height = gpu->height};
-  uint8_t response[sizeof(gpu_header)];
-  result = command(gpu, &create, sizeof(create), response, sizeof(response),
+  uint8_t *response = memory->response_storage;
+  result = command(gpu, create, sizeof(*create), response, sizeof(gpu_header),
                    GPU_RESP_OK_NODATA);
   if (result != VIRTIO_GPU_OK)
     goto fail;
   gpu->resource_id = GPU_RESOURCE_ID;
-  if (!prepare_backing(gpu, backbuffer, (size_t)width * height))
-    goto dma_fail;
-  gpu_scanout_request scanout = {.header = header(GPU_CMD_SET_SCANOUT),
+  result = prepare_backing(gpu, backbuffer, (size_t)width * height);
+  if (result != VIRTIO_GPU_OK) goto fail;
+  gpu_scanout_request *scanout = (gpu_scanout_request *)memory->command_storage;
+  *scanout = (gpu_scanout_request){.header = header(GPU_CMD_SET_SCANOUT),
       .rect = {0, 0, gpu->width, gpu->height}, .scanout_id = 0,
       .resource_id = GPU_RESOURCE_ID};
-  result = command(gpu, &scanout, sizeof(scanout), response, sizeof(response),
+  result = command(gpu, scanout, sizeof(*scanout), response, sizeof(gpu_header),
                    GPU_RESP_OK_NODATA);
   if (result != VIRTIO_GPU_OK)
     goto fail;
@@ -381,9 +406,6 @@ unsupported_after_ready:
 fail:
   if (!virtio_gpu_shutdown(gpu)) return VIRTIO_GPU_RESET_TIMEOUT;
   return result;
-dma_fail:
-  if (!virtio_gpu_shutdown(gpu)) return VIRTIO_GPU_RESET_TIMEOUT;
-  return VIRTIO_GPU_DMA_ERROR;
 }
 
 virtio_gpu_status virtio_gpu_present(virtio_gpu *gpu, uint32_t *pixels,

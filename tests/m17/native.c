@@ -29,6 +29,8 @@ typedef struct mock {
   int response_override;
   int used_id_override;
   int used_length_override;
+  uint32_t timeout_type;
+  void *pending_response;
   uint32_t display_width, display_height;
 } mock;
 
@@ -50,6 +52,13 @@ static void write_common(void *context, uint16_t offset, unsigned width,
   mock *m = context;
   if (offset == 20 && width == 1 && value == 0 && m->reset_stuck)
     return;
+  if (offset == 20 && width == 1 && value == 0 && m->pending_response) {
+    uintptr_t pending = (uintptr_t)m->pending_response;
+    uintptr_t base = (uintptr_t)m->memory->response_storage;
+    assert(pending >= base && pending < base + m->memory->response_storage_size);
+    *(uint32_t *)m->pending_response = 0x1100;
+    m->pending_response = 0;
+  }
   if (width == 1) m->regs[offset] = (uint8_t)value;
   else if (width == 2) { uint16_t v = (uint16_t)value; memcpy(m->regs + offset, &v, 2); }
   else memcpy(m->regs + offset, &value, 4);
@@ -72,6 +81,14 @@ static void notify(void *context, uint16_t queue, uint16_t notify_offset) {
   assert(q->descriptors[1].flags == 2);
   uint64_t request_address = q->descriptors[0].address;
   uint64_t response_address = q->descriptors[1].address;
+  assert(request_address >= (uintptr_t)m->memory->command_storage &&
+         request_address + q->descriptors[0].length <=
+             (uintptr_t)m->memory->command_storage +
+                 m->memory->command_storage_size);
+  assert(response_address >= (uintptr_t)m->memory->response_storage &&
+         response_address + q->descriptors[1].length <=
+             (uintptr_t)m->memory->response_storage +
+                 m->memory->response_storage_size);
   uint32_t type = *(uint32_t *)(uintptr_t)request_address;
   *(uint32_t *)(uintptr_t)response_address =
       m->response_override ? (uint32_t)m->response_override :
@@ -84,6 +101,10 @@ static void notify(void *context, uint16_t queue, uint16_t notify_offset) {
   }
   assert(m->command_count < sizeof(m->commands) / sizeof(m->commands[0]));
   m->commands[m->command_count++] = type;
+  if (type == m->timeout_type) {
+    m->pending_response = (void *)(uintptr_t)response_address;
+    return;
+  }
   uint16_t next = (uint16_t)(*q->used_index + 1);
   q->used_ring[*q->used_index % q->size] =
       (virtio_gpu_used_element){(uint32_t)m->used_id_override,
@@ -97,6 +118,7 @@ static uint8_t available[4096] __attribute__((aligned(4096)));
 static uint8_t used[4096] __attribute__((aligned(4096)));
 static uint8_t commands[sizeof(uint32_t) * 8 + VIRTIO_GPU_MAX_BACKING_PAGES * 16]
     __attribute__((aligned(4096)));
+static uint8_t responses[1024] __attribute__((aligned(16)));
 static uint8_t backing_pages[VIRTIO_GPU_MAX_BACKING_PAGES * sizeof(uint64_t)];
 
 static void test_queue_validation(void) {
@@ -122,6 +144,8 @@ static void test_gpu_commands(void) {
       .used_storage_size = sizeof(used),
       .command_storage = commands,
       .command_storage_size = sizeof(commands),
+      .response_storage = responses,
+      .response_storage_size = sizeof(responses),
       .backing_pages = (uint64_t *)backing_pages,
       .backing_page_capacity = VIRTIO_GPU_MAX_BACKING_PAGES};
   m.memory = &memory;
@@ -154,6 +178,7 @@ static void test_queue_and_device_errors(void) {
       .available_storage = available, .available_storage_size = sizeof(available),
       .used_storage = used, .used_storage_size = sizeof(used),
       .command_storage = commands, .command_storage_size = sizeof(commands),
+      .response_storage = responses, .response_storage_size = sizeof(responses),
       .backing_page_capacity = VIRTIO_GPU_MAX_BACKING_PAGES};
   m.memory = &memory;
   uint32_t pixels[64 * 32] = {0};
@@ -182,6 +207,7 @@ static void test_missing_feature(void) {
       .available_storage = available, .available_storage_size = sizeof(available),
       .used_storage = used, .used_storage_size = sizeof(used),
       .command_storage = commands, .command_storage_size = sizeof(commands),
+      .response_storage = responses, .response_storage_size = sizeof(responses),
       .backing_page_capacity = VIRTIO_GPU_MAX_BACKING_PAGES};
   m.memory = &memory;
   virtio_gpu_ops ops = {&m, read_common, write_common, notify, dma_address, 0};
@@ -199,6 +225,7 @@ static void test_display_bounds(void) {
       .available_storage = available, .available_storage_size = sizeof(available),
       .used_storage = used, .used_storage_size = sizeof(used),
       .command_storage = commands, .command_storage_size = sizeof(commands),
+      .response_storage = responses, .response_storage_size = sizeof(responses),
       .backing_page_capacity = VIRTIO_GPU_MAX_BACKING_PAGES};
   m.memory = &memory;
   uint32_t pixels[64 * 32] = {0};
@@ -213,11 +240,31 @@ static void test_display_bounds(void) {
   assert(!gpu.initialized && memory.queue.ready);
 }
 
+static void test_timeout_uses_persistent_dma_storage(void) {
+  mock m = {.version_feature = 1, .timeout_type = 0x0106};
+  virtio_gpu_memory memory = {
+      .descriptor_storage = descriptors, .descriptor_storage_size = sizeof(descriptors),
+      .available_storage = available, .available_storage_size = sizeof(available),
+      .used_storage = used, .used_storage_size = sizeof(used),
+      .command_storage = commands, .command_storage_size = sizeof(commands),
+      .response_storage = responses, .response_storage_size = sizeof(responses),
+      .backing_page_capacity = VIRTIO_GPU_MAX_BACKING_PAGES};
+  m.memory = &memory;
+  uint32_t pixels[64 * 32] = {0};
+  virtio_gpu_ops ops = {&m, read_common, write_common, notify, dma_address, 0};
+  virtio_gpu gpu;
+  virtio_gpu_status status = virtio_gpu_initialize(&gpu, &ops, &memory, 64, 32,
+                                                   pixels, sizeof(pixels));
+  assert(status == VIRTIO_GPU_TIMEOUT);
+  assert(!gpu.initialized && !memory.queue.ready && !m.pending_response);
+}
+
 int main(void) {
   test_queue_validation();
   test_gpu_commands();
   test_queue_and_device_errors();
   test_missing_feature();
   test_display_bounds();
+  test_timeout_uses_persistent_dma_storage();
   return 0;
 }
