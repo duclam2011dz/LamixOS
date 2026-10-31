@@ -4,10 +4,10 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
-### M16 — IN_PROGRESS (2026-10-31)
+### M16 — DONE (2026-10-31)
 
 - Thêm software framebuffer renderer với shadow XRGB8888, primitives, clipping, ASCII bitmap font, dirty-region present và checksum; thêm BIOS VBE handoff chỉ trong profile M16, giữ LBP v1.
-- Local CTest M16 3/3 PASS; guest SeaBIOS/OVMF mỗi profile 1/1 PASS. BIOS Stage2 core 42,024 file bytes, 176,128/262,144 memory bytes, bootstrap 32 KiB. Regression M07 + Stage2 host + M15 host 54 PASS/3 QEMU cases deselected; docs validator PASS, unittest 41/41 PASS. PR #14 ban đầu có bốn workflow PASS trên `386549e`; sửa review VBE 3.0 xong, CI/review commit sửa PENDING; M16 chưa DONE.
+- M16 CTest 3/3 PASS; guest SeaBIOS/OVMF mỗi profile 1/1 PASS; hồi quy M07/Stage2 host/M15 host 54 PASS, docs validator PASS, unittest 41/41 PASS. PR #14 merge; bốn workflow CI PASS trên acceptance SHA `09c4248`. Annotated tag `milestone/M16` trỏ acceptance commit. PC thật/firmware ngoài profile QEMU NOT RUN.
 
 ### M15 — DONE (2026-10-31)
 

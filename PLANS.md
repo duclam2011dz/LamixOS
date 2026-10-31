@@ -1,15 +1,15 @@
 # Kế hoạch và kết quả — M16 (M15 DONE)
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: IN_PROGRESS; M17–M44: PLANNED
+Trạng thái M16: DONE; M17–M44: PLANNED
 
-## M16 — Software framebuffer renderer (IN_PROGRESS)
+## M16 — Software framebuffer renderer (DONE)
 
 - Thêm renderer freestanding `kernel/graphics.c` với backbuffer XRGB8888, channel-mask conversion, clipping, pixel/line/fill/outline, ASCII 8×16 bitmap font, union damage rectangle, present và FNV-1a 64-bit checksum. Backbuffer cấp từ kernel heap; framebuffer thiết bị không đi qua PMM.
 - BIOS M16 profile gọi VBE, ưu tiên 1024×768×32 rồi 800×600×32, phát LBP framebuffer record v1 và map vùng uncached; VBE không bật trong profile cũ. UEFI tiếp tục GOP hiện hành. Stage1 và wire ABI không đổi.
 - Kiểm thử native ASan/UBSan xác nhận checksum golden, ASCII printable, mask conversion, pitch, clipping, damage và bounds lỗi. M16 CTest local hiện 3/3 PASS; guest cùng kernel/image SeaBIOS `pc` và OVMF `q35` mỗi profile 1/1 PASS, có marker render/present/checksum và protected hashes/cleanup sạch.
 - BIOS Stage2 Release build **PASS**: core file 42,024 byte, memory 176,128/262,144 byte; bootstrap 32,768 byte. Kernel cross-build/provenance **PASS**. Regression M07 + Stage2 host + M15 host: **54 PASS, 3 QEMU cases deselected**. Docs validator **PASS**, unittest tài liệu **41/41 PASS**.
-- PR #14 ban đầu có bốn workflow **PASS** trên `386549e9868286deeb6c55062184cb7b67879b3c`; review phát hiện VBE 3.0 cần dùng pitch/masks linear, đã sửa và M16 CTest local **3/3 PASS** sau sửa. CI/review trên commit sửa **PENDING**; chưa merge/chưa tạo acceptance tag. PC thật/firmware ngoài profile QEMU **NOT RUN**.
+- PR #14 merge commit `e37b0b6c3f5423ae518c32e2fc325a2dd5a4a19b`; acceptance commit `09c4248dece6273295c28639090883d00a3af9c0`; annotated tag `milestone/M16` object `a66b7f9a0fbf1d52cb3df1be2b9d09e0c0862a63` trỏ acceptance commit. Bốn workflow SUCCESS trên SHA nghiệm thu: Toolchain [41197034264](https://github.com/duclam2011dz/LamixOS/actions/runs/41197034264), Harness [41197034242](https://github.com/duclam2011dz/LamixOS/actions/runs/41197034242), Documentation [41197034318](https://github.com/duclam2011dz/LamixOS/actions/runs/41197034318), Boot Contract [41197034328](https://github.com/duclam2011dz/LamixOS/actions/runs/41197034328). Review sạch sau khi sửa VBE 3.0 linear pitch/masks. PC thật/firmware ngoài profile QEMU **NOT RUN**.
 
 ## M15 — Input bàn phím và chuột PS/2 (DONE)
 
@@ -283,4 +283,4 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
 
 Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M15 DONE; M16 IN_PROGRESS; M17–M44 PLANNED.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M16 DONE; M17–M44 PLANNED.
