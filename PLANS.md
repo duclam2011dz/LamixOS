@@ -1,8 +1,8 @@
 # Kế hoạch và kết quả — M14
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=IN_PROGRESS
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE
 
-## M14 — Local APIC/IOAPIC và timer (IN_PROGRESS)
+## M14 — Local APIC/IOAPIC và timer (DONE)
 
 ### Thực hiện
 
@@ -15,8 +15,9 @@ Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=D
 - Kernel cross-build **PASS**; BIOS Stage2 build-only **PASS**; UEFI build-only **PASS**; host ASan/UBSan M14 **PASS**.
 - Guest M14 cùng kernel/image: BIOS SeaBIOS `pc` 3/3 và UEFI OVMF `q35` 3/3 **PASS**, đầy đủ marker ACPI/APIC/IOAPIC/PIT reference/LAPIC timer/M14; protected hashes giữ nguyên, cleanup sạch.
 - CTest M14 **3/3 PASS**; hồi quy M05 4/4, M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6, M13 3/3 **PASS**. Docs validator **PASS** và unittest **41/41 PASS**.
-- GitHub CI **PENDING** vì thay đổi chưa được commit/push; acceptance/review chưa thực hiện. Chưa đánh dấu M14 DONE.
-- M14 chưa có acceptance SHA/tag/PR. M15 trở đi chưa bắt đầu.
+- Bốn workflow GitHub Actions **SUCCESS** trên acceptance SHA `f41d20df47b7e95ac9ac73027c7cd7a7395b67c5`: Toolchain [41177278867](https://github.com/duclam2011dz/LamixOS/actions/runs/41177278867), Harness [41177278863](https://github.com/duclam2011dz/LamixOS/actions/runs/41177278863), Documentation [41177278850](https://github.com/duclam2011dz/LamixOS/actions/runs/41177278850), Boot Contract [41177278957](https://github.com/duclam2011dz/LamixOS/actions/runs/41177278957). Toolchain CI xác nhận M14 CTest 3/3, regression M05 4/4 và M06 UEFI 3/3, cùng M07–M13 đều PASS.
+- PR #12 merge commit `8360690506b1472d3b31959f36bb3a511e76282e`; annotated tag `milestone/M14` object `85876228135c5f1d971a1a30687e999ce5ddab39` trỏ acceptance commit `f41d20df47b7e95ac9ac73027c7cd7a7395b67c5`. Automated review trên commit cuối không có major findings; thread hiệu chuẩn LAPIC được sửa và resolve.
+- M06 CTest local sau chỉnh test **NOT RUN** do workspace closure không có `cmake`/`ctest`; Toolchain CI chạy test M06 thành công trên acceptance SHA. PC thật/firmware ngoài profile QEMU **NOT RUN**. M15 vẫn PLANNED, chưa bắt đầu.
 
 ## M13 — ACPI, PCI và device framework (DONE, 2026-10-31)
 
@@ -258,4 +259,4 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
 
 Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M13 DONE; M14 đang triển khai, M15 trở đi PLANNED và chưa bắt đầu.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M14 DONE; M15 trở đi PLANNED và chưa bắt đầu.

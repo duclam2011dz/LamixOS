@@ -1,14 +1,16 @@
-# Bàn giao M14 — IN_PROGRESS — 2026-10-31
+# Bàn giao M14 — DONE — 2026-10-31
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=IN_PROGRESS
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE
 
-## M14 đang triển khai
+## M14 đã nghiệm thu
 
-- Nhánh làm việc `codex/m14-apic-timer`, bắt đầu từ M13 handoff `718416b86df3e9a621a38685047ac383a7a67fda`.
+- PR [#12](https://github.com/duclam2011dz/LamixOS/pull/12) merge vào `main` tại `8360690506b1472d3b31959f36bb3a511e76282e`. Acceptance commit `f41d20df47b7e95ac9ac73027c7cd7a7395b67c5`; annotated tag `milestone/M14` object `85876228135c5f1d971a1a30687e999ce5ddab39` trỏ acceptance commit.
+- Bốn workflow SUCCESS trên acceptance SHA: [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41177278867), [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41177278863), [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41177278850), [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41177278957). Review tự động trên `f41d20d` không có major findings; thread hiệu chuẩn LAPIC đã sửa và resolved.
+- M14 dùng LBP v1 để handoff RSDP, khởi tạo BSP xAPIC/IOAPIC, route PIT IRQ0 làm tham chiếu và chuyển sang LAPIC timer. Không đổi wire layout, entry ABI, BIOS Stage1 gate hoặc Stage2 budget.
 - Kernel cross-build, BIOS Stage2 build-only (core 172,032/262,144 byte; bootstrap 32 KiB), UEFI build-only và native ASan/UBSan M14 **PASS**.
 - Guest cùng kernel/image: SeaBIOS `pc` **3/3 PASS**, OVMF `q35` **3/3 PASS**; đủ marker RSDP/MADT, xAPIC, IOAPIC, PIT reference, LAPIC timer và M14; protected hashes không đổi, cleanup sạch. Reports: `out/m14/results/bios.json`, `out/m14/results/uefi.json`.
-- M14 CTest **3/3 PASS**; hồi quy M05 4/4, M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6, M13 3/3 **PASS**. M05 bao gồm case kernel yêu cầu ACPI, nay xác nhận LBP required/provided feature hợp lệ. Docs validator **PASS**, unittest tài liệu **41/41 PASS**. GitHub Actions chưa hoàn tất trên acceptance SHA, **PENDING**.
-- CI/acceptance còn chờ commit/push và review; chưa ghi M14 DONE hoặc tạo tag. PC thật và firmware ngoài profile QEMU **NOT RUN**. M15 chưa bắt đầu.
+- Toolchain CI M14 CTest **3/3 PASS**, M05 regression **4/4 PASS**, M06 UEFI policy/PE/guest **3/3 PASS**, hồi quy M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6, M13 3/3 **PASS**. M06 ACPI-required fixture xác nhận `required_features`/`provided_features` có ACPI. Docs validator trong CI **PASS**; unittest tài liệu local trước closure **41/41 PASS**. M06 CTest local sau sửa **NOT RUN** vì workspace closure không có `cmake`/`ctest`.
+- PC thật và firmware ngoài profile QEMU **NOT RUN**. M15 vẫn `PLANNED`, chưa bắt đầu; cần Plan Mode và duyệt riêng trước milestone đó.
 
 ## M13 đã nghiệm thu
 
@@ -41,4 +43,4 @@ Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=D
 
 ## Tiếp theo tại thời điểm bàn giao M06 (ghi chú lịch sử)
 
-M06 vừa đóng; khi đó M07 là milestone kế tiếp. Ghi chú lịch sử này không thay thế trạng thái hiện tại ở đầu handoff: M13 đã đóng, M14 đang triển khai theo kế hoạch được duyệt, M15 chưa bắt đầu.
+M06 vừa đóng; khi đó M07 là milestone kế tiếp. Ghi chú lịch sử này không thay thế trạng thái hiện tại ở đầu handoff: M14 đã đóng; M15 vẫn PLANNED và chưa bắt đầu.
