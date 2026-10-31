@@ -191,8 +191,8 @@ void input_keyboard_scancode(input_state *state, uint8_t byte) {
   enqueue(state, &event);
 }
 
-static int8_t signed_delta(uint8_t value) {
-  return (int8_t)value;
+static int16_t signed_delta(uint8_t value, int negative) {
+  return negative ? (int16_t)value - 256 : (int16_t)value;
 }
 
 void input_mouse_byte(input_state *state, uint8_t byte) {
@@ -212,8 +212,8 @@ void input_mouse_byte(input_state *state, uint8_t byte) {
 
   uint8_t first = state->mouse_packet[0];
   if (first & 0xc0) { ++state->malformed_mouse_packets; return; }
-  int16_t dx = signed_delta(state->mouse_packet[1]);
-  int16_t raw_y = signed_delta(state->mouse_packet[2]);
+  int16_t dx = signed_delta(state->mouse_packet[1], !!(first & 0x10));
+  int16_t raw_y = signed_delta(state->mouse_packet[2], !!(first & 0x20));
   int16_t dy = (int16_t)-raw_y;
   uint8_t buttons = first & 0x07;
   if (!dx && !dy && buttons == state->mouse_buttons) return;

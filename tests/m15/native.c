@@ -26,7 +26,7 @@ static void test_keyboard(void) {
 }
 static void test_mouse(void) {
   input_state s; input_state_init(&s);
-  input_mouse_byte(&s,0x09); input_mouse_byte(&s,0xfe); input_mouse_byte(&s,0x03);
+  input_mouse_byte(&s,0x19); input_mouse_byte(&s,0xfe); input_mouse_byte(&s,0x03);
   input_event e=take(&s); assert(e.type==INPUT_EVENT_MOUSE && e.data.mouse.dx==-2 && e.data.mouse.dy==-3 && e.data.mouse.buttons==1);
   input_mouse_byte(&s,0x08); input_mouse_byte(&s,0x00); input_mouse_byte(&s,0x00);
   e=take(&s); assert(e.data.mouse.dx==0 && e.data.mouse.dy==0 && e.data.mouse.buttons==0);
@@ -34,6 +34,16 @@ static void test_mouse(void) {
   input_stats st; input_get_stats(&s,&st); assert(st.malformed_mouse_packets==1);
   input_mouse_byte(&s,0x48); input_mouse_byte(&s,0); input_mouse_byte(&s,0);
   input_get_stats(&s,&st); assert(st.malformed_mouse_packets==2 && st.queued_events==0);
+
+  input_state wide; input_state_init(&wide);
+  input_mouse_byte(&wide,0x08); input_mouse_byte(&wide,0xc8); input_mouse_byte(&wide,0x00);
+  e=take(&wide); assert(e.data.mouse.dx==200 && e.data.mouse.dy==0);
+  input_mouse_byte(&wide,0x18); input_mouse_byte(&wide,0x38); input_mouse_byte(&wide,0x00);
+  e=take(&wide); assert(e.data.mouse.dx==-200 && e.data.mouse.dy==0);
+  input_mouse_byte(&wide,0x08); input_mouse_byte(&wide,0x00); input_mouse_byte(&wide,0xc8);
+  e=take(&wide); assert(e.data.mouse.dx==0 && e.data.mouse.dy==-200);
+  input_mouse_byte(&wide,0x28); input_mouse_byte(&wide,0x00); input_mouse_byte(&wide,0x38);
+  e=take(&wide); assert(e.data.mouse.dx==0 && e.data.mouse.dy==200);
 }
 static void test_queue(void) {
   input_state s; input_state_init(&s);
