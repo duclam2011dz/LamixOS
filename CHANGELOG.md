@@ -4,6 +4,11 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M15 — IN_PROGRESS (2026-10-31)
+
+- Thêm kernel PS/2 keyboard/mouse, Set 1 decoder, US QWERTY ASCII và queue nội bộ SPSC 128 event; tích hợp IRQ1/IRQ12 vào APIC profile mới. QMP harness hỗ trợ kịch bản input sau marker.
+- Kernel cross-build, host ASan/UBSan, guest BIOS/UEFI 3/3 mỗi profile, hồi quy M07–M14 và docs validator hiện PASS local. Toolchain CI chưa chạy trên acceptance SHA; M15 chưa DONE. PC thật/firmware ngoài QEMU NOT RUN.
+
 ### M14 — DONE (2026-10-31)
 
 - Thêm RSDP validation/handoff vào BIOS Stage2 và UEFI bằng LBP v1 hiện có; BIOS Stage2 build nằm trong giới hạn 256 KiB, bootstrap 32 KiB.

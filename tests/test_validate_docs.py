@@ -17,7 +17,7 @@ class ValidationTests(unittest.TestCase):
             self.write(name, "# Tài liệu\n")
         self.write(SKILL, "---\nname: docs-consistency\ndescription: Kiểm tra tài liệu.\n---\n# Skill\n")
         for name in STATUS_FILES:
-            self.write(name, "Trạng thái milestone: M00=DONE; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED\n")
+            self.write(name, "Trạng thái milestone: M00=DONE; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED; M15=PLANNED\n")
         self.append("ROADMAP.md", "\n".join(
             f"**M{i:02d} — Tên milestone.**" + (" **Trạng thái: DONE.**" if i == 0 else "")
             for i in range(45)
@@ -124,11 +124,11 @@ class ValidationTests(unittest.TestCase):
                 self.assertTrue(any("đúng thứ tự" in e for e in self.errors()))
 
     def test_invalid_milestone_state(self):
-        self.append("PLANS.md", "Trạng thái milestone: M00=BOGUS; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED\n")
+        self.append("PLANS.md", "Trạng thái milestone: M00=BOGUS; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED; M15=PLANNED\n")
         self.assertTrue(any("một dòng trạng thái" in e for e in self.errors()))
 
     def test_disagreeing_status_files(self):
-        self.write("PLANS.md", "Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED\n")
+        self.write("PLANS.md", "Trạng thái milestone: M00=VERIFYING; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED; M15=PLANNED\n")
         self.assertTrue(any("không khớp roadmap/handoff" in e for e in self.errors()))
 
     def test_canonical_status_must_match_milestone(self):
@@ -159,11 +159,11 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(any("không khớp trạng thái mục" in e for e in self.errors()))
 
     def test_m03_state_must_match_handoff(self):
-        self.write("docs/SESSION_HANDOFF.md", "Trạng thái milestone: M00=DONE; M01=PLANNED; M02=PLANNED; M03=BLOCKED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED\n")
+        self.write("docs/SESSION_HANDOFF.md", "Trạng thái milestone: M00=DONE; M01=PLANNED; M02=PLANNED; M03=BLOCKED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED; M15=PLANNED\n")
         self.assertTrue(any("không khớp roadmap/handoff" in e for e in self.errors()))
 
     def test_m03_duplicate_status_rejected(self):
-        self.append("PLANS.md", "Trạng thái milestone: M00=DONE; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED\n")
+        self.append("PLANS.md", "Trạng thái milestone: M00=DONE; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED; M15=PLANNED\n")
         self.assertTrue(any("một dòng trạng thái" in e for e in self.errors()))
 
 
@@ -179,7 +179,7 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(any("không khớp roadmap/handoff" in e for e in self.errors()))
 
     def test_m04_duplicate_status_rejected(self):
-        self.append("PLANS.md", "Trạng thái milestone: M00=DONE; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED\n")
+        self.append("PLANS.md", "Trạng thái milestone: M00=DONE; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED; M15=PLANNED\n")
         self.assertTrue(any("một dòng trạng thái" in e for e in self.errors()))
 
     def test_m05_state_must_match_roadmap(self):
@@ -194,7 +194,7 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(any("không khớp roadmap/handoff" in e for e in self.errors()))
 
     def test_m05_duplicate_status_rejected(self):
-        self.append("PLANS.md", "Trạng thái milestone: M00=DONE; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED\n")
+        self.append("PLANS.md", "Trạng thái milestone: M00=DONE; M01=PLANNED; M02=PLANNED; M03=PLANNED; M04=PLANNED; M05=PLANNED; M06=PLANNED; M07=PLANNED; M08=PLANNED; M09=PLANNED; M10=PLANNED; M11=PLANNED; M12=PLANNED; M13=PLANNED; M14=PLANNED; M15=PLANNED\n")
         self.assertTrue(any("một dòng trạng thái" in e for e in self.errors()))
 
     def test_m06_state_must_match_roadmap(self):
@@ -204,7 +204,7 @@ class ValidationTests(unittest.TestCase):
         roadmap = self.root / "ROADMAP.md"
         self.write("ROADMAP.md", roadmap.read_text().replace(
             "**M06 — Tên milestone.**", "**M06 — Tên milestone.** **Trạng thái: PLANNED.**"))
-        self.assertTrue(any("M00–M14" in e for e in self.errors()))
+        self.assertTrue(any("M00–M15" in e for e in self.errors()))
 
 
     def test_m07_state_must_match_roadmap(self):
@@ -214,7 +214,7 @@ class ValidationTests(unittest.TestCase):
         roadmap = self.root / "ROADMAP.md"
         self.write("ROADMAP.md", roadmap.read_text().replace(
             "**M07 — Tên milestone.**", "**M07 — Tên milestone.** **Trạng thái: PLANNED.**"))
-        self.assertTrue(any("M00–M14" in e for e in self.errors()))
+        self.assertTrue(any("M00–M15" in e for e in self.errors()))
 
     def test_m08_state_must_match_roadmap(self):
         for name in STATUS_FILES:
@@ -223,7 +223,7 @@ class ValidationTests(unittest.TestCase):
         roadmap = self.root / "ROADMAP.md"
         self.write("ROADMAP.md", roadmap.read_text().replace(
             "**M08 — Tên milestone.**", "**M08 — Tên milestone.** **Trạng thái: PLANNED.**"))
-        self.assertTrue(any("M00–M14" in e for e in self.errors()))
+        self.assertTrue(any("M00–M15" in e for e in self.errors()))
 
     def test_m09_state_must_match_roadmap(self):
         for name in STATUS_FILES:
@@ -233,7 +233,7 @@ class ValidationTests(unittest.TestCase):
         roadmap = self.root / "ROADMAP.md"
         self.write("ROADMAP.md", roadmap.read_text().replace(
             "**M09 — Tên milestone.**", "**M09 — Tên milestone.** **Trạng thái: PLANNED.**"))
-        self.assertTrue(any("không khớp trạng thái mục M00–M14" in e
+        self.assertTrue(any("không khớp trạng thái mục M00–M15" in e
                             for e in self.errors()))
 
     def test_m10_state_must_match_roadmap(self):
@@ -245,7 +245,7 @@ class ValidationTests(unittest.TestCase):
         self.write("ROADMAP.md", roadmap.read_text().replace(
             "**M10 — Tên milestone.**",
             "**M10 — Tên milestone.** **Trạng thái: PLANNED.**"))
-        self.assertTrue(any("không khớp trạng thái mục M00–M14" in e
+        self.assertTrue(any("không khớp trạng thái mục M00–M15" in e
                             for e in self.errors()))
 
     def test_m11_state_must_match_roadmap(self):
@@ -257,7 +257,7 @@ class ValidationTests(unittest.TestCase):
         self.write("ROADMAP.md", roadmap.read_text().replace(
             "**M11 — Tên milestone.**",
             "**M11 — Tên milestone.** **Trạng thái: PLANNED.**"))
-        self.assertTrue(any("không khớp trạng thái mục M00–M14" in e
+        self.assertTrue(any("không khớp trạng thái mục M00–M15" in e
                             for e in self.errors()))
 
     def test_m12_state_must_match_roadmap(self):
@@ -269,7 +269,7 @@ class ValidationTests(unittest.TestCase):
         self.write("ROADMAP.md", roadmap.read_text().replace(
             "**M12 — Tên milestone.**",
             "**M12 — Tên milestone.** **Trạng thái: PLANNED.**"))
-        self.assertTrue(any("không khớp trạng thái mục M00–M14" in e
+        self.assertTrue(any("không khớp trạng thái mục M00–M15" in e
                             for e in self.errors()))
 
     def test_m14_in_progress_state_is_canonical(self):

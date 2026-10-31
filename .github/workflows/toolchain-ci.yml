@@ -115,6 +115,12 @@ jobs:
           cmake -S tests/m14 -B build/m14-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m14-tests
           ctest --test-dir build/m14-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m14/ctest.xml"
+      - name: M15 input PS/2, sanitizer và guest BIOS/UEFI
+        timeout-minutes: 40
+        run: |
+          cmake -S tests/m15 -B build/m15-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m15-tests
+          ctest --test-dir build/m15-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m15/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -275,4 +281,18 @@ jobs:
             out/m14/**/qmp.log
             build/m14-*/build.json
             build/m14-*/kernel.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M15 PS/2 input/guest reports, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m15-ps2-input-reports
+          path: |
+            out/m15/*.xml
+            out/m15/results/*.json
+            out/m15/**/result.json
+            out/m15/**/serial.log
+            out/m15/**/qmp.log
+            build/m15-*/build.json
+            build/m15-*/kernel.inspection.txt
           if-no-files-found: warn

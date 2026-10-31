@@ -203,6 +203,26 @@ def test_serial_split_is_observed_before_second_chunk(tmp_path):
     finally:
         scanner.close()
 
+def test_serial_trigger_marker_is_observed_as_exact_line(tmp_path):
+    path=tmp_path/"serial.log"; path.write_bytes(b"prefix M15:READY suffix\nM15:READY\n")
+    scanner=SerialScanner(path,"SUCCESS","PANIC","M15:READY")
+    try:
+        scanner.scan(); assert scanner.trigger_seen
+    finally:
+        scanner.close()
+
+def test_qmp_script_sends_one_command_and_waits_for_reply():
+    qmp=QMP.__new__(QMP); qmp.ready=True; qmp.script_done=False; qmp.script_active=None
+    qmp.responses={}; qmp.next_id=10; sent=[]; qmp.send=lambda name,identity,args=None: sent.append((name,identity,args))
+    script=[{"execute":"input-send-event","arguments":{"events":[]}}, {"execute":"input-send-event","arguments":{"events":[1]}}]
+    qmp.advance_script(script,False); assert not sent
+    qmp.advance_script(script,True); assert len(sent)==1 and qmp.script_active==10
+    qmp.advance_script(script,True); assert len(sent)==1
+    qmp.responses[10]={"id":10,"return":{}}
+    qmp.advance_script(script,True); assert len(sent)==2 and sent[1][1]==11
+    qmp.responses[11]={"id":11,"return":{}}
+    qmp.advance_script(script,True); assert qmp.script_done and qmp.script_active is None
+
 
 def test_cli_boot_skip_is_77(tmp_path):
     env = os.environ.copy()

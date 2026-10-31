@@ -18,10 +18,10 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=IN_PROGRESS
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=IN_PROGRESS
 ```
 
-Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M14 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
+Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M15 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
 
 [Unittest](../tests/test_validate_docs.py) dùng repository fixtures tạm cho positive/negative tests; không sửa tài liệu thật. Validator không trực tiếp chạy skill Codex. Kiểm tra metadata đơn giản trong Python không thay thế review hành vi skill.
 
@@ -351,3 +351,16 @@ ctest --test-dir build/m14-tests --no-tests=error --output-on-failure
 Native ASan/UBSan kiểm tra RSDP revision/checksum/alignment, MADT entry/BSP/IOAPIC/IRQ override và malformed bounds, APIC redirection cùng giới hạn hiệu chuẩn. Guest dùng cùng kernel/image qua SeaBIOS `pc` và OVMF `q35`, mỗi profile ba lần boot. Yêu cầu serial markers M08–M14, ACPI/APIC/IOAPIC/PIT reference/LAPIC timer, PIC mask, đủ timer ticks, không EOI trùng; image/kernel/firmware hashes phải giữ nguyên và cleanup sạch. Build-only không phải guest boot.
 
 Kernel cross-build, BIOS Stage2 build-only (core 172,032/262,144 byte; bootstrap 32 KiB), UEFI build-only, native sanitizer và M14 CTest **3/3 PASS**. Guest SeaBIOS `pc` và OVMF `q35` cùng kernel/image **3/3 PASS mỗi profile**; các marker ACPI/APIC/IOAPIC/PIT reference/LAPIC timer/M14 đều có, protected hashes giữ nguyên, cleanup sạch. Regression M05 **4/4 PASS** (gồm kernel yêu cầu ACPI) và CTest M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6, M13 3/3 **PASS**. Docs validator **PASS**, unittest **41/41 PASS**. GitHub CI **PENDING**; M14 chưa DONE. PC thật và firmware ngoài QEMU profile **NOT RUN**.
+
+
+## Input bàn phím và chuột PS/2 M15
+
+```sh
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m15 -B build/m15-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m15-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m15-tests --no-tests=error --output-on-failure
+```
+
+Native ASan/UBSan dùng cùng decoder/queue implementation, kiểm tra make/break, phím mở rộng, Shift/Caps, ASCII, mouse sign/button/overflow, queue wrap/sequence/drop. QMP harness inject input sau `M15:READY`; guest yêu cầu keyboard, mouse motion và button press/release, thứ tự key sequence, không overflow, marker M15, protected hashes và cleanup. Guest nghiệm thu là SeaBIOS `pc` và OVMF `q35`, ba boot mỗi firmware trên cùng kernel/image; host simulation/compile-only không được tính boot.
+
+M15 local: sanitizer/host **2/2 PASS**, guest **3/3 PASS mỗi firmware**, QMP harness **35/35 PASS**, hồi quy M07–M14 PASS và docs validator PASS. Kernel cross-build PASS. Toolchain CI trên acceptance SHA **PENDING/NOT RUN**; PC thật và firmware ngoài profile **NOT RUN**. M15 chưa DONE.
