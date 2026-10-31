@@ -6,11 +6,11 @@ Trạng thái M16: DONE; M17: IN_PROGRESS; M18–M44: PLANNED
 ## Tiếp tục M17
 
 - VirtIO PCI/GPU 2D đã tích hợp với renderer M16; profile M17 ưu tiên scanout GPU, fallback sang framebuffer LBP hoặc serial-only. Không đổi LBP v1/entry ABI; không bắt đầu M18.
-- Image raw GPT dùng chung BIOS/UEFI: [lamix-m17-6f54966e4058.img](/home/lam/projects/LamixOS/out/m17/lamix-m17-6f54966e4058.img). Mở bằng lệnh BIOS/UEFI tại [TESTING](TESTING.md#virtio-gpu-2d-m17). Screenshots mới nhất đã kiểm tra trực quan: [BIOS](</home/lam/projects/LamixOS/out/m17/runs/run-npe03jk9/screen.png>) và [UEFI](</home/lam/projects/LamixOS/out/m17/runs/run-zho7bi7g/screen.png>). JSON results ở `out/m17/results/`; serial/QMP logs, PPM và PNG ở `out/m17/runs/`.
+- Image raw GPT dùng chung BIOS/UEFI: `out/m17/lamix-m17-6f54966e4058.img`. Mở bằng lệnh BIOS/UEFI tại [TESTING](TESTING.md#virtio-gpu-2d-m17). Screenshots mới nhất đã kiểm tra trực quan: BIOS `out/m17/runs/run-npe03jk9/screen.png`, UEFI `out/m17/runs/run-zho7bi7g/screen.png`. JSON results ở `out/m17/results/`; serial/QMP logs, PPM và PNG ở `out/m17/runs/`.
 - Kernel ELF SHA-256 `6f54966e40583891a9624743ca4e8c67002efced6a130ff4aabeef85c936d907`. CTest **3/3 PASS**; guest pytest **4/4 PASS** (GPU và fallback trên cả hai firmware); hình ảnh BIOS/UEFI cho thấy frame M17. M15 host 2/2, M16 host 2/2, QMP fixtures 1/1, M07 host 7/7 PASS; M07 một QEMU test được deselect. Stage2/UEFI regression build-only PASS.
 - M07 suite đầu tiên thất bại do build provenance cũ tại `build/m07-input`; chạy lại trực tiếp với build mới `build/m17-regression-bios`/`uefi` thành công. Không dùng CTest wrapper M07 hiện tại vì cấu hình CTest ghim đường dẫn build cũ.
-- Docs validator **PASS**, unittest tài liệu **41/41 PASS**, `git diff --check` **PASS**. GitHub Actions trên SHA hiện tại **PENDING/NOT RUN**, chưa có review, PR merge hoặc tag nghiệm thu. M17 **IN_PROGRESS**, chưa DONE. PC thật và firmware ngoài SeaBIOS `pc`/OVMF `q35` **NOT RUN**.
-- Bước tiếp theo trong phạm vi M17: xem lại diff/status rồi chạy CI/review theo quy trình dự án. Không triển khai M18 trong lần bàn giao này.
+- Docs validator **PASS**, unittest tài liệu **41/41 PASS**, `git diff --check` **PASS**. PR #15 trên `f78eac4` có Documentation CI **FAIL** vì artifact links tuyệt đối bị validator từ chối; đã thay link bằng path dạng code và cần CI xác nhận commit sửa. Ba workflow còn lại đang chạy theo SHA đầu tiên. Chưa merge/tag nghiệm thu. M17 **IN_PROGRESS**, chưa DONE. PC thật và firmware ngoài SeaBIOS `pc`/OVMF `q35` **NOT RUN**.
+- Bước tiếp theo trong phạm vi M17: commit/push sửa tài liệu, xác minh bốn workflow trên đúng SHA cuối, review rồi merge và annotated tag. Không triển khai M18 trong lần bàn giao này.
 
 ## Bàn giao M16 — DONE
 
