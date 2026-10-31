@@ -4,10 +4,11 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
-### M17 — IN_PROGRESS (2026-10-31)
+### M17 — DONE (2026-10-31)
 
 - Thêm VirtIO PCI split queue và VirtIO-GPU 2D scanout/flush, giữ software renderer M16 làm nguồn pixel; thêm M17 build profile, host sanitizer/provenance tests, guest BIOS/UEFI và framebuffer fallback.
-- M17 CTest **3/3 PASS**, gồm guest BIOS/UEFI GPU cùng image, fallback BIOS/UEFI và QMP screenshots đã kiểm tra trực quan. M15/M16 host hồi quy, M07 host, QMP fixtures và docs validator/unittest **41/41 PASS**. CI PR #15: Documentation, Boot Contract và Harness SUCCESS trên `bd0a5f7`; Toolchain khi đó còn chạy. Hai review findings được xử lý: artifact links dùng path dạng code; request/response DMA buffers chuyển sang storage persistent với late-response sanitizer regression. Bản sửa thứ hai cần commit/push và CI chạy lại trước merge/tag. M17 chưa DONE; PC thật/firmware khác **NOT RUN**.
+- M17 CTest **3/3 PASS**, guest BIOS/UEFI GPU và fallback **4/4 PASS**, screenshots BIOS/UEFI đã kiểm tra trực quan. M15/M16 host hồi quy, M07 host, QMP fixtures, docs validator và unittest **41/41 PASS**. Hai review finding P1 được sửa và resolve: liên kết artifact local được thay bằng path dạng code; request/response DMA dùng storage persistent qua reset, có late-response sanitizer regression.
+- PR [#15](https://github.com/duclam2011dz/LamixOS/pull/15) merge commit `8afa222fc493c2adbac71bb415adacc03b4510f7`; acceptance commit `292eb59f3c368c2933a7dbb0d135b89f4fb74415`; annotated tag `milestone/M17` object `83a72d02ee17ecc0608438a0ea4a18ec1d7a9262` trỏ acceptance commit. Bốn workflow SUCCESS trên đúng SHA: Toolchain [41200982371](https://github.com/duclam2011dz/LamixOS/actions/runs/41200982371), Harness [41200982402](https://github.com/duclam2011dz/LamixOS/actions/runs/41200982402), Documentation [41200982454](https://github.com/duclam2011dz/LamixOS/actions/runs/41200982454), Boot Contract [41200982320](https://github.com/duclam2011dz/LamixOS/actions/runs/41200982320). PC thật/firmware khác **NOT RUN**.
 - Bootable raw GPT image dùng chung BIOS/UEFI và screenshot/report/logs được giữ cục bộ trong `out/m17/`; không commit image hoặc firmware.
 
 ### M16 — DONE (2026-10-31)

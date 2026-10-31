@@ -3,7 +3,7 @@
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
 > **Cập nhật:** 2026-10-31
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 IN_PROGRESS; M18–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 IN_PROGRESS; M18–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -121,7 +121,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M16 — Software framebuffer renderer.** **Trạng thái: DONE (2026-10-31).** PR [#14](https://github.com/duclam2011dz/LamixOS/pull/14) merge commit `e37b0b6c3f5423ae518c32e2fc325a2dd5a4a19b`; acceptance commit `09c4248dece6273295c28639090883d00a3af9c0`; annotated tag `milestone/M16` object `a66b7f9a0fbf1d52cb3df1be2b9d09e0c0862a63` trỏ acceptance commit. Bốn workflow SUCCESS trên đúng SHA: Toolchain [41197034264](https://github.com/duclam2011dz/LamixOS/actions/runs/41197034264), Harness [41197034242](https://github.com/duclam2011dz/LamixOS/actions/runs/41197034242), Documentation [41197034318](https://github.com/duclam2011dz/LamixOS/actions/runs/41197034318), Boot Contract [41197034328](https://github.com/duclam2011dz/LamixOS/actions/runs/41197034328). Automated review trên acceptance SHA không còn findings; finding VBE 3.0 pitch/masks linear đã sửa. M16 CTest 3/3 PASS, guest SeaBIOS `pc` và OVMF `q35` mỗi profile 1/1 PASS; hồi quy M07/Stage2 host/M15 host 54 PASS, 57 deselected; docs validator PASS, unittest 41/41 PASS. BIOS Stage2 core/BSS 176,128/262,144 byte; bootstrap 32 KiB. PC thật/firmware ngoài profile **NOT RUN**. Chi tiết tại [PLANS](PLANS.md), [TESTING](docs/TESTING.md) và [handoff](docs/SESSION_HANDOFF.md).
 
-**M17 — VirtIO transport + VirtIO-GPU 2D. Trạng thái: IN_PROGRESS (2026-10-31).** Đã triển khai driver VirtIO PCI/queue và GPU 2D dùng renderer M16; host sanitizer, guest BIOS/UEFI, fallback và screenshot local PASS. GitHub CI/review/merge/tag chưa chạy; M17 chưa DONE. Xem [PLANS](PLANS.md), [TESTING](docs/TESTING.md) và [handoff](docs/SESSION_HANDOFF.md). Mục tiêu còn lại là Toolchain CI trên acceptance SHA và review trước nghiệm thu. Không mở rộng sang M18.
+**M17 — VirtIO transport + VirtIO-GPU 2D. Trạng thái: DONE (2026-10-31).** PR [#15](https://github.com/duclam2011dz/LamixOS/pull/15) merge commit `8afa222fc493c2adbac71bb415adacc03b4510f7`; acceptance commit `292eb59f3c368c2933a7dbb0d135b89f4fb74415`; annotated tag `milestone/M17` trỏ acceptance commit. Bốn workflow SUCCESS trên acceptance SHA: Toolchain [41200982371](https://github.com/duclam2011dz/LamixOS/actions/runs/41200982371), Harness [41200982402](https://github.com/duclam2011dz/LamixOS/actions/runs/41200982402), Documentation [41200982454](https://github.com/duclam2011dz/LamixOS/actions/runs/41200982454), Boot Contract [41200982320](https://github.com/duclam2011dz/LamixOS/actions/runs/41200982320). M17 CTest 3/3, guest BIOS/UEFI GPU và fallback 4/4, screenshots BIOS/UEFI đã kiểm tra trực quan; PC thật/firmware ngoài profile **NOT RUN**. Xem [PLANS](PLANS.md), [TESTING](docs/TESTING.md) và [handoff](docs/SESSION_HANDOFF.md). M18 vẫn PLANNED, chưa bắt đầu.
 
 **M18 — GPU acceleration proof-of-concept (nhánh nghiên cứu có gate).** Đánh giá virgl/virtio-gpu 3D, firmware/host QEMU/WSL2 và giao thức guest; tạo prototype nhỏ có phép đo, quyết định Go/No-go. Nghiệm thu: báo cáo kiểm chứng thực tế; nếu thiếu điều kiện thì `BLOCKED` có bằng chứng, **không tuyên bố 3D accelerated**. Có thể quay lại milestone này sau khi GUI và SDK đã trưởng thành.
 
