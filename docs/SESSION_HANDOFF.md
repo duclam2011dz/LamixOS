@@ -1,15 +1,15 @@
-# Bàn giao hiện hành — M19 IN_PROGRESS — 2026-10-31
+# Bàn giao hiện hành — M19 DONE — 2026-10-31
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: IN_PROGRESS; M20–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20–M44: PLANNED
 
-## Tiến độ M19 hiện tại
+## M19 — nghiệm thu
 
-- M19 được triển khai trong profile BSP riêng dựa trên M17. M18 vẫn PLANNED/để dành, không được build hoặc dùng làm dependency.
-- Đã thêm `kernel/scheduler.c`/`.h`, context-switch return-frame path, build profile `m19-kernel`, host sanitizer cases và BIOS/UEFI guest harness ba lần mỗi firmware. Đã cho phép `m19-kernel` trong M07 image checker.
-- Cross-build **PASS**; native ASan/UBSan **PASS**; BIOS/UEFI guest **3/3 mỗi firmware PASS**, gồm CPU-bound preemption, aging 300 tick, mutex priority inheritance/direct handoff và wakeup. CTest M19 **3/3 PASS** sau khi thêm host test inheritance nhiều cấp; M17 guest regression **4/4 PASS**. Lượt guest ban đầu FAIL với `#GP` do synthetic IRET frame thiếu RSP/SS; frame đã sửa.
-- Docs validator **PASS**, unittest tài liệu **41/41 PASS**; bốn workflow GitHub CI chưa chạy trên acceptance SHA. M19 chưa được nghiệm thu, chưa merge/tag.
-- Local checkout `.git` read-only; không thể tạo branch/commit bằng Git CLI. Remote feature ref `feat/m19-bsp-scheduler` đã được chuẩn bị từ remote main qua GitHub API; chưa đưa code lên remote trong handoff này.
+- M19 là profile BSP riêng dựa trên M17; M18 vẫn PLANNED/để dành và không phải dependency. Scheduler hỗ trợ preemption LAPIC, priority RR/aging, mutex FIFO/direct handoff và priority inheritance; không đổi LBP v1 hoặc entry ABI.
+- Cross-build và native ASan/UBSan **PASS**; local host CTest **2/2 PASS**, guest BIOS/UEFI **3/3 mỗi firmware PASS**; M19 CTest trong Toolchain CI **3/3 PASS**. M17 guest regression **4/4 PASS**. Docs validator và unittest tài liệu **41/41 PASS**.
+- Codex review cuối clean; race trong fixtures guest và FIFO khi priority không đổi đã sửa; mọi review thread đã resolve. Bốn workflow SUCCESS trên acceptance SHA `9a0861ec4b152e189144251ece884bc6ffd466d5`: Toolchain [41213184919](https://github.com/duclam2011dz/LamixOS/actions/runs/41213184919), Harness [41213184786](https://github.com/duclam2011dz/LamixOS/actions/runs/41213184786), Documentation [41213184903](https://github.com/duclam2011dz/LamixOS/actions/runs/41213184903), Boot Contract [41213184777](https://github.com/duclam2011dz/LamixOS/actions/runs/41213184777).
+- PR [#18](https://github.com/duclam2011dz/LamixOS/pull/18) merge commit `c550210f4ba69f7181ed4a3cf0001e20059ea52a`; annotated tag `milestone/M19` object `6d055839a1dce6356eba49c0e2a22e6630708b8a` trỏ acceptance SHA. PC thật và firmware ngoài profile QEMU **NOT RUN**.
+- Script chạy thử mới nhất: [scripts/lamix_qemu.py](../scripts/lamix_qemu.py), mặc định M19; M17 vẫn chọn được bằng `--profile m17`. Lệnh và firmware path tại [TESTING](TESTING.md#scheduler-bsp-m19). `--build-only` **PASS**, image giữ cục bộ trong `out/m19/`.
 
 ## Bàn giao M17 — DONE — 2026-10-31
 
