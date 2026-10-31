@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "division_check.h"
 #include "lamix/boot/loader.h"
+#include "lamix/boot/acpi_rsdp.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -24,6 +25,8 @@ static lamix_fat fat;
 static lamix_elf_plan elf;
 static uint8_t idt32[2048];
 static uint32_t pool, pool_used, nx_enabled, io_failed;
+static uint8_t acpi_bytes[36];
+static uint32_t acpi_physical, acpi_length, acpi_revision;
 
 static void bytes(void *to, const void *from, uint32_t n) {
   uint8_t *a = to;
@@ -45,6 +48,38 @@ static uint8_t in8(uint16_t p) {
   uint8_t v;
   __asm__ volatile("inb %1,%0" : "=a"(v) : "Nd"(p));
   return v;
+}
+static int rsdp_at(uint32_t physical) {
+  const uint8_t *p = (const uint8_t *)(uintptr_t)physical;
+  uint32_t length, revision;
+  if (!lamix_rsdp_validate(p, 36, &length, &revision)) return 0;
+  uint32_t rsdt = (uint32_t)p[16] | ((uint32_t)p[17] << 8) |
+                  ((uint32_t)p[18] << 16) | ((uint32_t)p[19] << 24);
+  if (revision == 0) {
+    if (!rsdt) return 0;
+  } else {
+    uint64_t xsdt = 0;
+    for (uint32_t i = 0; i < 8; ++i) xsdt |= (uint64_t)p[24 + i] << (8 * i);
+    if (!xsdt && !rsdt) return 0;
+  }
+  bytes(acpi_bytes, p, length);
+  acpi_physical = physical;
+  acpi_length = length;
+  acpi_revision = revision;
+  return 1;
+}
+static void discover_acpi(void) {
+  uint16_t ebda_segment;
+  __asm__ volatile("movw 0x40e, %0" : "=r"(ebda_segment) : : "memory");
+  uint32_t ebda = (uint32_t)ebda_segment << 4;
+  if (ebda >= 0x80000 && ebda < 0xa0000) {
+    uint32_t end = ebda + 1024;
+    if (end > 0xa0000) end = 0xa0000;
+    for (uint32_t p = ebda; p + 36 <= end; p += 16)
+      if (rsdp_at(p)) return;
+  }
+  for (uint32_t p = 0xe0000; p + 36 <= 0x100000; p += 16)
+    if (rsdp_at(p)) return;
 }
 static void serial(const char *p) {
   for (; *p; p++) {
@@ -350,15 +385,25 @@ static uint32_t bootinfo(uint32_t physical, uint32_t stack) {
   bytes(r + 56, disk.system_guid, 16);
   wr32(r + 72, LBP_SLOT_A);
   at += 80;
+  if (acpi_length) {
+    r = at;
+    record(at, LBP_ACPI, sizeof(lbp_acpi), sizeof(lbp_acpi), 0);
+    wr64(r + 16, acpi_physical);
+    wr32(r + 24, acpi_length);
+    wr32(r + 28, acpi_revision);
+    at += sizeof(lbp_acpi);
+  }
+  uint64_t provided = nx_enabled ? LBP_FEATURE_NX : 0;
+  if (acpi_length) provided |= LBP_FEATURE_ACPI;
   lbp_header header = {{'L', 'A', 'M', 'I', 'X', 'L', 'B', 'P'},
                        1,
                        0,
                        64,
                        (uint64_t)(at - blob),
                        elf.required_features,
-                       nx_enabled ? LBP_FEATURE_NX : 0,
+                       provided,
                        64,
-                       5,
+                       5 + !!acpi_length,
                        0,
                        physical};
   bytes(blob, &header, 64);
@@ -373,7 +418,9 @@ static uint32_t bootinfo(uint32_t physical, uint32_t stack) {
   wr32(bad + 72 + 24, 7);
 #endif
   lbp_view view;
-  if (lbp_validate(blob, header.total_size, 0, 0, &view) != LBP_OK)
+  lbp_span acpi_span = {acpi_physical, acpi_bytes, acpi_length};
+  if (lbp_validate(blob, header.total_size, acpi_length ? &acpi_span : 0,
+                   acpi_length ? 1 : 0, &view) != LBP_OK)
     fail("LBP");
   return (uint32_t)header.total_size;
 }
@@ -421,6 +468,7 @@ void stage2_main(void) {
   if (!division_check())
     fail("S2");
   memory();
+  discover_acpi();
   lamix_reader drive = {0, disk_read, (uint64_t)STATE[3] * 512};
   if (lamix_gpt_open(drive, STATE[1], STATE[2], gpt_array, sizeof gpt_array,
                      &disk) != LBP_OK)
@@ -429,7 +477,8 @@ void stage2_main(void) {
     fail("FAT");
   lamix_reader file = {&fat, lamix_fat_read, fat.file_size};
   lbp_status status =
-      lamix_elf_inspect(file, nx_enabled ? LBP_FEATURE_NX : 0, &elf);
+      lamix_elf_inspect(file, (nx_enabled ? LBP_FEATURE_NX : 0) |
+                                  (acpi_length ? LBP_FEATURE_ACPI : 0), &elf);
   if (status != LBP_OK)
     fail(status == LBP_UNSUPPORTED ? "NOTE" : "ELF");
   status = lamix_elf_load(file, &elf, kernel_allocate, 0, kernel_segments, 32);

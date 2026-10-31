@@ -18,10 +18,10 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=IN_PROGRESS
 ```
 
-Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M13 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
+Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M14 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
 
 [Unittest](../tests/test_validate_docs.py) dùng repository fixtures tạm cho positive/negative tests; không sửa tài liệu thật. Validator không trực tiếp chạy skill Codex. Kiểm tra metadata đơn giản trong Python không thay thế review hành vi skill.
 
@@ -339,3 +339,15 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m13-tests --no-test
 Native ASan/UBSan kiểm RSDP/XSDT/MADT/MCFG, checksum/length/entry lỗi, ECAM offset, config failure, multifunction enumeration, 64-bit BAR sizing, resource map bounds, registry duplicate/ownership và generation token. Guest cùng kernel qua SeaBIOS `pc` và OVMF `q35` phải boot thật, enumerate PCI, probe BAR, map/query/unmap MMIO, phát M08–M13 markers, giữ protected hashes và cleanup sạch. Local CTest **3/3 PASS**; hai guest đều tìm 5 PCI functions và map MMIO BAR thành công.
 
 Giới hạn: hai firmware guest không phát ACPI record hợp lệ; serial báo `M13:ACPI:ABSENT`. Guest ACPI traversal **NOT RUN**; parser malformed cases được chứng minh bằng host sanitizer fixtures. Đây không được trình bày là guest ACPI PASS. PC thật và firmware ngoài profile QEMU **NOT RUN**. M13 DONE theo acceptance Roadmap; đổi cách firmware/loader cấp ACPI record cần kế hoạch và duyệt riêng.
+
+## Local APIC/IOAPIC và timer M14
+
+```sh
+cmake -S tests/m14 -B build/m14-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+cmake --build build/m14-tests
+ctest --test-dir build/m14-tests --no-tests=error --output-on-failure
+```
+
+Native ASan/UBSan kiểm tra RSDP revision/checksum/alignment, MADT entry/BSP/IOAPIC/IRQ override và malformed bounds, APIC redirection cùng giới hạn hiệu chuẩn. Guest dùng cùng kernel/image qua SeaBIOS `pc` và OVMF `q35`, mỗi profile ba lần boot. Yêu cầu serial markers M08–M14, ACPI/APIC/IOAPIC/PIT reference/LAPIC timer, PIC mask, đủ timer ticks, không EOI trùng; image/kernel/firmware hashes phải giữ nguyên và cleanup sạch. Build-only không phải guest boot.
+
+Kernel cross-build, BIOS Stage2 build-only (core 172,032/262,144 byte; bootstrap 32 KiB), UEFI build-only, native sanitizer và M14 CTest **3/3 PASS**. Guest SeaBIOS `pc` và OVMF `q35` cùng kernel/image **3/3 PASS mỗi profile**; các marker ACPI/APIC/IOAPIC/PIT reference/LAPIC timer/M14 đều có, protected hashes giữ nguyên, cleanup sạch. Regression CTest M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6, M13 3/3 **PASS**. Docs validator **PASS**, unittest **41/41 PASS**. GitHub CI **PENDING** đến khi có acceptance SHA; M14 chưa DONE. PC thật và firmware ngoài QEMU profile **NOT RUN**.

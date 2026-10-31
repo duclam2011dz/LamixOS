@@ -1,6 +1,22 @@
-# Kế hoạch và kết quả — M13
+# Kế hoạch và kết quả — M14
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=IN_PROGRESS
+
+## M14 — Local APIC/IOAPIC và timer (IN_PROGRESS)
+
+### Thực hiện
+
+- Thêm RSDP validation chung cho loader BIOS/UEFI; BIOS quét EBDA/ROM trong giới hạn, UEFI thử ACPI 2.0 rồi ACPI 1.0 hợp lệ. Dùng record/feature LBP v1 hiện có, không đổi wire layout.
+- Mở rộng MADT parser, thêm helper xAPIC cho ISA override, IOAPIC redirection và hiệu chuẩn LAPIC timer; profile kernel M14 yêu cầu ACPI. Mã xAPIC/IOAPIC tích hợp hiện có host-test và build evidence.
+- Stage2 BIOS build-only **PASS**: core 172,032 byte/256 KiB; bootstrap 32 KiB. Chưa thay Stage1 hoặc budget.
+
+### Kiểm chứng hiện có
+
+- Kernel cross-build **PASS**; BIOS Stage2 build-only **PASS**; UEFI build-only **PASS**; host ASan/UBSan M14 **PASS**.
+- Guest M14 cùng kernel/image: BIOS SeaBIOS `pc` 3/3 và UEFI OVMF `q35` 3/3 **PASS**, đầy đủ marker ACPI/APIC/IOAPIC/PIT reference/LAPIC timer/M14; protected hashes giữ nguyên, cleanup sạch.
+- CTest M14 **3/3 PASS**; hồi quy M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6, M13 3/3 **PASS**. Docs validator **PASS** và unittest **41/41 PASS**.
+- GitHub CI **PENDING** vì thay đổi chưa được commit/push; acceptance/review chưa thực hiện. Chưa đánh dấu M14 DONE.
+- M14 chưa có acceptance SHA/tag/PR. M15 trở đi chưa bắt đầu.
 
 ## M13 — ACPI, PCI và device framework (DONE, 2026-10-31)
 
@@ -18,7 +34,7 @@ Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=D
 - M13 local CTest **3/3 PASS**: ASan/UBSan native, host provenance/image, guest BIOS/UEFI. Hai guest boot thật cùng kernel, enumerate 5 PCI functions, register 5 devices, kiểm tra BAR mapping/query/unmap; protected hashes giữ nguyên, cleanup sạch.
 - Bốn GitHub workflows **SUCCESS** trên acceptance SHA: [Toolchain CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371900), [Harness CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371899), [Documentation CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371842), [Boot Contract CI](https://github.com/duclam2011dz/LamixOS/actions/runs/41170371849). Hồi quy local M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6 **PASS**; docs validator và unittest 40/40 **PASS**.
 - Hai firmware guest ghi `M13:ACPI:ABSENT`; ACPI traversal guest **NOT RUN**. Host ASan/UBSan fixtures kiểm RSDP/RSDT/XSDT/MADT/MCFG, malformed tables, XSDT-to-RSDT fallback và ECAM nonzero start bus. Review hai lỗi ECAM offset/ACPI fallback đã sửa trong acceptance commit; review threads resolved.
-- PC thật và firmware ngoài profile QEMU **NOT RUN**. Không đổi LBP v1, loader, entry ABI, PMM default, không reclaim LOADER/ACPI, không DMA buffer/bus mastering. M14 chưa bắt đầu.
+- PC thật và firmware ngoài profile QEMU **NOT RUN**. Không đổi LBP v1, loader, entry ABI, PMM default, không reclaim LOADER/ACPI, không DMA buffer/bus mastering. Tại thời điểm nghiệm thu M13, M14 chưa bắt đầu.
 
 ### Giới hạn đã ghi nhận
 
@@ -242,4 +258,4 @@ ctest --test-dir build/m06-tests --no-tests=error --output-on-failure
 
 Suite guest tạo image mới trong temporary directory, snapshot disk, CODE read-only, VARS riêng từng run, serial/QMP/deadline/cleanup và hash bảo vệ image/firmware. Báo cáo nằm `out/m06/`; không upload firmware hoặc images. OVMF execution là PASS riêng; OS boot skeleton vẫn SKIPPED vì chưa có image sản phẩm. QEMU không đại diện PC thật.
 
-Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M13 DONE; M14 trở đi PLANNED và chưa bắt đầu.
+Nếu cần thay LBP wire layout, kernel ABI, BIOS gate/budget, policy A/B hoặc scope milestone đã duyệt thì dừng và xin duyệt kế hoạch bổ sung. Rollback bằng commit revert; không reset/clean, force-push hoặc di chuyển tag đã push. M08–M13 DONE; M14 đang triển khai, M15 trở đi PLANNED và chưa bắt đầu.

@@ -29,8 +29,9 @@ static acpi_status read_table(acpi_read_physical read_physical,
                               void *scratch, size_t scratch_size,
                               uint32_t *length) {
   uint8_t header[ACPI_TABLE_HEADER_SIZE];
-  if (!physical || (physical & 3u) ||
-      !read_physical(context, physical, header, sizeof(header)))
+  /* Một số firmware QEMU đặt SDT ở địa chỉ byte-lệch; đọc/copy theo byte,
+   * sau đó vẫn bắt buộc kiểm tra signature, chiều dài và checksum đầy đủ. */
+  if (!physical || !read_physical(context, physical, header, sizeof(header)))
     return ACPI_BAD_ADDRESS;
   uint32_t size = read32(header + 4);
   if (size < ACPI_TABLE_HEADER_SIZE || size > ACPI_MAX_TABLE_SIZE)
@@ -113,7 +114,7 @@ acpi_status acpi_discover(const void *rsdp_pointer, size_t rsdp_size,
       return ACPI_IO_ERROR;
     uint64_t table_physical = xsdt ? read64(entry) : read32(entry);
     uint8_t header[ACPI_TABLE_HEADER_SIZE];
-    if (!table_physical || (table_physical & 3u) ||
+    if (!table_physical ||
         !read_physical(context, table_physical, header, sizeof(header)))
       return ACPI_BAD_ADDRESS;
     uint32_t table_length = read32(header + 4);
@@ -175,5 +176,67 @@ acpi_status acpi_madt_entry_at(const void *madt_pointer, size_t madt_size,
     return ACPI_BAD_ENTRY;
   *entry = (acpi_madt_entry){type, length, madt + *cursor};
   *cursor += length;
+  return ACPI_OK;
+}
+
+acpi_status acpi_madt_parse(const void *madt_pointer, size_t madt_size,
+                            uint8_t bsp_apic_id, acpi_madt_info *info) {
+  if (!madt_pointer || !info || madt_size < 44)
+    return ACPI_INVALID_ARGUMENT;
+  const uint8_t *madt = madt_pointer;
+  if (!signature(madt, "APIC") || read32(madt + 4) != madt_size ||
+      !checksum(madt, madt_size))
+    return ACPI_BAD_CHECKSUM;
+  acpi_madt_info parsed = {0};
+  parsed.lapic_physical = read32(madt + 36);
+  parsed.bsp_apic_id = bsp_apic_id;
+  if (!parsed.lapic_physical || (parsed.lapic_physical & 0xfff))
+    return ACPI_BAD_ADDRESS;
+  size_t cursor = 44;
+  for (;;) {
+    acpi_madt_entry entry;
+    acpi_status status = acpi_madt_entry_at(madt, madt_size, &cursor, &entry);
+    if (status == ACPI_UNSUPPORTED)
+      break;
+    if (status != ACPI_OK)
+      return status;
+    const uint8_t *b = entry.bytes;
+    if (entry.type == 0) {
+      if (entry.length != 8) return ACPI_BAD_ENTRY;
+      if ((b[4] == 1 || b[4] == 2) && b[3] == bsp_apic_id) {
+        if (parsed.bsp_present) return ACPI_BAD_ENTRY;
+        parsed.bsp_present = 1;
+      }
+    } else if (entry.type == 1) {
+      if (entry.length != 12 || parsed.ioapic_count == ACPI_MADT_MAX_IOAPICS)
+        return ACPI_BAD_ENTRY;
+      acpi_ioapic_info io = {b[2], read32(b + 4), read32(b + 8)};
+      if (!io.physical || (io.physical & 0xfff)) return ACPI_BAD_ADDRESS;
+      for (size_t i = 0; i < parsed.ioapic_count; ++i)
+        if (parsed.ioapics[i].id == io.id ||
+            parsed.ioapics[i].gsi_base == io.gsi_base)
+          return ACPI_BAD_ENTRY;
+      parsed.ioapics[parsed.ioapic_count++] = io;
+    } else if (entry.type == 2) {
+      if (entry.length != 10 || parsed.override_count == ACPI_MADT_MAX_OVERRIDES)
+        return ACPI_BAD_ENTRY;
+      acpi_irq_override irq = {b[3], read32(b + 4),
+                               (uint16_t)(b[8] | ((uint16_t)b[9] << 8))};
+      if (irq.source >= 16 || ((irq.flags & 3u) == 2u) ||
+          (((irq.flags >> 2) & 3u) == 2u) || (irq.flags & 0xfff0u))
+        return ACPI_BAD_ENTRY;
+      for (size_t i = 0; i < parsed.override_count; ++i)
+        if (parsed.overrides[i].source == irq.source)
+          return ACPI_BAD_ENTRY;
+      parsed.overrides[parsed.override_count++] = irq;
+    } else if (entry.type == 5) {
+      if (entry.length != 12) return ACPI_BAD_ENTRY;
+      uint64_t address = read64(b + 4);
+      if (!address || (address & 0xfff)) return ACPI_BAD_ADDRESS;
+      parsed.lapic_physical = address;
+    }
+  }
+  if (!parsed.ioapic_count || !parsed.bsp_present) return ACPI_BAD_ENTRY;
+  *info = parsed;
   return ACPI_OK;
 }

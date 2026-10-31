@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include "lamix/boot/loader.h"
+#include "lamix/boot/acpi_rsdp.h"
 #include "efi.h"
 #include "policy.h"
 
@@ -368,39 +369,29 @@ static void read_kernel(EFI_SYSTEM_TABLE *st) {
   (void)st;
 }
 
+static int valid_rsdp(uint8_t *candidate, uint32_t expected_revision) {
+  uint32_t length, revision;
+  return lamix_rsdp_validate(candidate, 36, &length, &revision) &&
+         revision == expected_revision;
+}
+
 static int known_acpi(EFI_SYSTEM_TABLE *st) {
   uint8_t *candidate = 0;
-  for (uint64_t i = 0; i < st->table_count; i++) {
-    EFI_GUID *g = &st->tables[i].vendor_guid;
-    if (!__builtin_memcmp(g, &g_acpi2_guid, 16)) {
-      candidate = (uint8_t *)(uintptr_t)st->tables[i].vendor_table;
-      break;
+  uint32_t len = 0;
+  for (uint32_t pass = 0; pass < 2 && !candidate; ++pass) {
+    EFI_GUID *wanted = pass == 0 ? &g_acpi2_guid : &g_acpi_guid;
+    uint32_t revision = pass == 0 ? 2 : 0;
+    for (uint64_t i = 0; i < st->table_count; ++i) {
+      if (__builtin_memcmp(&st->tables[i].vendor_guid, wanted, 16)) continue;
+      uint8_t *try = (uint8_t *)(uintptr_t)st->tables[i].vendor_table;
+      if (valid_rsdp(try, revision)) {
+        candidate = try;
+        len = revision ? 36 : 20;
+        break;
+      }
     }
-    if (!candidate && !__builtin_memcmp(g, &g_acpi_guid, 16))
-      candidate = (uint8_t *)(uintptr_t)st->tables[i].vendor_table;
   }
-  if (!candidate || ((uintptr_t)candidate & 15))
-    return 0;
-  if (__builtin_memcmp(candidate, "RSD PTR ", 8))
-    return 0;
-  if (candidate[15] != 0 && candidate[15] != 2)
-    return 0;
-  uint32_t len = candidate[15] ? 36 : 20;
-  uint8_t sum = 0;
-  for (uint32_t i = 0; i < 20; i++)
-    sum += candidate[i];
-  if (sum)
-    return 0;
-  if (len == 36) {
-    uint32_t declared = *(uint32_t *)(candidate + 20);
-    if (declared != 36)
-      return 0;
-    sum = 0;
-    for (uint32_t i = 0; i < 36; i++)
-      sum += candidate[i];
-    if (sum)
-      return 0;
-  }
+  if (!candidate) return 0;
   __builtin_memcpy(acpi_bytes, candidate, len);
   acpi_record = (lbp_acpi){{LBP_ACPI, 0, sizeof(lbp_acpi)},
                            (uint64_t)(uintptr_t)candidate,

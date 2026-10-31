@@ -4,6 +4,12 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M14 — IN_PROGRESS (2026-10-31)
+
+- Thêm RSDP validation/handoff vào BIOS Stage2 và UEFI bằng LBP v1 hiện có; BIOS Stage2 build nằm trong giới hạn 256 KiB, bootstrap 32 KiB.
+- Mở rộng MADT parser, helper APIC/IOAPIC/timer, kernel profile M14 yêu cầu ACPI và host ASan/UBSan fixtures. Cross-build kernel, BIOS Stage2 build-only, UEFI build-only và host sanitizer hiện PASS.
+- Guest SeaBIOS `pc` và OVMF `q35` cùng kernel/image, 3/3 lần mỗi firmware, đủ marker M14; M14 CTest 3/3, hồi quy M07–M13, docs validator và 41 unittest PASS. GitHub CI PENDING do chưa push; M14 vẫn IN_PROGRESS, không gắn tag. PC thật/firmware ngoài profile NOT RUN. Xem [PLANS](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md).
+
 ### M13 — DONE (2026-10-31)
 
 - Thêm ACPI table walker RSDT/XSDT, checksum/bounds validation, MADT entry parser và MCFG parser; không đổi LBP v1 hoặc thu hồi ACPI memory.

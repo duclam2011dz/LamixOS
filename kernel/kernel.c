@@ -14,6 +14,9 @@
 #include "device.h"
 #include "pci.h"
 #endif
+#if defined(LAMIX_M14_APIC)
+#include "apic.h"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -53,6 +56,14 @@ static tss64 tss;
 static uint8_t df_stack[16384] __attribute__((aligned(16)));
 static volatile uint32_t ticks;
 static uint8_t serial_ready;
+#if defined(LAMIX_M14_APIC)
+static volatile uint32_t *m14_lapic;
+static volatile uint32_t *m14_ioapics[ACPI_MADT_MAX_IOAPICS];
+static uint32_t m14_ioapic_max[ACPI_MADT_MAX_IOAPICS];
+static volatile uint32_t m14_pit_irqs, m14_timer_irqs;
+static volatile uint32_t m14_pit_eois, m14_timer_eois;
+static volatile uint8_t m14_active;
+#endif
 static uint64_t acpi_scratch_base, acpi_scratch_pages;
 #if defined(LAMIX_M09_PMM)
 static pmm physical_memory;
@@ -132,7 +143,23 @@ static void gdt_init(uint16_t prior_cs){
   __asm__ volatile("pushq $0x08; lea 1f(%%rip),%%rax; push %%rax; lretq; 1: mov $0x10,%%ax; mov %%ax,%%ds; mov %%ax,%%es; mov %%ax,%%ss; mov %0,%%ax; ltr %%ax" ::"i"(KTSS):"rax","memory");
 }
 static void pic_pit_init(void){out8(0x21,0xff);out8(0xa1,0xff);out8(PIC1,0x11);out8(PIC2,0x11);out8(PIC1+1,0x20);out8(PIC2+1,0x28);out8(PIC1+1,4);out8(PIC2+1,2);out8(PIC1+1,1);out8(PIC2+1,1);out8(0x21,0xfe);out8(0xa1,0xff);uint16_t divisor=(uint16_t)(1193182/100);out8(PIT+3,0x36);out8(PIT,(uint8_t)divisor);out8(PIT,(uint8_t)(divisor>>8));}
-void interrupt_dispatch(interrupt_frame*f){if(f->vector==32){ticks++;serial("M08:TICK\n");out8(PIC1,0x20);return;}panic_frame(f);}
+void interrupt_dispatch(interrupt_frame*f){if(f->vector==32){
+#if defined(LAMIX_M14_APIC)
+  if (m14_active) panic_frame(f);
+#endif
+  ticks++;serial("M08:TICK\n");out8(PIC1,0x20);return;}
+#if defined(LAMIX_M14_APIC)
+  if (f->vector == 0x30 || f->vector == 0x31) {
+    if (!m14_lapic) panic_frame(f);
+    if (f->vector == 0x30) { ++m14_pit_irqs; ++m14_pit_eois; }
+    else { ++m14_timer_irqs; ++m14_timer_eois; }
+    __asm__ volatile("mfence" ::: "memory");
+    m14_lapic[0xb0 / 4] = 0;
+    return;
+  }
+  if (f->vector == 0xff) return;
+#endif
+  panic_frame(f);}
 static const uint8_t *record(const lbp_view*v,uint32_t type){for(uint32_t i=0;i<v->count;i++){uint64_t at;if(lbp_record_at(v,i,&at)!=LBP_OK) return 0;const uint8_t*p=v->bytes+at;if(*(const uint32_t*)p==type)return p;}return 0;}
 #if defined(LAMIX_M09_PMM)
 static int frame_usable(const lbp_view *view, uint64_t physical) {
@@ -445,7 +472,7 @@ static int m13_platform_init(void) {
                                        m13_acpi_scratch,
                                        sizeof(m13_acpi_scratch), &platform);
     if (status != ACPI_OK) {
-      serial("M13:ACPI:INVALID\n");
+      serial("M13:ACPI:INVALID status="); hex(status); serial("\n");
     } else {
       uint32_t madt_entries = 0;
       if (platform.madt_physical) {
@@ -531,6 +558,155 @@ static int m13_platform_init(void) {
   serial(" mmio="); serial(mapped_bar ? "mapped\n" : "no-bar\n");
   return 1;
 }
+#if defined(LAMIX_M14_APIC)
+#define M14_LAPIC_VA UINT64_C(0xfffff90000000000)
+#define M14_IOAPIC_VA UINT64_C(0xfffff91000000000)
+#define M14_PIT_DIVISOR 11931u
+static uint32_t m14_io_read(volatile uint32_t *io, uint8_t reg) {
+  io[0] = reg;
+  __asm__ volatile("mfence" ::: "memory");
+  return io[4];
+}
+static void m14_io_write(volatile uint32_t *io, uint8_t reg, uint32_t value) {
+  io[0] = reg;
+  __asm__ volatile("mfence" ::: "memory");
+  io[4] = value;
+  __asm__ volatile("mfence" ::: "memory");
+}
+static int m14_map_mmio(uint64_t virtual_address, uint64_t physical) {
+  return physical < VMM_PHYSICAL_LIMIT && !(physical & (PAGE_SIZE - 1)) &&
+         vmm_map_range(&kernel_space, virtual_address, physical, PAGE_SIZE,
+                       VMM_READ | VMM_WRITE, VMM_MAP_UNCACHED) == VMM_OK;
+}
+static int m14_apic_init(void) {
+  if (!m13_rsdp_size) { serial("M14:INIT:ACPI_ABSENT\n"); return 0; }
+  acpi_platform platform = {0};
+  acpi_status acs = acpi_discover(m13_rsdp, m13_rsdp_size, m13_read_physical, 0,
+                                  m13_acpi_scratch, sizeof(m13_acpi_scratch),
+                                  &platform);
+  if (acs != ACPI_OK) { serial("M14:INIT:ACPI status="); hex(acs); serial("\n"); return 0; }
+  if (!platform.madt_physical ||
+      !m13_read_physical(0, platform.madt_physical, m13_acpi_scratch,
+                         platform.madt_length)) {
+    serial("M14:INIT:MADT_READ\n"); return 0;
+  }
+  uint32_t eax, ebx, ecx, edx;
+  __asm__ volatile("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
+                   : "a"(1), "c"(0));
+  if (!(edx & (1u << 9))) { serial("M14:INIT:NO_APIC\n"); return 0; }
+  uint8_t bsp_id = (uint8_t)(ebx >> 24);
+  acpi_madt_info info;
+  acs = acpi_madt_parse(m13_acpi_scratch, platform.madt_length, bsp_id, &info);
+  if (acs != ACPI_OK) { serial("M14:INIT:MADT status="); hex(acs); serial("\n"); return 0; }
+  uint32_t msr_low, msr_high;
+  __asm__ volatile("rdmsr" : "=a"(msr_low), "=d"(msr_high) : "c"(0x1b));
+  if (msr_low & (1u << 10)) { serial("M14:INIT:X2APIC\n"); return 0; }
+  uint64_t apic_base = info.lapic_physical;
+  if (apic_base >= VMM_PHYSICAL_LIMIT || (apic_base & 0xfff)) return 0;
+  uint64_t current_base = ((uint64_t)(msr_high & 0xfu) << 32) |
+                          (msr_low & UINT32_C(0xfffff000));
+  if (current_base != apic_base) { serial("M14:INIT:APIC_BASE\n"); return 0; }
+  __asm__ volatile("wrmsr" :: "a"(msr_low | (1u << 11)), "d"(msr_high),
+                   "c"(0x1b) : "memory");
+  if (!m14_map_mmio(M14_LAPIC_VA, apic_base)) { serial("M14:INIT:LAPIC_MAP\n"); return 0; }
+  m14_lapic = (volatile uint32_t *)(uintptr_t)M14_LAPIC_VA;
+  m14_lapic[0xf0 / 4] = 0x1ff;
+  m14_lapic[0x80 / 4] = 0;
+  m14_lapic[0x350 / 4] = 1u << 16;
+  m14_lapic[0x360 / 4] = 1u << 16;
+  for (size_t i = 0; i < info.ioapic_count; ++i) {
+    uint64_t va = M14_IOAPIC_VA + i * PAGE_SIZE;
+    if (!m14_map_mmio(va, info.ioapics[i].physical)) { serial("M14:INIT:IOAPIC_MAP\n"); return 0; }
+    volatile uint32_t *io = (volatile uint32_t *)(uintptr_t)va;
+    m14_ioapics[i] = io;
+    uint32_t version = m14_io_read(io, 1);
+    uint32_t max = (version >> 16) & 0xff;
+    if (max > 119 || info.ioapics[i].gsi_base > UINT32_MAX - max)
+      { serial("M14:INIT:IOAPIC_RANGE\n"); return 0; }
+    m14_ioapic_max[i] = max;
+    for (uint32_t pin = 0; pin <= max; ++pin) {
+      uint8_t reg = (uint8_t)(0x10 + pin * 2);
+      m14_io_write(io, reg, 1u << 16);
+      m14_io_write(io, (uint8_t)(reg + 1), 0);
+    }
+    uint32_t end = info.ioapics[i].gsi_base + max;
+    for (size_t j = 0; j < i; ++j) {
+      uint32_t other_start = info.ioapics[j].gsi_base;
+      uint32_t other_end = other_start + m14_ioapic_max[j];
+      if (info.ioapics[i].gsi_base <= other_end && other_start <= end)
+        { serial("M14:INIT:GSI_OVERLAP\n"); return 0; }
+    }
+  }
+  uint32_t gsi = 0;
+  apic_irq_mode mode = {0, 0};
+  for (size_t i = 0; i < info.override_count; ++i) {
+    if (info.overrides[i].source == 0) {
+      gsi = info.overrides[i].gsi;
+      if (apic_decode_isa_override(info.overrides[i].flags, &mode) != APIC_OK)
+        { serial("M14:INIT:ISO_FLAGS\n"); return 0; }
+    }
+  }
+  size_t owner = info.ioapic_count;
+  uint32_t pin = 0;
+  for (size_t i = 0; i < info.ioapic_count; ++i) {
+    uint32_t first = info.ioapics[i].gsi_base;
+    uint32_t last = first + m14_ioapic_max[i];
+    if (gsi >= first && gsi <= last) { owner = i; pin = gsi - first; break; }
+  }
+  if (owner == info.ioapic_count) { serial("M14:INIT:GSI_UNROUTED\n"); return 0; }
+  uint64_t redirection;
+  if (apic_make_redirection(0x30, bsp_id, mode, 0, &redirection) != APIC_OK)
+    { serial("M14:INIT:REDIRECTION\n"); return 0; }
+  volatile uint32_t *io = m14_ioapics[owner];
+  uint8_t redir_reg = (uint8_t)(0x10 + pin * 2);
+  m14_io_write(io, redir_reg, (uint32_t)redirection | (1u << 16));
+  m14_io_write(io, (uint8_t)(redir_reg + 1), (uint32_t)(redirection >> 32));
+  m14_lapic[0x320 / 4] = (1u << 16) | 0x31;
+  m14_lapic[0x3e0 / 4] = 0x3;
+  m14_lapic[0x380 / 4] = UINT32_MAX;
+  out8(0x21, 0xff); out8(0xa1, 0xff);
+  out8(PIT + 3, 0x36);
+  out8(PIT, (uint8_t)M14_PIT_DIVISOR);
+  out8(PIT, (uint8_t)(M14_PIT_DIVISOR >> 8));
+  m14_io_write(io, redir_reg, (uint32_t)redirection);
+  m14_active = 1;
+  serial("M14:ACPI:PASS\nM14:APIC:PASS\nM14:IOAPIC:PASS\n");
+  __asm__ volatile("sti");
+  for (uint32_t n = 0; n < 20000000u && m14_pit_irqs < 10; ++n)
+    __asm__ volatile("pause");
+  __asm__ volatile("cli");
+  if (m14_pit_irqs < 10) {
+    serial("M14:INIT:PIT_TIMEOUT gsi="); hex(gsi);
+    serial(" mode="); hex((mode.active_low ? 1u : 0u) |
+                           (mode.level_triggered ? 2u : 0u));
+    serial(" redir-low="); hex(m14_io_read(io, redir_reg));
+    serial(" redir-high="); hex(m14_io_read(io, (uint8_t)(redir_reg + 1)));
+    serial(" lapic-irr="); hex(m14_lapic[0x210 / 4]);
+    serial(" lapic-isr="); hex(m14_lapic[0x110 / 4]);
+    serial("\n");
+    return 0;
+  }
+  uint32_t current = m14_lapic[0x390 / 4];
+  uint32_t elapsed = UINT32_MAX - current;
+  m14_io_write(io, redir_reg, (uint32_t)redirection | (1u << 16));
+  if (!elapsed || m14_pit_eois != m14_pit_irqs) { serial("M14:INIT:PIT_EOI\n"); return 0; }
+  serial("M14:PIT_REF:PASS\n");
+  uint32_t periodic;
+  if (apic_calibrate_periodic(elapsed, m14_pit_irqs, M14_PIT_DIVISOR,
+                              100, &periodic) != APIC_OK)
+    { serial("M14:INIT:CALIBRATION\n"); return 0; }
+  m14_lapic[0x320 / 4] = (1u << 17) | 0x31;
+  m14_lapic[0x380 / 4] = periodic;
+  __asm__ volatile("sti");
+  for (uint32_t n = 0; n < 20000000u && m14_timer_irqs < 10; ++n)
+    __asm__ volatile("pause");
+  __asm__ volatile("cli");
+  if (m14_timer_irqs < 10 || m14_timer_eois != m14_timer_irqs ||
+      in8(0x21) != 0xff || in8(0xa1) != 0xff) { serial("M14:INIT:TIMER_TIMEOUT_OR_EOI\n"); return 0; }
+  serial("M14:LAPIC_TIMER:PASS\n");
+  return 1;
+}
+#endif
 #endif
 #if defined(LAMIX_M10_VMM)
 static int vmm_allocate(void *context, uint64_t *physical) {
@@ -829,6 +1005,12 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
   lbp_status validation=lbp_validate(h,h->total_size,spans,span_count,&view);
   if(raw_acpi)unmap_acpi_span();
   if(validation!=LBP_OK)fail();
+#if defined(LAMIX_M14_APIC)
+  if (!(h->provided_features & LBP_FEATURE_ACPI) || !raw_acpi) {
+    serial("M14:ACPI:FAIL\nM14:FAIL\n");
+    fail();
+  }
+#endif
   const lbp_entry*e=(const lbp_entry*)record(&view,LBP_ENTRY);
   if(!e)fail();
 #if defined(LAMIX_M09_PMM)
@@ -889,6 +1071,13 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
 #endif
 #if defined(LAMIX_M13_DEVICES)
   serial("M13:PASS\n");
+#endif
+#if defined(LAMIX_M14_APIC)
+  if (!m14_apic_init()) {
+    serial("M14:FAIL\n");
+    fail();
+  }
+  serial("M14:PASS\n");
 #endif
   halt();
 }

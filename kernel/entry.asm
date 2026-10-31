@@ -20,5 +20,9 @@ section .note.lamix align=4
     db 'LAMIXREQ'
     dw 1,0
     dd 0
+%ifdef LAMIX_M14_APIC
+    dq 2,0
+%else
     dq 0,0
+%endif
 section .note.GNU-stack noalloc noexec nowrite progbits
