@@ -578,6 +578,21 @@ thunk_real:
     sti
     mov byte [0x5050], 3
 .retry:
+%ifdef LAMIX_M16_VIDEO
+    cmp byte [0x5080], 1
+    jne .disk_read
+    mov ax, [0x5082]
+    mov bx, [0x5084]
+    mov cx, [0x5086]
+    mov dx, [0x5088]
+    mov es, [0x508a]
+    mov di, [0x508c]
+    int 0x10
+    mov [0x508e], ax
+    mov dword [0x5034], 1
+    jmp .done
+.disk_read:
+%endif
     mov dword [0x5034], 0
     mov word [0x5120], 16
     mov ax, [0x5044]

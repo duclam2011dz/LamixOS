@@ -364,3 +364,15 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m15-tests --no-test
 Native ASan/UBSan dùng cùng decoder/queue implementation, kiểm tra make/break, phím mở rộng, Shift/Caps, ASCII, mouse sign/button/overflow, queue wrap/sequence/drop. QMP harness inject input sau `M15:READY`; guest yêu cầu keyboard, mouse motion và button press/release, thứ tự key sequence, không overflow, marker M15, protected hashes và cleanup. Guest nghiệm thu là SeaBIOS `pc` và OVMF `q35`, ba boot mỗi firmware trên cùng kernel/image; host simulation/compile-only không được tính boot.
 
 M15 local: sanitizer/host **2/2 PASS**, guest **3/3 PASS mỗi firmware**, QMP harness **35/35 PASS**, hồi quy M07–M14 PASS và docs validator PASS. Kernel cross-build PASS. Bốn workflow GitHub Actions SUCCESS trên acceptance SHA `831748b5d65f0a88394745b20da82a56f69439c4`: Toolchain [41180666554](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666554), Harness [41180666561](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666561), Documentation [41180666589](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666589), Boot Contract [41180666560](https://github.com/duclam2011dz/LamixOS/actions/runs/41180666560). PC thật và firmware ngoài profile **NOT RUN**. M15 DONE.
+
+## Software framebuffer renderer M16
+
+```sh
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m16 -B build/m16-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m16-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m16-tests --no-tests=error --output-on-failure --output-junit "$PWD/out/m16/ctest.xml"
+```
+
+CTest chạy native ASan/UBSan trên cùng `kernel/graphics.c`, host kernel provenance và guest BIOS/UEFI. Guest dùng QMP để hoàn tất input PS/2 M15 trước renderer; cùng kernel/image phải boot qua SeaBIOS `pc` và OVMF `q35`, thấy framebuffer record hợp lệ, render/present và checksum, giữ protected hashes và cleanup sạch. BIOS Stage2 M16 được build bằng `--m16-video`, kiểm tra VBE handoff và hard budgets. Host checksum không thay guest boot; compile/launch-only không tính là guest PASS. Reports ở `out/m16/`, không upload disk image hoặc firmware.
+
+M16 local hiện CTest **3/3 PASS**, guest **1/1 mỗi firmware**; BIOS Stage2 build-only core/BSS **176,128/262,144 byte**, bootstrap **32 KiB**. Regression M07 + Stage2 host + M15 host **54 PASS, 3 QEMU cases deselected**; docs validator **PASS**, unittest tài liệu **41/41 PASS**. GitHub CI **NOT RUN**; PC thật/firmware ngoài profile QEMU **NOT RUN**. M16 **IN_PROGRESS**, chưa DONE.
