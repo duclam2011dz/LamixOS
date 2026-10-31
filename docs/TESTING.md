@@ -18,10 +18,10 @@ Hỗ trợ Markdown của dự án: inline links/images, reference links full/co
 Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc được, ví dụ sau chỉ minh họa cú pháp:
 
 ```text
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=IN_PROGRESS
 ```
 
-Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M12 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
+Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M13 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
 
 [Unittest](../tests/test_validate_docs.py) dùng repository fixtures tạm cho positive/negative tests; không sửa tài liệu thật. Validator không trực tiếp chạy skill Codex. Kiểm tra metadata đơn giản trong Python không thay thế review hành vi skill.
 
@@ -308,4 +308,34 @@ cmake --build build/m12-tests
 ctest --test-dir build/m12-tests --no-tests=error --output-on-failure
 ```
 
-M12 CTest trong Toolchain CI trên acceptance SHA `f3391d66eabc6b6d82a27800db6e229bb74f577b` **6/6 PASS**: Buddy native ASan/UBSan (extents, holes, reservations, OOM, coalescing, invalid/double-free, order18 1 GiB, stress), host provenance, benchmark và guest BIOS/OVMF cùng kernel. Guest BIOS/UEFI phát marker M08–M12, protected hashes giữ nguyên và cleanup không cưỡng bức. CI run [41084497139](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497139); bốn workflow SUCCESS trên SHA này. Benchmark seed `0x12a110c`, trace hash `3ded994161041ff7`, 20,000 trace operations × 5; no-op được bỏ khỏi latency/throughput và báo riêng. Host CI run ghi nhận throughput bitmap cao hơn Buddy; fragmentation fixture bằng nhau. Host-only numbers không kết luận hiệu năng guest; Buddy không được chọn làm mặc định. PC thật/firmware khác **NOT RUN**. M12 DONE; M13 chưa bắt đầu.
+M12 CTest trong Toolchain CI trên acceptance SHA `f3391d66eabc6b6d82a27800db6e229bb74f577b` **6/6 PASS**: Buddy native ASan/UBSan (extents, holes, reservations, OOM, coalescing, invalid/double-free, order18 1 GiB, stress), host provenance, benchmark và guest BIOS/OVMF cùng kernel. Guest BIOS/UEFI phát marker M08–M12, protected hashes giữ nguyên và cleanup không cưỡng bức. CI run [41084497139](https://github.com/duclam2011dz/LamixOS/actions/runs/41084497139); bốn workflow SUCCESS trên SHA này. Benchmark seed `0x12a110c`, trace hash `3ded994161041ff7`, 20,000 trace operations × 5; no-op được bỏ khỏi latency/throughput và báo riêng. Host CI run ghi nhận throughput bitmap cao hơn Buddy; fragmentation fixture bằng nhau. Host-only numbers không kết luận hiệu năng guest; Buddy không được chọn làm mặc định. PC thật/firmware khác **NOT RUN**. M12 DONE.
+
+## ACPI PCI device framework M13
+
+Lệnh từ root workspace sau khi cài đặt môi trường `.venv` sẵn có:
+
+```bash
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m13 -B build/m13-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m13-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m13-tests --no-tests=error --output-on-failure
+```
+
+Native ASan/UBSan kiểm RSDP/XSDT/MADT/MCFG, checksum/length/entry sai, config failure, multifunction enumeration, 64-bit BAR sizing, MMIO range và device/DMA ownership token. Guest suite tạo image/kernel riêng rồi boot thật cùng kernel qua SeaBIOS `pc` và OVMF `q35`; cần PCI enumeration, BAR sizing, uncached MMIO map/query/unmap, M08–M13 serial markers, protected hashes không đổi và cleanup sạch. Không có driver chức năng, DMA buffer hay bus mastering.
+
+Local CTest **3/3 PASS**; hai guest tìm 5 PCI functions, đăng ký 5 devices và map/query/unmap một BAR MMIO. Cả hai guest ghi `M13:ACPI:ABSENT`; ACPI traversal guest **NOT RUN**, malformed ACPI hiện chỉ có host sanitizer evidence. Hồi quy local M07 2/2, M08 2/2, M09 3/3, M10 3/3, M11 3/3, M12 6/6 **PASS**. M13 GitHub CI **NOT RUN**; M13 chưa nghiệm thu.
+
+## ACPI, PCI và device framework M13
+
+Profile M13 dùng kernel M09–M12 hiện có và giữ bitmap PMM làm backend đường VMM/heap; Buddy chỉ chạy self-test hồi quy. Kernel lấy RSDP từ LBP v1 nếu loader cung cấp, đọc bảng qua callback VMM uncached, kiểm tra root/table checksum và MADT entries. PCI dùng config mechanism #1 trên segment 0 và ECAM trong MCFG regions; BAR probe tạm dừng I/O, memory decode và bus mastering, lưu/khôi phục BAR/command rồi tạo device registry. MMIO API map uncached qua VMM, không sở hữu frame PMM. DMA registry chỉ lưu owner/generation.
+
+Lệnh kiểm tra local:
+
+```bash
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m13 -B build/m13-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m13-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m13-tests --no-tests=error --output-on-failure
+```
+
+Native ASan/UBSan kiểm RSDP/XSDT/MADT/MCFG, checksum/length/entry lỗi, ECAM offset, config failure, multifunction enumeration, 64-bit BAR sizing, resource map bounds, registry duplicate/ownership và generation token. Guest cùng kernel qua SeaBIOS `pc` và OVMF `q35` phải boot thật, enumerate PCI, probe BAR, map/query/unmap MMIO, phát M08–M13 markers, giữ protected hashes và cleanup sạch. Local CTest **3/3 PASS**; hai guest đều tìm 5 PCI functions và map MMIO BAR thành công.
+
+Giới hạn hiện tại: hai firmware guest không phát ACPI record hợp lệ; serial báo `M13:ACPI:ABSENT`. Guest ACPI traversal **NOT RUN**; ACPI malformed cases hiện được chứng minh bằng host sanitizer fixtures. PC thật/firmware khác và M13 GitHub CI **NOT RUN**. Vì acceptance ACPI guest chưa được kiểm chứng, M13 vẫn **IN_PROGRESS**, không đánh dấu DONE.

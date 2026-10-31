@@ -103,6 +103,12 @@ jobs:
           cmake -S tests/m12 -B build/m12-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m12-tests
           ctest --test-dir build/m12-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m12/ctest.xml"
+      - name: M13 ACPI, PCI, device registry và guest BIOS/UEFI
+        timeout-minutes: 20
+        run: |
+          cmake -S tests/m13 -B build/m13-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m13-tests
+          ctest --test-dir build/m13-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m13/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -235,4 +241,18 @@ jobs:
             out/m12/**/qmp.log
             build/m12-*/build.json
             build/m12-*/kernel.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M13 host/guest reports, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m13-acpi-pci-reports
+          path: |
+            out/m13/*.xml
+            out/m13/results/*.json
+            out/m13/**/result.json
+            out/m13/**/serial.log
+            out/m13/**/qmp.log
+            build/m13-*/build.json
+            build/m13-*/kernel.inspection.txt
           if-no-files-found: warn

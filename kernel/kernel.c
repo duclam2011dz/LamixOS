@@ -9,6 +9,11 @@
 #if defined(LAMIX_M11_HEAP)
 #include "heap.h"
 #endif
+#if defined(LAMIX_M13_DEVICES)
+#include "acpi.h"
+#include "device.h"
+#include "pci.h"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -71,6 +76,25 @@ static const uint64_t VMM_TEST_BASE = UINT64_C(0xfffffc0000000000);
 #if defined(LAMIX_M11_HEAP)
 static kheap kernel_heap;
 extern int m11_cpp_heap_probe(kheap *heap);
+#endif
+#if defined(LAMIX_M13_DEVICES)
+#define M13_TEMP_BASE UINT64_C(0xfffffa0000000000)
+#define M13_ECAM_BASE UINT64_C(0xfffffb0000000000)
+#define M13_BAR_BASE UINT64_C(0xfffffc0000000000)
+#define M13_MAX_DEVICES DEVICE_REGISTRY_CAPACITY
+static uint8_t m13_rsdp[ACPI_RSDP_V2_SIZE];
+static size_t m13_rsdp_size;
+static uint8_t m13_acpi_scratch[ACPI_MAX_TABLE_SIZE];
+static pci_mcfg_region m13_mcfg_regions[PCI_MAX_MCFG_REGIONS];
+static size_t m13_mcfg_count;
+static uint64_t m13_temp_mapped = UINT64_MAX;
+static uint64_t m13_ecam_mapped = UINT64_MAX;
+static pci_ecam_ops m13_ecam_ops;
+static pci_hybrid_ops m13_hybrid_context;
+static pci_config_ops m13_config;
+static pci_function m13_functions[M13_MAX_DEVICES];
+static device_record m13_device_storage[M13_MAX_DEVICES];
+static device_registry m13_registry;
 #endif
 static __attribute__((noreturn)) void fail(void);
 
@@ -228,7 +252,7 @@ static int pmm_buddy_self_test(const lbp_view *view) {
 #endif
 
 #if defined(LAMIX_M10_VMM)
-#if defined(LAMIX_M12_BUDDY)
+#if defined(LAMIX_M12_BUDDY) && !defined(LAMIX_M13_DEVICES)
 static int kernel_alloc_frame(uint64_t *physical) {
   return pmm_buddy_alloc_frame(&experimental_buddy, physical) == PMM_OK;
 }
@@ -338,6 +362,176 @@ static void unmap_acpi_span(void){
   for(uint64_t i=0;i<acpi_scratch_pages;i++){volatile uint64_t*p=page_leaf(root,acpi_scratch_base+i*PAGE_SIZE,0,0,0);if(p){*p=0;invalidate(acpi_scratch_base+i*PAGE_SIZE);}}
   acpi_scratch_base=acpi_scratch_pages=0;
 }
+#if defined(LAMIX_M13_DEVICES) && defined(LAMIX_M10_VMM)
+static volatile uint8_t *m13_map_page(uint64_t virtual_address,
+                                      uint64_t physical, uint64_t *cached) {
+  uint64_t page = physical & ~(PAGE_SIZE - 1);
+  if (*cached != page) {
+    if (*cached != UINT64_MAX &&
+        vmm_unmap_range(&kernel_space, virtual_address, PAGE_SIZE) != VMM_OK)
+      return 0;
+    if (vmm_map_range(&kernel_space, virtual_address, page, PAGE_SIZE,
+                      VMM_READ | VMM_WRITE, VMM_MAP_UNCACHED) != VMM_OK) {
+      *cached = UINT64_MAX;
+      return 0;
+    }
+    *cached = page;
+  }
+  return (volatile uint8_t *)(uintptr_t)(virtual_address + (physical - page));
+}
+
+static int m13_read_physical(void *context, uint64_t physical,
+                             void *destination, size_t length) {
+  (void)context;
+  uint8_t *out = (uint8_t *)destination;
+  if (!destination || physical >= VMM_PHYSICAL_LIMIT ||
+      (uint64_t)length > VMM_PHYSICAL_LIMIT - physical)
+    return 0;
+  while (length) {
+    size_t chunk = PAGE_SIZE - (size_t)(physical & (PAGE_SIZE - 1));
+    if (chunk > length)
+      chunk = length;
+    volatile uint8_t *mapped = m13_map_page(M13_TEMP_BASE, physical,
+                                             &m13_temp_mapped);
+    if (!mapped)
+      return 0;
+    for (size_t i = 0; i < chunk; ++i)
+      out[i] = mapped[i];
+    physical += chunk;
+    out += chunk;
+    length -= chunk;
+  }
+  return 1;
+}
+
+static volatile uint32_t *m13_map_ecam_dword(void *context,
+                                              uint64_t physical) {
+  (void)context;
+  volatile uint8_t *mapped = m13_map_page(M13_ECAM_BASE, physical,
+                                           &m13_ecam_mapped);
+  return mapped ? (volatile uint32_t *)(uintptr_t)mapped : 0;
+}
+
+static int m13_map_bar(void *context, uint64_t virtual_address,
+                       uint64_t physical_address, uint64_t length) {
+  (void)context;
+  return vmm_map_range(&kernel_space, virtual_address, physical_address,
+                       length, VMM_READ | VMM_WRITE,
+                       VMM_MAP_UNCACHED) == VMM_OK;
+}
+
+static int m13_unmap_bar(void *context, uint64_t virtual_address,
+                         uint64_t length) {
+  (void)context;
+  return vmm_unmap_range(&kernel_space, virtual_address, length) == VMM_OK;
+}
+
+static void m13_release_mappings(void) {
+  if (m13_temp_mapped != UINT64_MAX) {
+    (void)vmm_unmap_range(&kernel_space, M13_TEMP_BASE, PAGE_SIZE);
+    m13_temp_mapped = UINT64_MAX;
+  }
+  if (m13_ecam_mapped != UINT64_MAX) {
+    (void)vmm_unmap_range(&kernel_space, M13_ECAM_BASE, PAGE_SIZE);
+    m13_ecam_mapped = UINT64_MAX;
+  }
+}
+
+static int m13_platform_init(void) {
+  if (m13_rsdp_size) {
+    acpi_platform platform = {0};
+    acpi_status status = acpi_discover(m13_rsdp, m13_rsdp_size,
+                                       m13_read_physical, 0,
+                                       m13_acpi_scratch,
+                                       sizeof(m13_acpi_scratch), &platform);
+    if (status != ACPI_OK) {
+      serial("M13:ACPI:INVALID\n");
+    } else {
+      uint32_t madt_entries = 0;
+      if (platform.madt_physical) {
+        if (!m13_read_physical(0, platform.madt_physical, m13_acpi_scratch,
+                               platform.madt_length))
+          return 0;
+        size_t cursor = 44;
+        acpi_madt_entry entry;
+        for (;;) {
+          status = acpi_madt_entry_at(m13_acpi_scratch,
+                                      platform.madt_length, &cursor, &entry);
+          if (status == ACPI_UNSUPPORTED)
+            break;
+          if (status != ACPI_OK)
+            return 0;
+          ++madt_entries;
+        }
+      }
+      if (platform.mcfg_physical) {
+        if (!m13_read_physical(0, platform.mcfg_physical, m13_acpi_scratch,
+                               platform.mcfg_length))
+          return 0;
+        if (pci_parse_mcfg(m13_acpi_scratch, platform.mcfg_length,
+                           m13_mcfg_regions, PCI_MAX_MCFG_REGIONS,
+                           &m13_mcfg_count) != PCI_OK)
+          m13_mcfg_count = 0;
+      }
+      serial("M13:ACPI:PASS madt="); hex(madt_entries);
+      serial(" mcfg="); hex(m13_mcfg_count); serial("\n");
+    }
+  } else {
+    serial("M13:ACPI:ABSENT\n");
+  }
+
+  pci_cf8_ops(&m13_hybrid_context.legacy);
+  m13_ecam_ops = (pci_ecam_ops){0, m13_mcfg_regions, m13_mcfg_count,
+                                m13_map_ecam_dword};
+  m13_hybrid_context.ecam = m13_ecam_ops;
+  pci_hybrid_config_ops(&m13_hybrid_context, &m13_config);
+  size_t function_count = 0;
+  if (pci_enumerate_mcfg(&m13_config, m13_mcfg_regions, m13_ecam_ops.region_count,
+                         m13_functions, M13_MAX_DEVICES,
+                         &function_count) != PCI_OK || !function_count)
+    return 0;
+  if (device_registry_init(&m13_registry, m13_device_storage,
+                           M13_MAX_DEVICES) != DEVICE_OK)
+    return 0;
+  for (size_t i = 0; i < function_count; ++i) {
+    if (pci_probe_bars(&m13_config, &m13_functions[i]) != PCI_OK)
+      return 0;
+    size_t index = 0;
+    if (device_register_pci(&m13_registry, &m13_functions[i], &index) !=
+        DEVICE_OK)
+      return 0;
+  }
+  pci_mmio_ops mmio = {0, m13_map_bar, m13_unmap_bar};
+  int mapped_bar = 0;
+  for (size_t i = 0; i < function_count && !mapped_bar; ++i) {
+    for (unsigned bar = 0; bar < PCI_BAR_COUNT; ++bar) {
+      pci_bar *resource = &m13_functions[i].bars[bar];
+      if (!resource->valid || resource->is_io || !resource->base ||
+          resource->size < PAGE_SIZE)
+        continue;
+      if (pci_map_bar(&mmio, &m13_functions[i], bar, 0, M13_BAR_BASE,
+                      PAGE_SIZE) != PCI_OK)
+        return 0;
+      uint64_t mapped_physical = 0, flags = 0;
+      uint32_t permissions = 0;
+      if (vmm_query(&kernel_space, M13_BAR_BASE, &mapped_physical,
+                    &permissions, &flags) != VMM_OK ||
+          (mapped_physical & ~(PAGE_SIZE - 1)) != resource->base ||
+          (flags & (UINT64_C(0x8) | UINT64_C(0x10))) !=
+              (UINT64_C(0x8) | UINT64_C(0x10)) ||
+          pci_unmap_bar(&mmio, M13_BAR_BASE, PAGE_SIZE) != PCI_OK)
+        return 0;
+      mapped_bar = 1;
+      break;
+    }
+  }
+  m13_release_mappings();
+  serial("M13:PCI:PASS functions="); hex(function_count); serial("\n");
+  serial("M13:DEVICE:PASS registered="); hex(m13_registry.count);
+  serial(" mmio="); serial(mapped_bar ? "mapped\n" : "no-bar\n");
+  return 1;
+}
+#endif
 #if defined(LAMIX_M10_VMM)
 static int vmm_allocate(void *context, uint64_t *physical) {
   (void)context;
@@ -625,6 +819,13 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
   if(h->self_phys!=self||__builtin_memcmp(h->magic,LBP_MAGIC,8))fail();
   const uint8_t*raw_acpi=raw_record(h,LBP_ACPI);lbp_span span,*spans=0;uint64_t span_count=0;
   if(raw_acpi){if(((const lbp_record*)raw_acpi)->size<sizeof(lbp_acpi)||!map_acpi_span(h,(const lbp_acpi*)raw_acpi,&span))fail();spans=&span;span_count=1;}
+#if defined(LAMIX_M13_DEVICES)
+  if (raw_acpi && span.size <= sizeof(m13_rsdp)) {
+    m13_rsdp_size = (size_t)span.size;
+    for (size_t i = 0; i < m13_rsdp_size; ++i)
+      m13_rsdp[i] = span.bytes[i];
+  }
+#endif
   lbp_status validation=lbp_validate(h,h->total_size,spans,span_count,&view);
   if(raw_acpi)unmap_acpi_span();
   if(validation!=LBP_OK)fail();
@@ -655,6 +856,12 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
     fail();
   }
 #endif
+#if defined(LAMIX_M13_DEVICES)
+  if (!m13_platform_init()) {
+    serial("M13:FAIL\n");
+    fail();
+  }
+#endif
   serial("M08:LBP\n");
   serial("M08:GUARD=");hex(e->guard);serial("\n");
 #if defined(LAMIX_FAULT_UD)
@@ -679,6 +886,9 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
 #endif
 #if defined(LAMIX_M12_BUDDY)
   serial("M12:PASS\n");
+#endif
+#if defined(LAMIX_M13_DEVICES)
+  serial("M13:PASS\n");
 #endif
   halt();
 }

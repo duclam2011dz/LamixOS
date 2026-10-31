@@ -167,7 +167,7 @@ def create_image(destination, bios_build, uefi_build, kernel=None, seed=None, ke
     if kernel_build is not None:
         kernel_build = Path(kernel_build).resolve(strict=True)
         kernel_report = verify_build_report(kernel_build, ("kernel.elf",))
-        if kernel_report.get("mode") not in ("m08-kernel", "m09-kernel", "m10-kernel", "m11-kernel", "m12-kernel"):
+        if kernel_report.get("mode") not in ("m08-kernel", "m09-kernel", "m10-kernel", "m11-kernel", "m12-kernel", "m13-kernel"):
             raise ValueError("kernel build report không thuộc profile kernel M08/M09/M10/M11")
         kernel = checked_artifact(kernel_build / "kernel.elf", 16 * 1024**2)
     else:
@@ -294,7 +294,7 @@ def check_image(path, bios_build=None, uefi_build=None, kernel=None, report=None
     if kernel_build is not None:
         kernel_build = Path(kernel_build).resolve(strict=True)
         kernel_report = verify_build_report(kernel_build, ("kernel.elf",))
-        if kernel_report.get("mode") not in ("m08-kernel", "m09-kernel", "m10-kernel", "m11-kernel", "m12-kernel"):
+        if kernel_report.get("mode") not in ("m08-kernel", "m09-kernel", "m10-kernel", "m11-kernel", "m12-kernel", "m13-kernel"):
             raise ValueError("kernel build report không thuộc profile kernel M08/M09/M10/M11")
         kernel = checked_artifact(kernel_build / "kernel.elf", 16 * 1024**2)
     if bios_build or uefi_build or kernel or kernel_build:

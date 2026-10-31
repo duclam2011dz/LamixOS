@@ -3,10 +3,10 @@
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
 > **Cập nhật:** 2026-10-30
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 IN_PROGRESS; M14–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
-Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE
+Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=IN_PROGRESS
 
 ## 0. Tầm nhìn và giới hạn
 
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 IN_PROGRESS; M14–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -113,7 +113,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ### P3 — Thiết bị nền tảng, ngắt hiện đại và đồ họa QEMU sớm
 
-**M13 — ACPI cơ bản, PCI enumeration, device framework.** ACPI RSDP/XSDT/MADT tối thiểu; PCI config/BAR, MMIO, DMA ownership và abstraction drivers. Nghiệm thu: phát hiện thiết bị ảo và tài nguyên đúng trong QEMU; malformed table xử lý an toàn.
+**M13 — ACPI cơ bản, PCI enumeration, device framework.** **Trạng thái: IN_PROGRESS (2026-10-30).** Đã thêm parser ACPI RSDP/RSDT/XSDT/MADT/MCFG, PCI config mechanism #1/ECAM, BAR probing/MMIO mapping và registry/ownership API; host sanitizer cùng guest PCI BIOS/UEFI local PASS. Guest hiện không nhận ACPI record hợp lệ (`M13:ACPI:ABSENT`) nên guest parsing ACPI chưa được chứng minh; M13 chưa nghiệm thu. Chi tiết trạng thái và evidence tại [PLANS](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md). Phạm vi: ACPI RSDP/XSDT/MADT tối thiểu; PCI config/BAR, MMIO, DMA ownership và abstraction drivers. Nghiệm thu vẫn cần phát hiện thiết bị ảo/tài nguyên đúng trong QEMU và xử lý malformed tables an toàn.
 
 **M14 — Local APIC/IOAPIC, timers.** Chuyển từ PIC bootstrap sang APIC/IOAPIC, IRQ routing, clock source/timer có kiểm tra, chuẩn bị MSI/MSI-X sau. Nghiệm thu: interrupts/ticks hoạt động qua nhiều lần khởi động, không double-ack/routing sai.
 
