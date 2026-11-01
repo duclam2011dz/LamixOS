@@ -11,6 +11,7 @@
 #define ACPI_MAX_TABLE_SIZE (64u * 1024u)
 #define ACPI_MADT_MAX_IOAPICS 8u
 #define ACPI_MADT_MAX_OVERRIDES 16u
+#define ACPI_MADT_MAX_CPUS 256u
 
 typedef enum acpi_status {
   ACPI_OK,
@@ -62,14 +63,23 @@ typedef struct acpi_irq_override {
   uint16_t flags;
 } acpi_irq_override;
 
+typedef struct acpi_cpu_info {
+  uint32_t processor_id;
+  uint32_t apic_id;
+  uint32_t flags;
+} acpi_cpu_info;
+
 typedef struct acpi_madt_info {
   uint64_t lapic_physical;
   acpi_ioapic_info ioapics[ACPI_MADT_MAX_IOAPICS];
   acpi_irq_override overrides[ACPI_MADT_MAX_OVERRIDES];
+  acpi_cpu_info cpus[ACPI_MADT_MAX_CPUS];
   size_t ioapic_count;
   size_t override_count;
+  size_t cpu_count;
   uint8_t bsp_apic_id;
   uint8_t bsp_present;
+  uint8_t x2apic_present;
 } acpi_madt_info;
 
 acpi_status acpi_discover(const void *rsdp, size_t rsdp_size,

@@ -163,6 +163,12 @@ jobs:
           cmake -S tests/m23 -B build/m23-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m23-tests
           ctest --test-dir build/m23-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m23/ctest.xml"
+      - name: M24 SMP AP startup, per-CPU scheduler và guest topology
+        timeout-minutes: 90
+        run: |
+          cmake -S tests/m24 -B build/m24-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m24-tests
+          ctest --test-dir build/m24-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m24/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -444,4 +450,21 @@ jobs:
             build/m23-*/kernel.inspection.txt
             build/m23-*/alpha.inspection.txt
             build/m23-*/beta.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M24 SMP reports và guest serial, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m24-smp-reports
+          path: |
+            out/m24/*.xml
+            out/m24/results/*.json
+            out/m24/runs/**/result.json
+            out/m24/runs/**/serial.log
+            out/m24/runs/**/stderr.log
+            out/m24/runs/**/qmp.log
+            build/m24-*/build.json
+            build/m24-*/kernel.inspection.txt
+            build/m24-*/alpha.inspection.txt
+            build/m24-*/beta.inspection.txt
           if-no-files-found: warn

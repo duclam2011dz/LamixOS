@@ -9,10 +9,12 @@
 #define SCHED_PRIORITY_MAX 3u
 #define SCHED_STACK_SIZE 16384u
 #define SCHED_AGE_TICKS 100u
+#define SCHED_MAX_CPUS 16u
 
 typedef struct scheduler scheduler;
 typedef struct scheduler_thread scheduler_thread;
 typedef struct scheduler_mutex scheduler_mutex;
+typedef struct scheduler_cpu scheduler_cpu;
 typedef void (*scheduler_entry)(void *argument);
 
 typedef enum scheduler_status {
@@ -48,6 +50,9 @@ typedef struct scheduler_operations {
   int (*request_reschedule)(void *context);
   void (*fatal)(void *context, uint64_t reason);
   void (*context_switch)(void *context, scheduler_thread *next);
+  uint32_t (*cpu_id)(void *context);
+  /* Wait with maskable IPIs enabled while contending on an SMP lock. */
+  void (*irq_wait)(void *context);
 } scheduler_operations;
 
 struct scheduler_thread {
@@ -71,6 +76,8 @@ struct scheduler_thread {
   uint8_t idle;
   uint8_t user_mode;
   uintptr_t kernel_stack_top;
+  uint64_t affinity_mask;
+  uint32_t run_cpu;
   void *private_context;
 };
 
@@ -80,18 +87,52 @@ struct scheduler_mutex {
   scheduler_mutex *owner_prev, *owner_next;
 };
 
-struct scheduler {
-  scheduler_operations operations;
+struct scheduler_cpu {
   scheduler_thread *ready_head[SCHED_PRIORITY_LEVELS];
   scheduler_thread *ready_tail[SCHED_PRIORITY_LEVELS];
   scheduler_thread *current, *bootstrap, *idle, *retired;
-  uint64_t ticks, next_id, live_threads;
+  /* Old frame remains live until this CPU has returned on another stack. */
+  scheduler_thread *switching_from;
+  uint64_t ticks;
+  uint8_t online;
+};
+
+struct scheduler {
+  scheduler_operations operations;
+  union {
+    scheduler_cpu cpu0;
+    struct {
+      scheduler_thread *ready_head[SCHED_PRIORITY_LEVELS];
+      scheduler_thread *ready_tail[SCHED_PRIORITY_LEVELS];
+      scheduler_thread *current, *bootstrap, *idle, *retired;
+      scheduler_thread *switching_from;
+      uint64_t ticks;
+    };
+  };
+  scheduler_cpu cpus[SCHED_MAX_CPUS - 1u];
+  uint64_t next_id, live_threads;
+  uint32_t cpu_limit;
+  volatile uint32_t spinlock;
+  uint64_t observed_cpu_mask;
+  uint64_t work_steals;
+  scheduler_entry idle_entry;
   uint8_t active;
 };
 
 scheduler_status scheduler_init(scheduler *state,
                                 const scheduler_operations *operations,
                                 scheduler_entry idle_entry);
+scheduler_status scheduler_init_smp(scheduler *state,
+                                    const scheduler_operations *operations,
+                                    scheduler_entry idle_entry,
+                                    uint32_t cpu_limit);
+scheduler_status scheduler_cpu_online(scheduler *state, uint32_t cpu_id,
+                                      uintptr_t bootstrap_stack_top);
+scheduler_thread *scheduler_current(scheduler *state);
+scheduler_status scheduler_set_affinity(scheduler_thread *thread,
+                                        uint64_t affinity_mask);
+void scheduler_critical_enter(scheduler *state, uintptr_t *flags);
+void scheduler_critical_leave(scheduler *state, uintptr_t flags);
 scheduler_status scheduler_create(scheduler *state, scheduler_entry entry,
                                   void *argument, uint8_t priority,
                                   scheduler_thread **thread_out);
@@ -113,5 +154,7 @@ scheduler_status scheduler_mutex_lock(scheduler *state,
 scheduler_status scheduler_mutex_unlock(scheduler *state,
                                         scheduler_mutex *mutex);
 uint64_t scheduler_tick_count(const scheduler *state);
+uint64_t scheduler_observed_cpu_mask(const scheduler *state);
+uint64_t scheduler_work_steals(const scheduler *state);
 
 #endif

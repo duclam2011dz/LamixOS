@@ -196,6 +196,25 @@ pmm_status pmm_alloc_frame(pmm *manager, uint64_t *physical) {
   return PMM_OUT_OF_MEMORY;
 }
 
+pmm_status pmm_alloc_frame_below(pmm *manager, uint64_t exclusive_limit,
+                                 uint64_t *physical) {
+  if (!manager || !physical || manager->initialized != PMM_MAGIC ||
+      !manager->states || !exclusive_limit)
+    return PMM_INVALID_ARGUMENT;
+  uint64_t limit = exclusive_limit < PMM_PHYSICAL_LIMIT
+                       ? exclusive_limit : PMM_PHYSICAL_LIMIT;
+  uint32_t frames = (uint32_t)(limit / PMM_PAGE_SIZE);
+  for (uint32_t frame = 1; frame < frames; ++frame) {
+    if (state_get(manager->states, frame) != STATE_FREE) continue;
+    state_set(manager->states, frame, STATE_ALLOCATED);
+    --manager->free_frames;
+    ++manager->allocated_frames;
+    *physical = (uint64_t)frame * PMM_PAGE_SIZE;
+    return PMM_OK;
+  }
+  return PMM_OUT_OF_MEMORY;
+}
+
 pmm_status pmm_free_frame(pmm *manager, uint64_t physical) {
   if (!manager || manager->initialized != PMM_MAGIC || !manager->states)
     return PMM_INVALID_ARGUMENT;

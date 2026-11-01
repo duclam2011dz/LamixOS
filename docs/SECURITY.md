@@ -6,6 +6,8 @@ M21 dùng `SYSCALL/SYSRETQ`, `FMASK` để giữ mask interrupt trong entry, thr
 
 M23 đã triển khai parser newc/ELF trong profile riêng: kiểm tra kích thước/offset, segment overlap, entry, W^X và chỉ xử lý `R_X86_64_RELATIVE`; không có ASLR hoặc dynamic linking. Native sanitizer, guest BIOS/UEFI và CI **PASS**; chưa có audit bảo mật độc lập, và allocation-failure matrix chưa được kiểm thử exhaustive. ELF/initramfs malformed được test riêng; không xem milestone là bảo đảm an toàn tổng thể.
 
+M24 SMP đang IN_PROGRESS: AP chỉ được đánh dấu online sau khi cài per-CPU GDT/TSS/IST/syscall stack; AP startup có timeout; TLB shootdown dùng IPI và acknowledgement giới hạn thời gian. Review P1 đã tìm ba lỗi về lifetime kernel stack, cân bằng `SWAPGS`/GS MSR và deadlock shootdown khi CPU đích spin lock; đã sửa và M24 CTest **4/4 PASS**, gồm BIOS/UEFI × 1/2/4/8 vCPU × 3 lượt cùng fault cases. Cơ chế chờ khóa tạm cho phép IPI; timer và reschedule handler không gọi scheduler khi CPU đang chờ khóa. Rủi ro còn lại gồm race teardown khi CR3 đổi, review toàn bộ AP entry/return và lock callsites, cùng audit bảo mật độc lập. Review mới tìm thêm race timer khi shootdown xóa `lock_waiting` trước `cli`; đã sửa thứ tự trong working tree. CTest/CI/review cho sửa mới còn chờ; chưa có bảo đảm bảo mật tổng thể.
+
 Disk/image phải bảo vệ GPT metadata và User Data. LamFS cần bounds checks, metadata consistency và kiểm thử dữ liệu hỏng; A/B updates cần recovery có bằng chứng. Chính sách cụ thể chưa đặc tả, không tuyên bố đã an toàn.
 
 Lỗi hoặc nguy cơ mới được ghi ở [handoff](SESSION_HANDOFF.md), cùng tác động và bước xác minh; thay đổi baseline phải qua approval gate.

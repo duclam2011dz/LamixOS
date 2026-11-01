@@ -3,6 +3,10 @@
 #include "lamix/syscall.h"
 
 int main(int argc, char **argv, char **envp) {
+#ifdef LAMIX_M24_SMP
+  for (volatile uint64_t work = 0; work < UINT64_C(8000000); ++work)
+    __asm__ volatile("pause" ::: "memory");
+#endif
   static const char ok[] = "M23:APP_BETA:PASS\n";
   static volatile uint8_t bss_probe[4096 + 32];
   if (argc != 2 || argv[1][0] != 'b' || !envp || envp[0][0] != 'M')

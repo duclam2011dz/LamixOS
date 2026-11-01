@@ -86,6 +86,73 @@ static uint8_t df_stack[16384] __attribute__((aligned(16)));
 #if defined(LAMIX_M21_SYSCALL)
 static uint8_t m21_exception_stacks[3][16384] __attribute__((aligned(16)));
 #endif
+#if defined(LAMIX_M24_SMP)
+#ifndef LAMIX_M24_MAX_CPUS
+#define LAMIX_M24_MAX_CPUS 16u
+#endif
+typedef struct m24_cpu_local {
+  uint64_t syscall_entry_state[16];
+  uint64_t syscall_kernel_stack;
+  uint64_t syscall_fast_return;
+  uint64_t syscall_return_rip, syscall_return_flags;
+  uint64_t syscall_return_rsp, syscall_return_rax;
+  tss64 tss;
+  uint64_t gdt[64] __attribute__((aligned(16)));
+  uint8_t double_fault_stack[16384] __attribute__((aligned(16)));
+  uint8_t exception_stacks[3][16384] __attribute__((aligned(16)));
+  uint8_t boot_stack[16384] __attribute__((aligned(16)));
+  uint32_t apic_id;
+  volatile uint32_t online;
+  volatile uint32_t timer_started;
+  volatile uint32_t timer_irqs;
+  volatile uint32_t lock_waiting;
+  vmm_space *active_space;
+} m24_cpu_local;
+typedef struct m24_ap_mailbox {
+  uint32_t cr3;
+  uint32_t reserved;
+  uint64_t stack;
+  uint32_t cpu_id;
+  uint32_t reserved2;
+  uint64_t entry;
+} m24_ap_mailbox;
+_Static_assert(sizeof(m24_ap_mailbox) == 32, "M24 AP mailbox layout");
+_Static_assert(offsetof(m24_cpu_local, syscall_entry_state) == 0,
+               "M24 per-CPU syscall frame offset");
+_Static_assert(offsetof(m24_cpu_local, syscall_kernel_stack) == 128,
+               "M24 per-CPU syscall stack offset");
+_Static_assert(offsetof(m24_cpu_local, syscall_fast_return) == 136,
+               "M24 per-CPU SYSRET flag offset");
+_Static_assert(offsetof(m24_cpu_local, syscall_return_rip) == 144,
+               "M24 per-CPU return RIP offset");
+static m24_cpu_local m24_cpu_locals[LAMIX_M24_MAX_CPUS];
+static uint8_t m24_cpu_apic_ids[LAMIX_M24_MAX_CPUS];
+static uint32_t m24_cpu_count;
+static volatile uint32_t m24_online_count;
+static volatile uint32_t m24_release_aps;
+static uint64_t m24_ap_timer_count;
+static uint64_t m24_trampoline_page, m24_mailbox_page;
+static volatile uint32_t m24_shootdown_lock;
+static volatile uint64_t m24_shootdown_address;
+static volatile uint64_t m24_shootdown_targets, m24_shootdown_acks;
+static volatile uint32_t m24_heap_lock_word, m24_pmm_lock_word;
+static uint8_t m24_smp_active;
+static volatile uint32_t m24_serial_owner = UINT32_MAX;
+static uintptr_t m24_serial_flags[LAMIX_M24_MAX_CPUS];
+static volatile uint32_t m24_object_owner = UINT32_MAX;
+static uint32_t m24_object_depth[LAMIX_M24_MAX_CPUS];
+static uintptr_t m24_object_flags[LAMIX_M24_MAX_CPUS];
+static uint32_t m24_cpu_id(void *context);
+static uint32_t m24_current_cpu_id(void);
+static void m24_irq_wait(void *context);
+static void m24_install_cpu_tables(uint32_t cpu_id, uintptr_t stack_top);
+static void m24_tlb_shootdown(uint64_t address, uint64_t target_mask);
+static void m24_ap_main(uint32_t cpu_id);
+static int m24_prepare_trampoline(void);
+static int m24_start_aps(void);
+static int m24_tlb_selftest(void);
+static void invalidate(uint64_t address);
+#endif
 static volatile uint32_t ticks;
 static uint8_t serial_ready;
 #if defined(LAMIX_M14_APIC)
@@ -96,6 +163,9 @@ static volatile uint32_t m14_pit_irqs, m14_timer_irqs;
 static volatile uint32_t m14_pit_eois, m14_timer_eois;
 static volatile uint32_t m14_calibration_start, m14_calibration_end;
 static volatile uint8_t m14_active;
+#if defined(LAMIX_M24_SMP)
+static acpi_madt_info m24_madt;
+#endif
 #if defined(LAMIX_M15_INPUT)
 static acpi_madt_info m15_madt;
 static uint8_t m15_bsp_id;
@@ -198,10 +268,12 @@ static volatile uint64_t *vmm_access(void *context, uint64_t physical);
 static void vmm_invalidate(void *context, uint64_t virtual_address);
 #endif
 #if defined(LAMIX_M21_SYSCALL)
+#if !defined(LAMIX_M24_SMP)
 uint64_t m21_entry_state[16];
 uint64_t m21_kernel_stack;
 uint64_t m21_fast_return;
 uint64_t m21_return_rip, m21_return_flags, m21_return_rsp, m21_return_rax;
+#endif
 static uint8_t m21_force_iret = 1;
 static uint32_t m21_iret_count;
 extern void m21_syscall_entry(void);
@@ -212,9 +284,59 @@ static __attribute__((noreturn)) void fail(void);
 
 static inline uint8_t in8(uint16_t p){uint8_t x;__asm__ volatile("inb %1,%0":"=a"(x):"Nd"(p));return x;}
 static inline void out8(uint16_t p,uint8_t x){__asm__ volatile("outb %0,%1"::"a"(x),"Nd"(p));}
-static void serial_char(char c){if(!serial_ready)return;for(uint32_t n=100000;n && !(in8(COM1+5)&0x20);--n){}out8(COM1,(uint8_t)c);}
-static void serial(const char*s){while(*s)serial_char(*s++);}
-static void hex(uint64_t n){static const char d[]="0123456789abcdef";for(int i=60;i>=0;i-=4)serial_char(d[(n>>i)&15]);}
+#if defined(LAMIX_M24_SMP)
+static int m24_serial_enter(void) {
+  uintptr_t flags;
+  __asm__ volatile("pushfq; pop %0; cli" : "=r"(flags) :: "memory");
+  uint32_t id = m24_current_cpu_id();
+  if (id >= LAMIX_M24_MAX_CPUS) id = 0;
+  if (__atomic_load_n(&m24_serial_owner, __ATOMIC_RELAXED) == id) return 0;
+  uint32_t expected;
+  do {
+    expected = UINT32_MAX;
+    if (__atomic_compare_exchange_n(&m24_serial_owner, &expected, id, 0,
+                                    __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
+      break;
+    m24_irq_wait(0);
+  } while (1);
+  m24_serial_flags[id] = flags;
+  return (int)id + 1;
+}
+static void m24_serial_leave(int token) {
+  if (!token) return;
+  uint32_t id = (uint32_t)token - 1u;
+  __atomic_store_n(&m24_serial_owner, UINT32_MAX, __ATOMIC_RELEASE);
+  if (m24_serial_flags[id] & ((uintptr_t)1u << 9))
+    __asm__ volatile("sti" ::: "memory");
+}
+#endif
+static void serial_char(char c){if(!serial_ready)return;
+#if defined(LAMIX_M24_SMP)
+int token=m24_serial_enter();
+#endif
+for(uint32_t n=100000;n && !(in8(COM1+5)&0x20);--n){}out8(COM1,(uint8_t)c);
+#if defined(LAMIX_M24_SMP)
+m24_serial_leave(token);
+#endif
+}
+static void serial(const char*s){
+#if defined(LAMIX_M24_SMP)
+int token=m24_serial_enter();
+#endif
+while(*s)serial_char(*s++);
+#if defined(LAMIX_M24_SMP)
+m24_serial_leave(token);
+#endif
+}
+static void hex(uint64_t n){static const char d[]="0123456789abcdef";
+#if defined(LAMIX_M24_SMP)
+int token=m24_serial_enter();
+#endif
+for(int i=60;i>=0;i-=4)serial_char(d[(n>>i)&15]);
+#if defined(LAMIX_M24_SMP)
+m24_serial_leave(token);
+#endif
+}
 static void serial_init(void){out8(COM1+1,0);out8(COM1+3,0x80);out8(COM1,1);out8(COM1+1,0);out8(COM1+3,3);out8(COM1+2,0xc7);out8(COM1+4,0x0b);serial_ready=1;}
 __attribute__((noreturn)) static void halt(void){__asm__ volatile("cli");for(;;)__asm__ volatile("hlt");}
 __attribute__((noreturn)) static void panic_frame(const interrupt_frame*f){
@@ -228,13 +350,58 @@ __attribute__((noreturn)) static void panic_frame(const interrupt_frame*f){
 }
 #if defined(LAMIX_M19_SCHEDULER)
 static uint64_t m19_start_tick;
+#if defined(LAMIX_M24_SMP)
+static uintptr_t m24_lock_acquire(volatile uint32_t *word) {
+  uintptr_t flags;
+  __asm__ volatile("pushfq; pop %0; cli" : "=r"(flags) :: "memory");
+  uint32_t id = m24_current_cpu_id();
+  while (__atomic_exchange_n(word, 1u, __ATOMIC_ACQUIRE)) {
+    if (id < LAMIX_M24_MAX_CPUS) {
+      __atomic_store_n(&m24_cpu_locals[id].lock_waiting, 1u, __ATOMIC_RELEASE);
+      __asm__ volatile("sti; pause; cli" ::: "memory");
+      __atomic_store_n(&m24_cpu_locals[id].lock_waiting, 0u, __ATOMIC_RELEASE);
+    } else {
+      __asm__ volatile("pause" ::: "memory");
+    }
+  }
+  return flags;
+}
+static void m24_irq_wait(void *context) {
+  (void)context;
+  uint32_t id = m24_current_cpu_id();
+  if (id >= LAMIX_M24_MAX_CPUS) {
+    __asm__ volatile("pause" ::: "memory");
+    return;
+  }
+  __atomic_store_n(&m24_cpu_locals[id].lock_waiting, 1u, __ATOMIC_RELEASE);
+  __asm__ volatile("sti; pause; cli" ::: "memory");
+  __atomic_store_n(&m24_cpu_locals[id].lock_waiting, 0u, __ATOMIC_RELEASE);
+}
+static void m24_lock_release(volatile uint32_t *word, uintptr_t flags) {
+  __atomic_store_n(word, 0u, __ATOMIC_RELEASE);
+  if (flags & ((uintptr_t)1u << 9)) __asm__ volatile("sti" ::: "memory");
+}
+#endif
 static void *m19_allocate(void *context, size_t size) {
   (void)context;
-  return kheap_alloc(&kernel_heap, size);
+#if defined(LAMIX_M24_SMP)
+  uintptr_t flags = m24_lock_acquire(&m24_heap_lock_word);
+#endif
+  void *result = kheap_alloc(&kernel_heap, size);
+#if defined(LAMIX_M24_SMP)
+  m24_lock_release(&m24_heap_lock_word, flags);
+#endif
+  return result;
 }
 static void m19_deallocate(void *context, void *pointer) {
   (void)context;
+#if defined(LAMIX_M24_SMP)
+  uintptr_t flags = m24_lock_acquire(&m24_heap_lock_word);
+#endif
   if (kheap_free(&kernel_heap, pointer) != KHEAP_OK) fail();
+#if defined(LAMIX_M24_SMP)
+  m24_lock_release(&m24_heap_lock_word, flags);
+#endif
 }
 static uintptr_t m19_irq_save(void *context) {
   (void)context;
@@ -256,18 +423,72 @@ static void m19_fatal(void *context, uint64_t reason) {
   serial("M19:KERNEL_ERROR reason="); hex(reason); serial("\nM19:FAIL\n");
   halt();
 }
+#if defined(LAMIX_M24_SMP)
+static uint32_t m24_current_cpu_id(void) {
+  if (!m14_lapic || !m24_cpu_count) return 0;
+  uint32_t apic_id = m14_lapic[0x20 / 4] >> 24;
+  for (uint32_t i = 0; i < m24_cpu_count; ++i)
+    if (m24_cpu_apic_ids[i] == apic_id) return i;
+  return UINT32_MAX;
+}
+static uint32_t m24_cpu_id(void *context) {
+  (void)context;
+  return m24_current_cpu_id();
+}
+static uint32_t m24_popcount(uint64_t value) {
+  uint32_t count = 0;
+  while (value) {
+    value &= value - 1u;
+    ++count;
+  }
+  return count;
+}
+static m24_cpu_local *m24_local_cpu(void) {
+  uint32_t id = m24_current_cpu_id();
+  return id < LAMIX_M24_MAX_CPUS ? &m24_cpu_locals[id] : 0;
+}
+#endif
 #if defined(LAMIX_M20_PROCESS)
 static void m20_context_switch(void *context, scheduler_thread *next) {
   (void)context;
+#if defined(LAMIX_M24_SMP)
+  m24_cpu_local *cpu = m24_local_cpu();
+  if (!cpu) halt();
+  cpu->tss.rsp0 = next->kernel_stack_top ? next->kernel_stack_top
+                                          : m20_boot_stack_top;
+  cpu->syscall_kernel_stack = cpu->tss.rsp0;
+#else
   tss.rsp0 = next->kernel_stack_top ? next->kernel_stack_top : m20_boot_stack_top;
 #if defined(LAMIX_M21_SYSCALL)
   m21_kernel_stack = tss.rsp0;
 #endif
+#endif
   process *instance = next->user_mode ? (process *)next->private_context : 0;
   uint64_t root = instance ? instance->address_space.root_physical
                            : kernel_space.root_physical;
+#if defined(LAMIX_M24_SMP)
+  if (instance && __atomic_load_n(&instance->state, __ATOMIC_ACQUIRE) ==
+                      PROCESS_READY)
+    __atomic_store_n(&instance->state, PROCESS_RUNNING, __ATOMIC_RELEASE);
+#else
   if (instance && instance->state == PROCESS_READY)
     instance->state = PROCESS_RUNNING;
+#endif
+#if defined(LAMIX_M24_SMP)
+  uint32_t cpu_id = m24_current_cpu_id();
+  if (cpu_id >= LAMIX_M24_MAX_CPUS) halt();
+  uint64_t bit = UINT64_C(1) << cpu_id;
+  vmm_space *target_space = instance ? &instance->address_space : &kernel_space;
+  if (cpu->active_space != target_space) {
+    __atomic_fetch_or(&target_space->active_cpus, bit, __ATOMIC_RELEASE);
+    __asm__ volatile("mov %0,%%cr3" : : "r"(root) : "memory");
+    if (cpu->active_space)
+      __atomic_fetch_and(&cpu->active_space->active_cpus, ~bit,
+                         __ATOMIC_ACQ_REL);
+    cpu->active_space = target_space;
+    return;
+  }
+#endif
   __asm__ volatile("mov %0,%%cr3" : : "r"(root) : "memory");
 }
 #if defined(LAMIX_M21_SYSCALL)
@@ -303,6 +524,14 @@ static int m21_syscall_init(void) {
   m21_wrmsr(lstar, (uint64_t)(uintptr_t)m21_syscall_entry);
   m21_wrmsr(fmask, masked_flags);
   m21_wrmsr(efer, m21_rdmsr((uint32_t)efer) | 1u);
+#if defined(LAMIX_M24_SMP)
+  m24_cpu_local *cpu = m24_local_cpu();
+  if (!cpu) return 0;
+  /* Kernel execution starts with GS_BASE already pointing at this CPU.
+     SWAPGS on user entry/return then exchanges it with the user GS base. */
+  m21_wrmsr(UINT32_C(0xc0000101), (uint64_t)(uintptr_t)cpu);
+  m21_wrmsr(UINT32_C(0xc0000102), 0);
+#endif
   return 1;
 }
 static int m21_read_user(void *context, uint64_t address, uint8_t *target,
@@ -348,10 +577,56 @@ static int m22_write_user(process *p,uint64_t destination,const uint8_t *source,
     done+=chunk;
   }return 1;
 }
-static void *m22_alloc(void *ctx,size_t n){process *p=ctx;return p->scheduler_state->operations.allocate(p->scheduler_state->operations.context,n);}
-static void m22_free(void *ctx,void *v){process *p=ctx;p->scheduler_state->operations.deallocate(p->scheduler_state->operations.context,v);}
-static uintptr_t m22_lock(void *ctx){process *p=ctx;return p->scheduler_state->operations.irq_save(p->scheduler_state->operations.context);}
-static void m22_unlock(void *ctx,uintptr_t f){process *p=ctx;p->scheduler_state->operations.irq_restore(p->scheduler_state->operations.context,f);}
+#if defined(LAMIX_M24_SMP)
+static uintptr_t m24_object_lock(void) {
+  uintptr_t flags;
+  __asm__ volatile("pushfq; pop %0; cli" : "=r"(flags) :: "memory");
+  uint32_t id = m24_current_cpu_id();
+  if (id >= LAMIX_M24_MAX_CPUS) halt();
+  if (__atomic_load_n(&m24_object_owner, __ATOMIC_RELAXED) == id) {
+    ++m24_object_depth[id];
+    return (uintptr_t)id + 1u;
+  }
+  uint32_t expected;
+  do {
+    expected = UINT32_MAX;
+    if (__atomic_compare_exchange_n(&m24_object_owner, &expected, id, 0,
+                                    __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
+      break;
+    m24_irq_wait(0);
+  } while (1);
+  m24_object_flags[id] = flags;
+  m24_object_depth[id] = 1;
+  return (uintptr_t)id + 1u;
+}
+static void m24_object_unlock(uintptr_t token) {
+  if (!token || token > LAMIX_M24_MAX_CPUS) halt();
+  uint32_t id = (uint32_t)token - 1u;
+  if (!m24_object_depth[id] ||
+      __atomic_load_n(&m24_object_owner, __ATOMIC_RELAXED) != id)
+    halt();
+  if (--m24_object_depth[id]) return;
+  uintptr_t flags = m24_object_flags[id];
+  __atomic_store_n(&m24_object_owner, UINT32_MAX, __ATOMIC_RELEASE);
+  if (flags & ((uintptr_t)1u << 9)) __asm__ volatile("sti" ::: "memory");
+}
+#endif
+static void *m22_alloc(void *ctx,size_t n){process *p=ctx;uintptr_t f=0;scheduler_critical_enter(p->scheduler_state,&f);void *v=p->scheduler_state->operations.allocate(p->scheduler_state->operations.context,n);scheduler_critical_leave(p->scheduler_state,f);return v;}
+static void m22_free(void *ctx,void *v){process *p=ctx;uintptr_t f=0;scheduler_critical_enter(p->scheduler_state,&f);p->scheduler_state->operations.deallocate(p->scheduler_state->operations.context,v);scheduler_critical_leave(p->scheduler_state,f);}
+static uintptr_t m22_lock(void *ctx){
+#if defined(LAMIX_M24_SMP)
+  (void)ctx; return m24_object_lock();
+#else
+  process *p=ctx;return p->scheduler_state->operations.irq_save(p->scheduler_state->operations.context);
+#endif
+}
+static void m22_unlock(void *ctx,uintptr_t f){
+#if defined(LAMIX_M24_SMP)
+  (void)ctx;m24_object_unlock(f);
+#else
+  process *p=ctx;p->scheduler_state->operations.irq_restore(p->scheduler_state->operations.context,f);
+#endif
+}
 static int m22_alloc_page(void *ctx,uint64_t *frame){process *p=ctx;return p->operations.allocate_frame(p->operations.context,frame);}
 static int m22_release_page(void *ctx,uint64_t frame){process *p=ctx;return p->operations.release_frame(p->operations.context,frame);}
 static volatile uint8_t *m22_access_page(void *ctx,uint64_t frame){process *p=ctx;return p->operations.access_frame(p->operations.context,frame);}
@@ -412,10 +687,16 @@ static int m21_user_return_valid(process *instance, scheduler_frame *frame) {
   return 1;
 }
 void *m21_syscall_dispatch_frame(scheduler_frame *frame) {
-  scheduler_thread *thread = m19_scheduler.current;
+  scheduler_thread *thread = scheduler_current(&m19_scheduler);
   process *instance = thread && thread->user_mode
                           ? (process *)thread->private_context : 0;
+#if defined(LAMIX_M24_SMP)
+  m24_cpu_local *cpu = m24_local_cpu();
+  if (!cpu) halt();
+  cpu->syscall_fast_return = 0;
+#else
   m21_fast_return = 0;
+#endif
   if (!frame || !instance || frame->cs != 0x23) {
     if (instance)
       process_note_fault(instance, frame ? frame->rip : 0, 0);
@@ -431,18 +712,21 @@ void *m21_syscall_dispatch_frame(scheduler_frame *frame) {
       &operations, number, frame->rdi, frame->rsi, frame->rdx, frame->r10,
       frame->r8, frame->r9);
   frame->rax = (uint64_t)result;
-  if (instance->state == PROCESS_EXITED)
+  if (__atomic_load_n(&instance->state, __ATOMIC_ACQUIRE) == PROCESS_EXITED)
     return scheduler_terminate_interrupt(&m19_scheduler, frame);
   if (!m21_user_return_valid(instance, frame)) {
     process_note_fault(instance, frame->rip, UINT64_C(0x4d21));
     return scheduler_terminate_interrupt(&m19_scheduler, frame);
   }
-  if (m21_force_iret) {
-    m21_force_iret = 0;
-    ++m21_iret_count;
+  if (__atomic_exchange_n(&m21_force_iret, 0, __ATOMIC_ACQ_REL)) {
+    __atomic_add_fetch(&m21_iret_count, 1, __ATOMIC_RELAXED);
     return frame;
   }
+#if defined(LAMIX_M24_SMP)
+  cpu->syscall_fast_return = 1;
+#else
   m21_fast_return = 1;
+#endif
   return frame;
 }
 #endif
@@ -477,7 +761,19 @@ static void m20_run(void) {
         .invalidate = vmm_invalidate}};
   scheduler_operations scheduler_ops = {0, m19_allocate, m19_deallocate,
       m19_irq_save, m19_irq_restore, m19_request_reschedule, m19_fatal,
-      m20_context_switch};
+      m20_context_switch,
+#if defined(LAMIX_M24_SMP)
+      m24_cpu_id
+#else
+      0
+#endif
+      ,
+#if defined(LAMIX_M24_SMP)
+      m24_irq_wait
+#else
+      0
+#endif
+  };
   if (lamix_initramfs_find(m23_initramfs_start, archive_size, "alpha.elf",
                            &alpha) != LAMIX_INITRAMFS_OK ||
       lamix_initramfs_find(m23_initramfs_start, archive_size, "beta.elf",
@@ -485,8 +781,13 @@ static void m20_run(void) {
     serial("M23:INITRAMFS:FAIL\nM23:FAIL\n"); halt();
   }
   m20_boot_stack_top = m20_boot_stack_top ? m20_boot_stack_top : tss.rsp0;
+#if defined(LAMIX_M24_SMP)
+  scheduler_status sched = scheduler_init_smp(&m19_scheduler, &scheduler_ops,
+      m20_user_idle, m24_cpu_count);
+#else
   scheduler_status sched = scheduler_init(&m19_scheduler, &scheduler_ops,
                                            m20_user_idle);
+#endif
   uint8_t *bad_elf = sched == SCHED_OK
       ? m19_allocate(0, alpha.size) : 0;
   if (!bad_elf) {
@@ -519,6 +820,12 @@ static void m20_run(void) {
     serial("\nM23:FAIL\n");halt();
   }
   m19_scheduler_ready = 1;
+#if defined(LAMIX_M24_SMP)
+  if (!m24_start_aps()) {
+    serial("M24:AP_START:FAIL\nM24:FAIL\n"); halt();
+  }
+  serial("M24:SCHEDULER:READY cpus="); hex(m24_cpu_count); serial("\n");
+#endif
   serial("M20:PROCESS:READY\nM20:RING3:ENTERING\n");
   __asm__ volatile("sti" ::: "memory");
   process_state as = process_wait(&m20_process_a, 0, 0);
@@ -532,6 +839,23 @@ static void m20_run(void) {
       process_destroy(&m20_process_b) != PROCESS_OK) {
     serial("M23:CLEANUP:FAIL\nM23:FAIL\n");halt();
   }
+#if defined(LAMIX_M24_SMP)
+  uint64_t cpu_mask = scheduler_observed_cpu_mask(&m19_scheduler);
+  uint64_t steals = scheduler_work_steals(&m19_scheduler);
+  serial("M24:USER_CPU_MASK="); hex(cpu_mask);
+  serial(" STEALS="); hex(steals); serial("\n");
+  serial("M24:TIMER_COUNTS=");
+  for (uint32_t cpu = 0; cpu < m24_cpu_count; ++cpu) {
+    if (cpu) serial(",");
+    hex(__atomic_load_n(&m24_cpu_locals[cpu].timer_irqs, __ATOMIC_RELAXED));
+  }
+  serial("\n");
+  if (m24_cpu_count > 1 &&
+      (m24_popcount(cpu_mask) < 2 || !steals)) {
+    serial("M24:WORK_STEALING:FAIL\nM24:FAIL\n"); halt();
+  }
+  serial("M24:WORK_STEALING:PASS\nM24:PASS\n");
+#endif
   serial("M23:PROCESS_ISOLATION:PASS\nM23:CLEANUP:PASS\nM23:PASS\n");
   serial("M22:PASS\nM21:PASS\nM20:PASS\n");
 #else
@@ -569,7 +893,7 @@ static void m20_run(void) {
         .invalidate = vmm_invalidate}};
   scheduler_operations scheduler_ops = {0, m19_allocate, m19_deallocate,
       m19_irq_save, m19_irq_restore, m19_request_reschedule, m19_fatal,
-      m20_context_switch};
+      m20_context_switch, 0, 0};
   m20_boot_stack_top = m20_boot_stack_top ? m20_boot_stack_top : tss.rsp0;
   scheduler_status scheduler_result =
       scheduler_init(&m19_scheduler, &scheduler_ops, m20_user_idle);
@@ -791,7 +1115,7 @@ static void m19_mutex_medium(void *argument) {
 }
 static __attribute__((unused)) void m19_run(void) {
   scheduler_operations operations = {0, m19_allocate, m19_deallocate,
-      m19_irq_save, m19_irq_restore, m19_request_reschedule, m19_fatal, 0};
+      m19_irq_save, m19_irq_restore, m19_request_reschedule, m19_fatal, 0, 0, 0};
   scheduler_thread *workers[2] = {0, 0};
   if (scheduler_init(&m19_scheduler, &operations, m19_idle) != SCHED_OK ||
       scheduler_create(&m19_scheduler, m19_worker, (void *)0, 1,
@@ -905,6 +1229,300 @@ static void gdt_init(uint16_t prior_cs){
   desc_ptr p={(uint16_t)(sizeof(gdt)-1),(uint64_t)gdt};__asm__ volatile("lgdt %0"::"m"(p):"memory");
   __asm__ volatile("pushq $0x08; lea 1f(%%rip),%%rax; push %%rax; lretq; 1: mov $0x10,%%ax; mov %%ax,%%ds; mov %%ax,%%es; mov %%ax,%%ss; mov %0,%%ax; ltr %%ax" ::"i"(KTSS):"rax","memory");
 }
+#if defined(LAMIX_M24_SMP)
+static void m24_install_cpu_tables(uint32_t cpu_id, uintptr_t stack_top) {
+  if (cpu_id >= LAMIX_M24_MAX_CPUS || !stack_top) halt();
+  m24_cpu_local *cpu = &m24_cpu_locals[cpu_id];
+  for (size_t i = 0; i < 64; ++i) cpu->gdt[i] = gdt[i];
+  if (cpu_id == 0) cpu->tss = tss;
+  else cpu->tss = (tss64){0};
+  cpu->tss.rsp0 = stack_top;
+  cpu->tss.iomap = sizeof(cpu->tss);
+  cpu->tss.ist1 = (uintptr_t)(cpu->double_fault_stack +
+                              sizeof(cpu->double_fault_stack));
+#if defined(LAMIX_M21_SYSCALL)
+  cpu->tss.ist2 = (uintptr_t)(cpu->exception_stacks[0] +
+                              sizeof(cpu->exception_stacks[0]));
+  cpu->tss.ist3 = (uintptr_t)(cpu->exception_stacks[1] +
+                              sizeof(cpu->exception_stacks[1]));
+  cpu->tss.ist4 = (uintptr_t)(cpu->exception_stacks[2] +
+                              sizeof(cpu->exception_stacks[2]));
+#endif
+  uint64_t base = (uintptr_t)&cpu->tss;
+  cpu->gdt[62] = ((uint64_t)(sizeof(cpu->tss) - 1u)) |
+      ((base & UINT64_C(0xffffff)) << 16) | UINT64_C(0x890000000000) |
+      ((base & UINT64_C(0xff000000)) << 32);
+  cpu->gdt[63] = base >> 32;
+  desc_ptr pointer = {(uint16_t)(sizeof(cpu->gdt) - 1u),
+                      (uintptr_t)cpu->gdt};
+  __asm__ volatile("lgdt %0; pushq $0x08; lea 1f(%%rip),%%rax; push %%rax; lretq; 1: mov $0x10,%%ax; mov %%ax,%%ds; mov %%ax,%%es; mov %%ax,%%ss; mov %1,%%ax; ltr %%ax"
+      :: "m"(pointer), "i"(KTSS) : "rax", "memory");
+  idt_init(KCODE, 1);
+}
+#endif
+#if defined(LAMIX_M24_SMP)
+extern const uint8_t m24_ap_trampoline_start[], m24_ap_trampoline_end[];
+static void m24_delay(void) {
+  for (volatile uint32_t n = 0; n < 300000u; ++n)
+    __asm__ volatile("pause" ::: "memory");
+}
+static int m24_wait_icr(void) {
+  for (uint32_t n = 0; n < 1000000u; ++n) {
+    if (!(m14_lapic[0x300 / 4] & (1u << 12))) return 1;
+    __asm__ volatile("pause" ::: "memory");
+  }
+  return 0;
+}
+static int m24_send_ipi(uint8_t destination, uint32_t command) {
+  if (!m14_lapic || !m24_wait_icr()) return 0;
+  m14_lapic[0x310 / 4] = (uint32_t)destination << 24;
+  __asm__ volatile("mfence" ::: "memory");
+  m14_lapic[0x300 / 4] = command;
+  __asm__ volatile("mfence" ::: "memory");
+  return m24_wait_icr();
+}
+static void m24_tlb_shootdown(uint64_t address, uint64_t target_mask) {
+  uintptr_t flags;
+  __asm__ volatile("pushfq; pop %0; cli" : "=r"(flags) :: "memory");
+  while (__atomic_exchange_n(&m24_shootdown_lock, 1u, __ATOMIC_ACQUIRE))
+    m24_irq_wait(0);
+  uint32_t current = m24_current_cpu_id();
+  uint64_t online = (UINT64_C(1) << m24_cpu_count) - 1u;
+  target_mask &= online;
+  if (current < m24_cpu_count) target_mask &= ~(UINT64_C(1) << current);
+  m24_shootdown_address = address;
+  m24_shootdown_targets = target_mask;
+  __atomic_store_n(&m24_shootdown_acks, 0, __ATOMIC_RELAXED);
+  __atomic_thread_fence(__ATOMIC_RELEASE);
+  /* The handler only reads published atomics and executes INVLPG. Enable
+     maskable interrupts while waiting so a CPU spinning on an irq-save lock
+     can service this IPI; preserve the caller's IF state on return. */
+  uint32_t current_id = m24_current_cpu_id();
+  if (current_id < LAMIX_M24_MAX_CPUS)
+    __atomic_store_n(&m24_cpu_locals[current_id].lock_waiting, 1u,
+                     __ATOMIC_RELEASE);
+  __asm__ volatile("sti" ::: "memory");
+  for (uint32_t id = 0; id < m24_cpu_count; ++id) {
+    if (!(target_mask & (UINT64_C(1) << id))) continue;
+    if (!m24_send_ipi(m24_cpu_apic_ids[id], 0x35)) {
+      serial("M24:TLB_SHOOTDOWN:IPI_FAIL cpu="); hex(id); serial("\n");
+      halt();
+    }
+  }
+  uint32_t waited = 0;
+  while ((__atomic_load_n(&m24_shootdown_acks, __ATOMIC_ACQUIRE) &
+          target_mask) != target_mask && waited++ < 100000000u)
+    __asm__ volatile("pause" ::: "memory");
+  if ((__atomic_load_n(&m24_shootdown_acks, __ATOMIC_ACQUIRE) &
+       target_mask) != target_mask) {
+    serial("M24:TLB_SHOOTDOWN:TIMEOUT va="); hex(address); serial("\n");
+    halt();
+  }
+  /* Keep the wait flag set until IF is masked. Otherwise a timer can land
+     between clearing lock_waiting and cli, re-enter the scheduler while this
+     CPU still owns the scheduler/heap locks, and spin forever. */
+  __asm__ volatile("cli" ::: "memory");
+  if (current_id < LAMIX_M24_MAX_CPUS)
+    __atomic_store_n(&m24_cpu_locals[current_id].lock_waiting, 0u,
+                     __ATOMIC_RELEASE);
+  __atomic_store_n(&m24_shootdown_lock, 0u, __ATOMIC_RELEASE);
+  if (flags & ((uintptr_t)1u << 9)) __asm__ volatile("sti" ::: "memory");
+}
+static int m24_prepare_trampoline(void) {
+  size_t code_size = (size_t)(m24_ap_trampoline_end -
+                              m24_ap_trampoline_start);
+  /* These two pages lie in the loader-reserved low-memory window. Firmware
+     has completed handoff, and AP SIPI requires a physical page below 1 MiB. */
+  m24_trampoline_page = UINT64_C(0x8000);
+  m24_mailbox_page = UINT64_C(0x9000);
+  const uint64_t trampoline_stack_guard = UINT64_C(0xa000);
+  if (!code_size || code_size > PAGE_SIZE) {
+    serial("M24:TRAMPOLINE:LOW_MEMORY_FAIL\n");
+    return 0;
+  }
+  if (vmm_map_range(&kernel_space, m24_trampoline_page, m24_trampoline_page,
+                    PAGE_SIZE, VMM_READ | VMM_WRITE, 0) != VMM_OK ||
+      vmm_map_range(&kernel_space, m24_mailbox_page, m24_mailbox_page,
+                    PAGE_SIZE, VMM_READ | VMM_WRITE, 0) != VMM_OK ||
+      vmm_map_range(&kernel_space, trampoline_stack_guard,
+                    trampoline_stack_guard, PAGE_SIZE,
+                    VMM_READ | VMM_WRITE, 0) != VMM_OK) {
+    serial("M24:TRAMPOLINE:MAP_FAIL\n");
+    return 0;
+  }
+  uint8_t *code = (uint8_t *)(uintptr_t)m24_trampoline_page;
+  for (size_t i = 0; i < code_size; ++i) code[i] = m24_ap_trampoline_start[i];
+  uint16_t mailbox_segment = (uint16_t)(m24_mailbox_page >> 4);
+  size_t patched_ax = 0, patched_esi = 0;
+  for (size_t i = 0; i + 2 < code_size; ++i) {
+    if (code[i] == 0xb8 && code[i + 1] == 0xed && code[i + 2] == 0xfe) {
+      code[i + 1] = (uint8_t)mailbox_segment;
+      code[i + 2] = (uint8_t)(mailbox_segment >> 8);
+      ++patched_ax;
+    }
+    if (i + 4 < code_size && code[i] == 0xbe && code[i + 1] == 0xed &&
+        code[i + 2] == 0xfe && code[i + 3] == 0 && code[i + 4] == 0) {
+      code[i + 1] = (uint8_t)mailbox_segment;
+      code[i + 2] = (uint8_t)(mailbox_segment >> 8);
+      ++patched_esi;
+    }
+  }
+  if (patched_ax != 1 || patched_esi != 1 ||
+      vmm_protect_range(&kernel_space, m24_trampoline_page, PAGE_SIZE,
+                        VMM_READ | VMM_EXECUTE) != VMM_OK) {
+    serial("M24:TRAMPOLINE:PATCH_OR_WX_FAIL\n");
+    return 0;
+  }
+  serial("M24:TRAMPOLINE:READY code="); hex(code_size);
+  serial(" page="); hex(m24_trampoline_page); serial(" mailbox=");
+  hex(m24_mailbox_page); serial("\n");
+  return 1;
+}
+#endif
+#if defined(LAMIX_M24_SMP)
+static int m24_start_aps(void) {
+  if (m24_cpu_count <= 1) {
+    m24_smp_active = 1;
+    return m24_tlb_selftest();
+  }
+  if (!m24_prepare_trampoline()) return 0;
+  volatile m24_ap_mailbox *mailbox =
+      (volatile m24_ap_mailbox *)(uintptr_t)m24_mailbox_page;
+  for (uint32_t id = 1; id < m24_cpu_count; ++id) {
+    uint8_t apic_id = m24_cpu_apic_ids[id];
+    mailbox->cr3 = (uint32_t)kernel_space.root_physical;
+    mailbox->reserved = 0;
+    uintptr_t top = (uintptr_t)(m24_cpu_locals[id].boot_stack +
+                                sizeof(m24_cpu_locals[id].boot_stack));
+    top = (top & ~(uintptr_t)15u) - sizeof(uintptr_t);
+    *(uintptr_t *)top = 0;
+    mailbox->stack = top;
+    mailbox->cpu_id = id;
+    mailbox->reserved2 = 0;
+    mailbox->entry = (uintptr_t)m24_ap_main;
+    __atomic_thread_fence(__ATOMIC_RELEASE);
+    uint32_t vector = (uint32_t)(m24_trampoline_page >> 12);
+    if (vector > 0xff || !m24_send_ipi(apic_id, UINT32_C(0x0000c500))) {
+      serial("M24:AP_START:INIT_ASSERT_FAIL apic="); hex(apic_id); serial("\n");
+      return 0;
+    }
+    m24_delay();
+    if (!m24_send_ipi(apic_id, UINT32_C(0x00008500))) {
+      serial("M24:AP_START:INIT_DEASSERT_FAIL apic="); hex(apic_id); serial("\n");
+      return 0;
+    }
+    m24_delay();
+    if (!m24_send_ipi(apic_id, UINT32_C(0x00000600) | vector)) {
+      serial("M24:AP_START:SIPI1_FAIL apic="); hex(apic_id); serial("\n");
+      return 0;
+    }
+    m24_delay();
+    if (!m24_send_ipi(apic_id, UINT32_C(0x00000600) | vector)) {
+      serial("M24:AP_START:SIPI2_FAIL apic="); hex(apic_id); serial("\n");
+      return 0;
+    }
+    uint32_t waited = 0;
+    while (!__atomic_load_n(&m24_cpu_locals[id].online, __ATOMIC_ACQUIRE) &&
+           waited++ < 5000000u)
+      __asm__ volatile("pause" ::: "memory");
+    if (!__atomic_load_n(&m24_cpu_locals[id].online, __ATOMIC_ACQUIRE)) {
+      serial("M24:AP_START:TIMEOUT apic="); hex(apic_id); serial("\n");
+      return 0;
+    }
+    serial("M24:AP_START:ONLINE id="); hex(id); serial(" apic=");
+    hex(apic_id); serial("\n");
+  }
+  if (__atomic_load_n(&m24_online_count, __ATOMIC_ACQUIRE) != m24_cpu_count)
+    return 0;
+  m24_smp_active = 1;
+  if (!m24_tlb_selftest()) return 0;
+  __atomic_store_n(&m24_release_aps, 1u, __ATOMIC_RELEASE);
+  for (uint32_t id = 1; id < m24_cpu_count; ++id)
+    if (!m24_send_ipi(m24_cpu_apic_ids[id], UINT32_C(0x00004036)))
+      return 0;
+  for (uint32_t id = 1; id < m24_cpu_count; ++id) {
+    uint32_t waited = 0;
+    while (!__atomic_load_n(&m24_cpu_locals[id].timer_started,
+                            __ATOMIC_ACQUIRE) && waited++ < 5000000u)
+      __asm__ volatile("pause" ::: "memory");
+    if (!__atomic_load_n(&m24_cpu_locals[id].timer_started,
+                         __ATOMIC_ACQUIRE)) {
+      serial("M24:AP_TIMER:START_TIMEOUT id="); hex(id); serial("\n");
+      return 0;
+    }
+  }
+  for (uint32_t id = 1; id < m24_cpu_count; ++id)
+    if (!m24_send_ipi(m24_cpu_apic_ids[id], UINT32_C(0x00004034)))
+      return 0;
+  return 1;
+}
+static int m24_tlb_selftest(void) {
+  const uint64_t address = UINT64_C(0xfffff50000000000);
+  uint64_t physical = 0;
+  if (pmm_alloc_frame(&physical_memory, &physical) != PMM_OK) {
+    serial("M24:TLB_SHOOTDOWN:ALLOC_FAIL\n");
+    return 0;
+  }
+  if (vmm_map_range(&kernel_space, address, physical, PAGE_SIZE,
+                    VMM_READ | VMM_WRITE, 0) != VMM_OK) {
+    (void)pmm_free_frame(&physical_memory, physical);
+    serial("M24:TLB_SHOOTDOWN:MAP_FAIL\n");
+    return 0;
+  }
+  uint64_t observed = 0;
+  uint32_t permissions = 0;
+  uint64_t entry_flags = 0;
+  int mapped = vmm_query(&kernel_space, address, &observed, &permissions,
+                         &entry_flags) == VMM_OK &&
+               (observed & ~(PAGE_SIZE - 1u)) == physical;
+  int unmapped = vmm_unmap_range(&kernel_space, address, PAGE_SIZE) == VMM_OK;
+  int released = pmm_free_frame(&physical_memory, physical) == PMM_OK;
+  if (!mapped || !unmapped || !released) {
+    serial("M24:TLB_SHOOTDOWN:VERIFY_FAIL mapped="); hex(mapped);
+    serial(" unmapped="); hex(unmapped); serial(" released=");
+    hex(released); serial("\n");
+    return 0;
+  }
+  serial("M24:TLB_SHOOTDOWN:PASS\n");
+  return 1;
+}
+static __attribute__((noreturn)) void m24_ap_main(uint32_t cpu_id) {
+  if (!cpu_id || cpu_id >= m24_cpu_count ||
+      m24_current_cpu_id() != cpu_id) halt();
+#if defined(LAMIX_M24_FAULT_AP_TIMEOUT)
+  if (cpu_id == 1) {
+    serial("M24:FAULT:AP_HELD_OFFLINE\n");
+    for (;;) __asm__ volatile("cli; hlt" ::: "memory");
+  }
+#endif
+  m24_cpu_local *cpu = &m24_cpu_locals[cpu_id];
+  uintptr_t stack_top = (uintptr_t)(cpu->boot_stack + sizeof(cpu->boot_stack));
+  m24_install_cpu_tables(cpu_id, stack_top);
+  cpu->syscall_kernel_stack = stack_top;
+  if (!m21_syscall_init()) {
+    serial("M24:AP_SYSCALL:FAIL id="); hex(cpu_id); serial("\n"); halt();
+  }
+  m14_lapic[0xf0 / 4] = 0x1ff;
+  m14_lapic[0x80 / 4] = 0;
+  m14_lapic[0x350 / 4] = 1u << 16;
+  m14_lapic[0x360 / 4] = 1u << 16;
+  m14_lapic[0x3e0 / 4] = 0x3;
+  m14_lapic[0x320 / 4] = (1u << 17) | (1u << 16) | 0x31;
+  m14_lapic[0x380 / 4] = 0;
+  cpu->active_space = &kernel_space;
+  __atomic_fetch_or(&kernel_space.active_cpus, UINT64_C(1) << cpu_id,
+                    __ATOMIC_RELEASE);
+  if (scheduler_cpu_online(&m19_scheduler, cpu_id, stack_top) != SCHED_OK) {
+    serial("M24:AP_SCHEDULER:FAIL id="); hex(cpu_id); serial("\n"); halt();
+  }
+  cpu->online = 1;
+  __atomic_add_fetch(&m24_online_count, 1u, __ATOMIC_RELEASE);
+  while (!__atomic_load_n(&m24_release_aps, __ATOMIC_ACQUIRE)) {
+    __asm__ volatile("sti; hlt; cli" ::: "memory");
+  }
+  for (;;) __asm__ volatile("sti; hlt" ::: "memory");
+}
+#endif
 static void pic_pit_init(void){out8(0x21,0xff);out8(0xa1,0xff);out8(PIC1,0x11);out8(PIC2,0x11);out8(PIC1+1,0x20);out8(PIC2+1,0x28);out8(PIC1+1,4);out8(PIC2+1,2);out8(PIC1+1,1);out8(PIC2+1,1);out8(0x21,0xfe);out8(0xa1,0xff);uint16_t divisor=(uint16_t)(1193182/100);out8(PIT+3,0x36);out8(PIT,(uint8_t)divisor);out8(PIT,(uint8_t)(divisor>>8));}
 void *interrupt_dispatch(interrupt_frame*f){
 #if defined(LAMIX_M21_SYSCALL)
@@ -916,6 +1534,47 @@ void *interrupt_dispatch(interrupt_frame*f){
 #endif
   ticks++;serial("M08:TICK\n");out8(PIC1,0x20);return f;}
 #if defined(LAMIX_M14_APIC)
+#if defined(LAMIX_M24_SMP)
+  if (f->vector == 0x35) {
+    uint32_t cpu_id = m24_current_cpu_id();
+    uint64_t address = __atomic_load_n(&m24_shootdown_address,
+                                       __ATOMIC_ACQUIRE);
+    if (cpu_id >= m24_cpu_count ||
+        !(m24_shootdown_targets & (UINT64_C(1) << cpu_id)))
+      panic_frame(f);
+    invalidate(address);
+#if defined(LAMIX_M24_FAULT_TLB_ACK_TIMEOUT)
+    if (cpu_id != 1)
+#endif
+    __atomic_fetch_or(&m24_shootdown_acks, UINT64_C(1) << cpu_id,
+                      __ATOMIC_RELEASE);
+    __asm__ volatile("mfence" ::: "memory");
+    m14_lapic[0xb0 / 4] = 0;
+    return f;
+  }
+  if (f->vector == 0x36) {
+    uint32_t cpu_id = m24_current_cpu_id();
+    if (!cpu_id || cpu_id >= m24_cpu_count) panic_frame(f);
+    m14_lapic[0x3e0 / 4] = 0x3;
+    m14_lapic[0x320 / 4] = (1u << 17) | 0x31;
+    m14_lapic[0x380 / 4] = (uint32_t)m24_ap_timer_count;
+    __atomic_store_n(&m24_cpu_locals[cpu_id].timer_started, 1u,
+                     __ATOMIC_RELEASE);
+    serial("M24:AP_TIMER:START id="); hex(cpu_id); serial(" count=");
+    hex(m14_lapic[0x380 / 4]); serial("\n");
+    m14_lapic[0xb0 / 4] = 0;
+    return f;
+  }
+  if (f->vector == 0x34 && m24_current_cpu_id() != 0) {
+    m14_lapic[0xb0 / 4] = 0;
+    uint32_t cpu_id = m24_current_cpu_id();
+    if (cpu_id < LAMIX_M24_MAX_CPUS &&
+        __atomic_load_n(&m24_cpu_locals[cpu_id].lock_waiting,
+                        __ATOMIC_ACQUIRE))
+      return f;
+    return scheduler_on_reschedule(&m19_scheduler, f);
+  }
+#endif
   if (f->vector == 0x30 || f->vector == 0x31) {
     if (!m14_lapic) panic_frame(f);
     if (f->vector == 0x30) {
@@ -924,17 +1583,36 @@ void *interrupt_dispatch(interrupt_frame*f){
       else if (irq == M14_PIT_CALIBRATION_IRQS)
         m14_calibration_end = m14_lapic[0x390 / 4];
       ++m14_pit_eois;
-    } else { ++m14_timer_irqs; ++m14_timer_eois; }
+    } else {
+#if defined(LAMIX_M24_SMP)
+      uint32_t cpu_id = m24_current_cpu_id();
+      if (cpu_id < LAMIX_M24_MAX_CPUS)
+        __atomic_add_fetch(&m24_cpu_locals[cpu_id].timer_irqs, 1u,
+                           __ATOMIC_RELAXED);
+      __atomic_add_fetch(&m14_timer_irqs, 1u, __ATOMIC_RELAXED);
+      __atomic_add_fetch(&m14_timer_eois, 1u, __ATOMIC_RELAXED);
+#else
+      ++m14_timer_irqs; ++m14_timer_eois;
+#endif
+    }
     __asm__ volatile("mfence" ::: "memory");
     m14_lapic[0xb0 / 4] = 0;
+#if defined(LAMIX_M24_SMP)
+    uint32_t wait_cpu = m24_current_cpu_id();
+    if (f->vector == 0x31 && wait_cpu < LAMIX_M24_MAX_CPUS &&
+        __atomic_load_n(&m24_cpu_locals[wait_cpu].lock_waiting,
+                        __ATOMIC_ACQUIRE))
+      return f;
+#endif
 #if defined(LAMIX_M19_SCHEDULER)
     if (f->vector == 0x31 && m19_scheduler_ready) {
 #if defined(LAMIX_M20_PROCESS)
-      scheduler_thread *current = m19_scheduler.current;
+      scheduler_thread *current = scheduler_current(&m19_scheduler);
       process *instance = current && current->user_mode
                               ? (process *)current->private_context : 0;
-      if (instance && instance->kill_requested) {
-        instance->state = PROCESS_KILLED;
+      if (instance && __atomic_load_n(&instance->kill_requested,
+                                      __ATOMIC_ACQUIRE)) {
+        __atomic_store_n(&instance->state, PROCESS_KILLED, __ATOMIC_RELEASE);
         return scheduler_terminate_interrupt(&m19_scheduler, f);
       }
 #endif
@@ -966,7 +1644,7 @@ void *interrupt_dispatch(interrupt_frame*f){
 #endif
 #if defined(LAMIX_M20_PROCESS)
   if ((f->cs & 3u) == 3u && f->vector < 32 && m19_scheduler_ready) {
-    scheduler_thread *current = m19_scheduler.current;
+    scheduler_thread *current = scheduler_current(&m19_scheduler);
     process *instance = current && current->user_mode
                             ? (process *)current->private_context : 0;
     if (!instance)
@@ -1108,19 +1786,47 @@ static int pmm_buddy_self_test(const lbp_view *view) {
 #if defined(LAMIX_M10_VMM)
 #if defined(LAMIX_M12_BUDDY) && !defined(LAMIX_M13_DEVICES)
 static int kernel_alloc_frame(uint64_t *physical) {
-  return pmm_buddy_alloc_frame(&experimental_buddy, physical) == PMM_OK;
+#if defined(LAMIX_M24_SMP)
+  uintptr_t flags = m24_lock_acquire(&m24_pmm_lock_word);
+#endif
+  int result = pmm_buddy_alloc_frame(&experimental_buddy, physical) == PMM_OK;
+#if defined(LAMIX_M24_SMP)
+  m24_lock_release(&m24_pmm_lock_word, flags);
+#endif
+  return result;
 }
 
 static int kernel_free_frame(uint64_t physical) {
-  return pmm_buddy_free_frame(&experimental_buddy, physical) == PMM_OK;
+#if defined(LAMIX_M24_SMP)
+  uintptr_t flags = m24_lock_acquire(&m24_pmm_lock_word);
+#endif
+  int result = pmm_buddy_free_frame(&experimental_buddy, physical) == PMM_OK;
+#if defined(LAMIX_M24_SMP)
+  m24_lock_release(&m24_pmm_lock_word, flags);
+#endif
+  return result;
 }
 #else
 static int kernel_alloc_frame(uint64_t *physical) {
-  return pmm_alloc_frame(&physical_memory, physical) == PMM_OK;
+#if defined(LAMIX_M24_SMP)
+  uintptr_t flags = m24_lock_acquire(&m24_pmm_lock_word);
+#endif
+  int result = pmm_alloc_frame(&physical_memory, physical) == PMM_OK;
+#if defined(LAMIX_M24_SMP)
+  m24_lock_release(&m24_pmm_lock_word, flags);
+#endif
+  return result;
 }
 
 static int kernel_free_frame(uint64_t physical) {
-  return pmm_free_frame(&physical_memory, physical) == PMM_OK;
+#if defined(LAMIX_M24_SMP)
+  uintptr_t flags = m24_lock_acquire(&m24_pmm_lock_word);
+#endif
+  int result = pmm_free_frame(&physical_memory, physical) == PMM_OK;
+#if defined(LAMIX_M24_SMP)
+  m24_lock_release(&m24_pmm_lock_word, flags);
+#endif
+  return result;
 }
 #endif
 #endif
@@ -1904,6 +2610,26 @@ static int m14_apic_init(void) {
   acpi_madt_info info;
   acs = acpi_madt_parse(m13_acpi_scratch, platform.madt_length, bsp_id, &info);
   if (acs != ACPI_OK) { serial("M14:INIT:MADT status="); hex(acs); serial("\n"); return 0; }
+#if defined(LAMIX_M24_SMP)
+  if (info.x2apic_present || !info.cpu_count ||
+      info.cpu_count > LAMIX_M24_MAX_CPUS) {
+    serial("M24:TOPOLOGY:UNSUPPORTED count="); hex(info.cpu_count);
+    serial(" x2apic="); hex(info.x2apic_present); serial("\n");
+    return 0;
+  }
+  size_t bsp_index = info.cpu_count;
+  for (size_t i = 0; i < info.cpu_count; ++i)
+    if (info.cpus[i].apic_id == bsp_id) bsp_index = i;
+  if (bsp_index == info.cpu_count) {
+    serial("M24:TOPOLOGY:BSP_MISSING\n"); return 0;
+  }
+  m24_madt = info;
+  m24_cpu_apic_ids[0] = bsp_id;
+  uint32_t out = 1;
+  for (size_t i = 0; i < info.cpu_count; ++i)
+    if (i != bsp_index) m24_cpu_apic_ids[out++] = (uint8_t)info.cpus[i].apic_id;
+  m24_cpu_count = (uint32_t)info.cpu_count;
+#endif
 #if defined(LAMIX_M15_INPUT)
   m15_madt = info;
   m15_bsp_id = bsp_id;
@@ -1924,6 +2650,15 @@ static int m14_apic_init(void) {
   m14_lapic[0x80 / 4] = 0;
   m14_lapic[0x350 / 4] = 1u << 16;
   m14_lapic[0x360 / 4] = 1u << 16;
+#if defined(LAMIX_M24_SMP)
+  m24_cpu_locals[0].apic_id = bsp_id;
+  m24_install_cpu_tables(0, (uintptr_t)tss.rsp0);
+  m24_cpu_locals[0].active_space = &kernel_space;
+  m24_cpu_locals[0].online = 1;
+  m24_online_count = 1;
+  __atomic_fetch_or(&kernel_space.active_cpus, UINT64_C(1), __ATOMIC_RELEASE);
+  serial("M24:TOPOLOGY:PASS cpus="); hex(m24_cpu_count); serial("\n");
+#endif
   for (size_t i = 0; i < info.ioapic_count; ++i) {
     uint64_t va = M14_IOAPIC_VA + i * PAGE_SIZE;
     if (!m14_map_mmio(va, info.ioapics[i].physical)) { serial("M14:INIT:IOAPIC_MAP\n"); return 0; }
@@ -2010,6 +2745,9 @@ static int m14_apic_init(void) {
                               M14_PIT_DIVISOR,
                               100, &periodic) != APIC_OK)
     { serial("M14:INIT:CALIBRATION\n"); return 0; }
+#if defined(LAMIX_M24_SMP)
+  m24_ap_timer_count = periodic;
+#endif
   m14_lapic[0x320 / 4] = (1u << 17) | 0x31;
   m14_lapic[0x380 / 4] = periodic;
   __asm__ volatile("sti");
@@ -2036,29 +2774,52 @@ static volatile uint64_t *vmm_access(void *context, uint64_t physical) {
   (void)context;
   if (physical >= VMM_PHYSICAL_LIMIT || (physical & (PAGE_SIZE - 1)))
     return 0;
+#if defined(LAMIX_M24_SMP)
+  uint32_t cpu_id = m24_current_cpu_id();
+  if (cpu_id >= LAMIX_M24_MAX_CPUS) return 0;
+  uint64_t scratch = VMM_SCRATCH_BASE + (uint64_t)cpu_id * UINT64_C(0x2000);
+  uint64_t control_va = scratch + PAGE_SIZE;
+#else
+  uint64_t scratch = VMM_SCRATCH_BASE;
+  uint64_t control_va = VMM_SCRATCH_CONTROL;
+#endif
   if (!vmm_scratch_active) {
     uint64_t root;
     __asm__ volatile("mov %%cr3,%0" : "=r"(root));
-    volatile uint64_t *pte = page_leaf(root, VMM_SCRATCH_BASE,
+    volatile uint64_t *pte = page_leaf(root, scratch,
                                        vmm_scratch_base,
                                        vmm_scratch_table_bytes, 1);
     if (!pte)
       return 0;
     *pte = physical | PTE_PRESENT | PTE_WRITE |
            (vmm_nx_enabled ? PTE_NX : 0);
-    invalidate(VMM_SCRATCH_BASE);
-    return (volatile uint64_t *)(uintptr_t)VMM_SCRATCH_BASE;
+    invalidate(scratch);
+    return (volatile uint64_t *)(uintptr_t)scratch;
   }
   volatile uint64_t *control =
-      (volatile uint64_t *)(uintptr_t)vmm_scratch_control;
-  unsigned index = (unsigned)((VMM_SCRATCH_BASE >> 12) & 511);
+      (volatile uint64_t *)(uintptr_t)control_va;
+  unsigned index = (unsigned)((scratch >> 12) & 511);
   control[index] = physical | PTE_PRESENT | PTE_WRITE |
                    (vmm_nx_enabled ? PTE_NX : 0);
-  invalidate(VMM_SCRATCH_BASE);
-  return (volatile uint64_t *)(uintptr_t)VMM_SCRATCH_BASE;
+  invalidate(scratch);
+  return (volatile uint64_t *)(uintptr_t)scratch;
 }
 static void vmm_invalidate(void *context, uint64_t virtual_address) {
+#if defined(LAMIX_M24_SMP)
+  uint64_t targets = 0;
+  if (m24_smp_active) {
+    if (context == &kernel_space) {
+      targets = (UINT64_C(1) << m24_cpu_count) - 1u;
+    } else if (context) {
+      process *instance = context;
+      targets = __atomic_load_n(&instance->address_space.active_cpus,
+                                __ATOMIC_ACQUIRE);
+    }
+    m24_tlb_shootdown(virtual_address, targets);
+  }
+#else
   (void)context;
+#endif
   invalidate(virtual_address);
 }
 static int vmm_map_bootinfo(vmm_space *space, const lbp_header *header) {
@@ -2091,7 +2852,11 @@ static int vmm_build_root(const lbp_view *view, const lbp_header *header,
   vmm_scratch_table_bytes = table_size;
   uint8_t nx_enabled = !!(header->provided_features & LBP_FEATURE_NX);
   vmm_nx_enabled = nx_enabled;
+#if defined(LAMIX_M24_SMP)
+  vmm_operations operations = {.context = &kernel_space,
+#else
   vmm_operations operations = {.context = 0,
+#endif
                                .allocate_page = vmm_allocate,
                                .release_page = vmm_release,
                                .access_page = vmm_access,
@@ -2148,11 +2913,22 @@ static int vmm_build_root(const lbp_view *view, const lbp_header *header,
   if (vmm_query(&kernel_space, entry->guard, &physical, &permissions, &flags) !=
       VMM_NOT_MAPPED)
     return 0;
+#if defined(LAMIX_M24_SMP)
+  for (uint32_t cpu = 0; cpu < LAMIX_M24_MAX_CPUS; ++cpu) {
+    uint64_t data = VMM_SCRATCH_BASE + (uint64_t)cpu * UINT64_C(0x2000);
+    uint64_t control = data + PAGE_SIZE;
+    if (vmm_prepare_scratch(&kernel_space, data, control,
+                            &vmm_scratch_control_page) != VMM_OK)
+      return 0;
+  }
+  vmm_scratch_control = VMM_SCRATCH_CONTROL;
+#else
   if (vmm_prepare_scratch(&kernel_space, VMM_SCRATCH_BASE,
                           VMM_SCRATCH_CONTROL,
                           &vmm_scratch_control_page) != VMM_OK)
     return 0;
   vmm_scratch_control = VMM_SCRATCH_CONTROL;
+#endif
   vmm_scratch_active = 0;
   __asm__ volatile("mov %0,%%cr3" : : "r"(kernel_space.root_physical) : "memory");
   vmm_scratch_active = 1;

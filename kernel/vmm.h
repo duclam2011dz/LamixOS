@@ -38,6 +38,7 @@ typedef struct vmm_space {
   uint32_t nx_enabled;
   uint32_t initialized;
   uint32_t mapping_permissions;
+  volatile uint64_t active_cpus;
 } vmm_space;
 
 vmm_status vmm_init(vmm_space *space, const vmm_operations *operations,

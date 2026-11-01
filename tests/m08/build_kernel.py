@@ -16,7 +16,16 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
           m11_heap=False, m12_buddy=False, m13_devices=False, m14_apic=False,
           m15_input=False, m16_graphics=False, m17_virtio_gpu=False,
           m19_scheduler=False, m20_process=False, m21_syscall=False,
-          m22_ipc=False, m23_elf=False):
+          m22_ipc=False, m23_elf=False, m24_smp=False, max_cpus=16,
+          m24_fault="none"):
+    if m24_smp:
+        if not 1 <= max_cpus <= 16:
+            raise ValueError("M24 max_cpus must be in 1..16")
+        if m24_fault not in ("none", "ap-timeout", "tlb-ack-timeout"):
+            raise ValueError("M24 fault profile không hợp lệ")
+        m23_elf = True
+    elif m24_fault != "none":
+        raise ValueError("M24 fault profile yêu cầu m24_smp")
     if m23_elf:
         m22_ipc = True
     if m22_ipc:
@@ -110,12 +119,20 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
                         "tests/m23/user.ld", "tests/m23/make_initramfs.py",
                         "user/crt0.c", "user/crt0.asm", "user/libc.c",
                         "user/include/stdlib.h", "user/include/string.h"))
+    if m24_smp:
+        sources.extend(("kernel/ap_trampoline.asm", "tests/m24/build_kernel.py",
+                        "tests/m24/native.c", "tests/m24/CMakeLists.txt",
+                        "tests/m24/test_m24.py", "tests/m24/concurrency.c",
+                        "scripts/lamix_qemu.py",
+                        "scripts/qemu_harness.py", "scripts/m17_qemu.py",
+                        "scripts/m07_image.py"))
     common=[x["gcc"],"-std=c11","-m64","-mcmodel=kernel","-mno-red-zone","-mgeneral-regs-only","-ffreestanding","-fno-builtin","-fno-pie","-fno-pic","-fno-stack-protector","-fno-asynchronous-unwind-tables","-fno-unwind-tables","-fno-exceptions","-Wall","-Wextra","-Werror","-I",ROOT/"include","-I",ROOT/"kernel","-O2"]
     run("nasm","--reproducible","-f","elf64",*( ["-D", "LAMIX_M14_APIC=1"] if m14_apic else []),"-o",output/"entry.o",ROOT/"kernel/entry.asm")
-    run("nasm","--reproducible","-f","elf64",*( ["-D", "LAMIX_M19_SCHEDULER=1"] if m19_scheduler else []),"-o",output/"interrupts.o",ROOT/"kernel/interrupts.asm")
+    run("nasm","--reproducible","-f","elf64",*( ["-D", "LAMIX_M19_SCHEDULER=1"] if m19_scheduler else []), *( ["-D", "LAMIX_M24_SMP=1"] if m24_smp else []),"-o",output/"interrupts.o",ROOT/"kernel/interrupts.asm")
     if m21_syscall:
         run("nasm", "--reproducible", "-f", "elf64", "-o",
-            output/"syscall_entry.o", ROOT/"kernel/syscall_entry.asm")
+            output/"syscall_entry.o", *( ["-D", "LAMIX_M24_SMP=1"] if m24_smp else []),
+            ROOT/"kernel/syscall_entry.asm")
         user_flags = [x["gcc"], "-std=c11", "-m64", "-mcmodel=large",
             "-mno-red-zone", "-mgeneral-regs-only", "-ffreestanding",
             "-fno-builtin", "-fno-pie", "-fno-pic", "-fno-stack-protector",
@@ -130,6 +147,8 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
                 "-fno-asynchronous-unwind-tables", "-fno-unwind-tables", "-O2",
                 "-Wall", "-Wextra", "-Werror", "-DLAMIX_M22_PROFILE=1",
                 "-I", ROOT/"user/include"]
+            if m24_smp:
+                m23_flags += ["-DLAMIX_M24_SMP=1"]
             for name, source in (("alpha", "tests/m23/alpha.c"),
                                  ("beta", "tests/m23/beta.c")):
                 app_objects = []
@@ -171,6 +190,15 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
             initramfs_blob = output/"initramfs_blob.o"
             run("nasm", "--reproducible", "-f", "elf64", "-o",
                 initramfs_blob, init_asm)
+        if m24_smp:
+            trampoline_bin = output/"ap_trampoline.bin"
+            run("nasm", "--reproducible", "-f", "bin", "-o",
+                trampoline_bin, ROOT/"kernel/ap_trampoline.asm")
+            blob_asm = output/"ap_trampoline_blob.asm"
+            blob_asm.write_text("BITS 64\nsection .rodata\nalign 16\nglobal m24_ap_trampoline_start\nglobal m24_ap_trampoline_end\nm24_ap_trampoline_start:\nincbin \"" + str(trampoline_bin) + "\"\nm24_ap_trampoline_end:\n")
+            trampoline_obj = output/"ap_trampoline_blob.o"
+            run("nasm", "--reproducible", "-f", "elf64", "-o",
+                trampoline_obj, blob_asm)
         else:
             wrapper_obj = output/"user_syscall.o"
             run(*user_flags, "-c", ROOT/"user/syscall.c", "-o", wrapper_obj)
@@ -265,6 +293,12 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
             args += ["-DLAMIX_M22_IPC=1"]
         if source=="kernel/kernel.c" and m23_elf:
             args += ["-DLAMIX_M23_ELF=1"]
+        if source=="kernel/kernel.c" and m24_smp:
+            args += ["-DLAMIX_M24_SMP=1", f"-DLAMIX_M24_MAX_CPUS={max_cpus}"]
+            if m24_fault == "ap-timeout":
+                args += ["-DLAMIX_M24_FAULT_AP_TIMEOUT=1"]
+            elif m24_fault == "tlb-ack-timeout":
+                args += ["-DLAMIX_M24_FAULT_TLB_ACK_TIMEOUT=1"]
         if source=="kernel/process.c" and m22_ipc:
             args += ["-DLAMIX_M22_IPC=1"]
         if source=="kernel/process.c" and m23_elf:
@@ -284,7 +318,7 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
             "-o", cpp_object)
         objects.append(cpp_object)
     elf=output/"kernel.elf"
-    run(x["ld"],"--fatal-warnings","--build-id=none","-z","noexecstack","-z","max-page-size=0x1000","-T",ROOT/"kernel/linker.ld","-Map",output/(elf.stem+".map"),"-o",elf,output/"entry.o",output/"interrupts.o",*( [output/"syscall_entry.o"] if m21_syscall else []),*( [output/"initramfs_blob.o"] if m23_elf else []),*objects)
+    run(x["ld"],"--fatal-warnings","--build-id=none","-z","noexecstack","-z","max-page-size=0x1000","-T",ROOT/"kernel/linker.ld","-Map",output/(elf.stem+".map"),"-o",elf,output/"entry.o",output/"interrupts.o",*( [output/"syscall_entry.o"] if m21_syscall else []),*( [output/"initramfs_blob.o"] if m23_elf else []),*( [output/"ap_trampoline_blob.o"] if m24_smp else []),*objects)
     raw=bytearray(elf.read_bytes())
     if raw[:6]!=b"\x7fELF\x02\x01" or struct.unpack_from("<HH",raw,16)!=(2,62): raise ValueError("ELF64 ET_EXEC x86_64 little-endian không hợp lệ")
     if struct.unpack_from("<Q",raw,24)[0] < 0xffffffff80000000: raise ValueError("entry không nằm higher-half")
@@ -314,9 +348,12 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
         if ".init_array" in sections or ".ctors" in sections:
             raise ValueError("kernel M11 không được có static constructors")
     if b"INTERP" in subprocess.check_output([str(x["readelf"]),"-l",str(elf)]): raise ValueError("PT_INTERP không freestanding")
-    report={"status":"PASS","mode":"m23-kernel" if m23_elf else "m22-kernel" if m22_ipc else "m21-kernel" if m21_syscall else "m20-kernel" if m20_process else "m19-kernel" if m19_scheduler else "m17-kernel" if m17_virtio_gpu else "m16-kernel" if m16_graphics else "m15-kernel" if m15_input else "m14-kernel" if m14_apic else "m13-kernel" if m13_devices else "m12-kernel" if m12_buddy else "m11-kernel" if m11_heap else "m10-kernel" if m10_vmm else "m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"commands":commands,
+    report={"status":"PASS","mode":"m24-kernel" if m24_smp else "m23-kernel" if m23_elf else "m22-kernel" if m22_ipc else "m21-kernel" if m21_syscall else "m20-kernel" if m20_process else "m19-kernel" if m19_scheduler else "m17-kernel" if m17_virtio_gpu else "m16-kernel" if m16_graphics else "m15-kernel" if m15_input else "m14-kernel" if m14_apic else "m13-kernel" if m13_devices else "m12-kernel" if m12_buddy else "m11-kernel" if m11_heap else "m10-kernel" if m10_vmm else "m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"commands":commands,
             "tool_versions":{"gcc":subprocess.check_output([str(x["gcc"]),"--version"],text=True).splitlines()[0],"g++":subprocess.check_output([str(x["g++"]),"--version"],text=True).splitlines()[0] if m11_heap else None,"ld":subprocess.check_output([str(x["ld"]),"--version"],text=True).splitlines()[0],"nasm":subprocess.check_output(["nasm","-v"],text=True).strip()},
             "source_hashes":{s:sha(ROOT/s) for s in sources},"hashes":{elf.name:sha(elf), **({"initramfs.cpio":sha(output/"initramfs.cpio"),"alpha.elf":sha(output/"alpha.elf"),"beta.elf":sha(output/"beta.elf")} if m23_elf else {})},"elf_inspection":elf.stem+".inspection.txt","load_segments":loads}
+    if m24_smp:
+        report["max_cpus"] = max_cpus
+        report["m24_fault"] = m24_fault
     (output/"build.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n")
     print(json.dumps(report,ensure_ascii=False,indent=2))
 def main():

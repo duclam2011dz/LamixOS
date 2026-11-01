@@ -51,6 +51,8 @@ typedef struct pmm_buddy_stats {
 pmm_status pmm_init(pmm *manager, const lbp_view *view, uint8_t *storage,
                     uint64_t storage_size);
 pmm_status pmm_alloc_frame(pmm *manager, uint64_t *physical);
+pmm_status pmm_alloc_frame_below(pmm *manager, uint64_t exclusive_limit,
+                                 uint64_t *physical);
 pmm_status pmm_free_frame(pmm *manager, uint64_t physical);
 
 /* Experimental M12 backend. Order 0 is one 4 KiB frame; order 18 is 1 GiB. */

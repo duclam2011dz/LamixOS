@@ -89,9 +89,11 @@ def build_image(build_root):
 
 
 def qemu_command(firmware, image, run_dir, qemu, seabios, ovmf_code,
-                 ovmf_vars):
+                 ovmf_vars, cpus=1):
+    if type(cpus) is not int or not 1 <= cpus <= 16:
+        raise ValueError("cpus phải nằm trong khoảng 1..16")
     command = [qemu, "-machine", "pc" if firmware == "bios" else "q35",
-               "-accel", "tcg", "-smp", "1", "-m", "256M",
+               "-accel", "tcg", "-smp", str(cpus), "-m", "256M",
                "-nic", "none", "-monitor", "none", "-no-reboot",
                "-no-shutdown", "-vga", "none", "-device", "virtio-vga"]
     if firmware == "bios":
