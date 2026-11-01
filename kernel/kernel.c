@@ -27,6 +27,10 @@
 #if defined(LAMIX_M17_VIRTIO_GPU)
 #include "virtio_gpu.h"
 #endif
+#if defined(LAMIX_M25_BLOCK)
+#include "block.h"
+#include "virtio_blk.h"
+#endif
 #if defined(LAMIX_M19_SCHEDULER)
 #include "scheduler.h"
 #endif
@@ -239,6 +243,39 @@ static uint8_t m17_used[4096] __attribute__((aligned(4096)));
 static uint8_t m17_commands[sizeof(uint32_t) * 8 +
     VIRTIO_GPU_MAX_BACKING_PAGES * 16] __attribute__((aligned(4096)));
 static uint8_t m17_responses[1024] __attribute__((aligned(16)));
+#endif
+#if defined(LAMIX_M25_BLOCK)
+#define M25_BLK_VA UINT64_C(0xfffff70000000000)
+#define M25_BLK_BAR_STRIDE UINT64_C(0x40000000)
+typedef struct m25_blk_pci_context {
+  volatile uint8_t *common;
+  volatile uint8_t *notify;
+  volatile uint8_t *device;
+  uint32_t notify_multiplier;
+  uint32_t notify_length;
+  uint32_t device_length;
+  uint8_t valid;
+} m25_blk_pci_context;
+static m25_blk_pci_context m25_pci;
+static virtio_blk m25_driver;
+static virtio_blk_memory m25_memory;
+static device_record *m25_device_record;
+static uint32_t m25_dma_generation;
+static volatile uint32_t m25_lock_word;
+static uintptr_t m25_lock_flags[LAMIX_M24_MAX_CPUS];
+static uint8_t m25_descriptors[4096] __attribute__((aligned(4096)));
+static uint8_t m25_available[4096] __attribute__((aligned(4096)));
+static uint8_t m25_used[4096] __attribute__((aligned(4096)));
+static uint8_t m25_headers[4096] __attribute__((aligned(4096)));
+static uint8_t m25_statuses[4096] __attribute__((aligned(4096)));
+static uint8_t m25_write_a[512] __attribute__((aligned(16)));
+static uint8_t m25_write_b[512] __attribute__((aligned(16)));
+static uint8_t m25_boundary[512] __attribute__((aligned(16)));
+static uint8_t m25_readback[512] __attribute__((aligned(16)));
+static block_request m25_async_a, m25_async_b;
+static volatile uint32_t m25_async_completions;
+static volatile uint32_t m25_async_failures;
+static int m25_block_test(void);
 #endif
 #if defined(LAMIX_M19_SCHEDULER)
 static scheduler m19_scheduler;
@@ -846,6 +883,9 @@ static void m20_run(void) {
       process_destroy(&m20_process_b) != PROCESS_OK) {
     serial("M23:CLEANUP:FAIL\nM23:FAIL\n");halt();
   }
+#if defined(LAMIX_M25_BLOCK)
+  if (!m25_block_test()) halt();
+#endif
 #if defined(LAMIX_M24_SMP)
   uint64_t cpu_mask = scheduler_observed_cpu_mask(&m19_scheduler);
   uint64_t steals = scheduler_work_steals(&m19_scheduler);
@@ -2437,6 +2477,282 @@ static int m17_init_gpu(uint32_t width, uint32_t height, uint32_t *pixels,
   return 1;
 }
 #endif
+#endif
+#if defined(LAMIX_M25_BLOCK)
+static int m25_config_byte(pci_bdf bdf, uint16_t offset, uint8_t *value) {
+  uint32_t word = 0;
+  if (!value || !m13_config.read32(m13_config.context, bdf,
+                                    (uint16_t)(offset & ~3u), &word))
+    return 0;
+  *value = (uint8_t)(word >> ((offset & 3u) * 8));
+  return 1;
+}
+
+static uint32_t m25_read_common(void *context, uint16_t offset,
+                                unsigned width) {
+  m25_blk_pci_context *pci = (m25_blk_pci_context *)context;
+  if (!pci || !pci->valid || offset + width > 56) return 0;
+  if (width == 1) return *(volatile uint8_t *)(pci->common + offset);
+  if (width == 2) return *(volatile uint16_t *)(void *)(pci->common + offset);
+  if (width == 4) return *(volatile uint32_t *)(void *)(pci->common + offset);
+  return 0;
+}
+
+static void m25_write_common(void *context, uint16_t offset, unsigned width,
+                             uint32_t value) {
+  m25_blk_pci_context *pci = (m25_blk_pci_context *)context;
+  if (!pci || !pci->valid || offset + width > 56) return;
+  if (width == 1) *(volatile uint8_t *)(pci->common + offset) = (uint8_t)value;
+  else if (width == 2)
+    *(volatile uint16_t *)(void *)(pci->common + offset) = (uint16_t)value;
+  else if (width == 4)
+    *(volatile uint32_t *)(void *)(pci->common + offset) = value;
+  __asm__ volatile("mfence" ::: "memory");
+}
+
+static uint32_t m25_read_device(void *context, uint16_t offset,
+                                unsigned width) {
+  m25_blk_pci_context *pci = (m25_blk_pci_context *)context;
+  if (!pci || !pci->valid || width != 4 || offset > pci->device_length ||
+      width > pci->device_length - offset)
+    return 0;
+  return *(volatile uint32_t *)(void *)(pci->device + offset);
+}
+
+static void m25_notify(void *context, uint16_t queue, uint16_t offset) {
+  m25_blk_pci_context *pci = (m25_blk_pci_context *)context;
+  if (!pci || !pci->valid || offset > UINT32_MAX / pci->notify_multiplier)
+    return;
+  uint64_t byte_offset = (uint64_t)offset * pci->notify_multiplier;
+  if (byte_offset + 2 > pci->notify_length) return;
+  *(volatile uint16_t *)(void *)(pci->notify + byte_offset) = queue;
+  __asm__ volatile("mfence" ::: "memory");
+}
+
+static void m25_driver_lock(void *context) {
+  (void)context;
+  uint32_t cpu = m24_current_cpu_id();
+  if (cpu >= LAMIX_M24_MAX_CPUS) halt();
+  m25_lock_flags[cpu] = m24_lock_acquire(&m25_lock_word);
+}
+
+static void m25_driver_unlock(void *context) {
+  (void)context;
+  uint32_t cpu = m24_current_cpu_id();
+  if (cpu >= LAMIX_M24_MAX_CPUS || !m25_lock_flags[cpu]) halt();
+  uintptr_t flags = m25_lock_flags[cpu];
+  m25_lock_flags[cpu] = 0;
+  m24_lock_release(&m25_lock_word, flags);
+}
+
+static int m25_find_device(void) {
+  for (size_t i = 0; i < m13_registry.count; ++i) {
+    pci_function *function = &m13_functions[i];
+    if (function->vendor_id != UINT16_C(0x1af4) ||
+        (function->device_id != UINT16_C(0x1042) &&
+         function->device_id != UINT16_C(0x1001)))
+      continue;
+    serial("M25:PCI:BLK:FOUND id="); hex(function->device_id); serial("\n");
+    uint32_t command_status = 0;
+    if (!m13_config.read32(m13_config.context, function->bdf, 4,
+                           &command_status) ||
+        !(command_status & (UINT32_C(1) << 20)))
+      return 0;
+    if (!m13_config.write32(m13_config.context, function->bdf, 4,
+                            (command_status & UINT32_C(0xffff)) | 6u))
+      return 0;
+    uint8_t cap = 0;
+    if (!m25_config_byte(function->bdf, 0x34, &cap)) return 0;
+    uint64_t visited_caps = 0;
+    uint8_t common_bar = 0xff, notify_bar = 0xff, device_bar = 0xff;
+    uint32_t common_offset = 0, common_length = 0;
+    uint32_t notify_offset = 0, notify_length = 0, notify_multiplier = 0;
+    uint32_t device_offset = 0, device_length = 0;
+    for (unsigned step = 0; cap && step < 48; ++step) {
+      if (cap < 0x40 || cap > 0xfc || (cap & 3)) return 0;
+      uint64_t cap_bit = UINT64_C(1) << ((cap - 0x40) / 4u);
+      if (visited_caps & cap_bit) return 0;
+      visited_caps |= cap_bit;
+      uint8_t id = 0, next = 0;
+      if (!m25_config_byte(function->bdf, cap, &id) ||
+          !m25_config_byte(function->bdf, (uint16_t)(cap + 1), &next))
+        return 0;
+      if (id == 0x09) {
+        uint8_t length = 0, type = 0, bar = 0;
+        uint32_t offset = 0, size = 0, multiplier = 0;
+        if (!m25_config_byte(function->bdf, (uint16_t)(cap + 2), &length) ||
+            !m25_config_byte(function->bdf, (uint16_t)(cap + 3), &type) ||
+            !m25_config_byte(function->bdf, (uint16_t)(cap + 4), &bar) ||
+            !m13_config.read32(m13_config.context, function->bdf,
+                               (uint16_t)(cap + 8), &offset) ||
+            !m13_config.read32(m13_config.context, function->bdf,
+                               (uint16_t)(cap + 12), &size))
+          return 0;
+        if ((type == 1 && length < 16) || (type == 2 && length < 20) ||
+            (type == 4 && length < 16)) return 0;
+        if (type == 2 && !m13_config.read32(m13_config.context,
+                function->bdf, (uint16_t)(cap + 16), &multiplier))
+          return 0;
+        if (type == 1 || type == 2 || type == 4) {
+          if (bar >= PCI_BAR_COUNT || !size || offset > UINT32_MAX - size ||
+              !function->bars[bar].valid || function->bars[bar].is_io ||
+              offset + size > function->bars[bar].size)
+            return 0;
+          if (type == 1) { common_bar = bar; common_offset = offset; common_length = size; }
+          if (type == 2) { notify_bar = bar; notify_offset = offset; notify_length = size; notify_multiplier = multiplier; }
+          if (type == 4) { device_bar = bar; device_offset = offset; device_length = size; }
+        }
+      }
+      cap = next;
+    }
+    if (cap) return 0;
+    if (common_bar == 0xff || notify_bar == 0xff || device_bar == 0xff ||
+        !notify_multiplier || common_length < 56 || device_length < 8 ||
+        notify_length < 2) {
+      serial("M25:PCI:CAP:REQUIRED_MISSING\n");
+      return 0;
+    }
+    uint8_t bars[PCI_BAR_COUNT] = {0};
+    bars[common_bar] = bars[notify_bar] = bars[device_bar] = 1;
+    pci_mmio_ops mmio = {0, m13_map_bar, m13_unmap_bar};
+    uint64_t common_va = 0, notify_va = 0, device_va = 0;
+    for (unsigned bar = 0; bar < PCI_BAR_COUNT; ++bar) {
+      if (!bars[bar]) continue;
+      uint64_t length = function->bars[bar].size;
+      uint64_t va = M25_BLK_VA + (uint64_t)bar * M25_BLK_BAR_STRIDE;
+      if (!length || (length & (PAGE_SIZE - 1)) ||
+          pci_map_bar(&mmio, function, bar, 0, va, length) != PCI_OK) {
+        serial("M25:PCI:BAR_MAP_FAIL\n");
+        return 0;
+      }
+      if (bar == common_bar) common_va = va + common_offset;
+      if (bar == notify_bar) notify_va = va + notify_offset;
+      if (bar == device_bar) device_va = va + device_offset;
+    }
+    if (common_length > function->bars[common_bar].size - common_offset ||
+        notify_offset > function->bars[notify_bar].size ||
+        notify_length > function->bars[notify_bar].size - notify_offset ||
+        device_offset > function->bars[device_bar].size ||
+        device_length > function->bars[device_bar].size - device_offset)
+      return 0;
+    m25_pci = (m25_blk_pci_context){
+        (volatile uint8_t *)(uintptr_t)common_va,
+        (volatile uint8_t *)(uintptr_t)notify_va,
+        (volatile uint8_t *)(uintptr_t)device_va, notify_multiplier,
+        notify_length, device_length, 1};
+    m25_device_record = &m13_registry.records[i];
+    return 1;
+  }
+  return 0;
+}
+
+static block_status m25_block_init(void) {
+  if (!m25_find_device()) return BLOCK_UNSUPPORTED;
+  if (device_bind_driver(m25_device_record, (uintptr_t)&m25_driver) !=
+          DEVICE_OK ||
+      device_dma_acquire(m25_device_record, (uintptr_t)&m25_driver,
+                         &m25_dma_generation) != DEVICE_OK)
+    return BLOCK_DEVICE_ERROR;
+  uint64_t descriptors = 0, available = 0, used = 0, headers = 0;
+  if (!m17_dma_address(0, m25_descriptors, sizeof(m25_descriptors),
+                       &descriptors) ||
+      !m17_dma_address(0, m25_available, sizeof(m25_available), &available) ||
+      !m17_dma_address(0, m25_used, sizeof(m25_used), &used) ||
+      !m17_dma_address(0, m25_headers, sizeof(m25_headers), &headers))
+    return BLOCK_DEVICE_ERROR;
+  uint64_t status_physical = 0;
+  if (!m17_dma_address(0, m25_statuses, sizeof(m25_statuses),
+                       &status_physical))
+    return BLOCK_DEVICE_ERROR;
+  m25_memory = (virtio_blk_memory){m25_descriptors, sizeof(m25_descriptors),
+      descriptors, m25_available, sizeof(m25_available), available,
+      m25_used, sizeof(m25_used), used, m25_headers, sizeof(m25_headers),
+      m25_statuses, sizeof(m25_statuses)};
+  (void)headers;
+  virtio_blk_ops operations = {&m25_pci, m25_read_common, m25_write_common,
+      m25_read_device, m25_notify, m17_dma_address, m25_driver_lock,
+      m25_driver_unlock, m24_irq_wait};
+  return virtio_blk_initialize(&m25_driver, &operations, &m25_memory);
+}
+
+static void m25_async_done(block_request *request, void *context) {
+  (void)context;
+  if (request->status != BLOCK_OK)
+    __atomic_add_fetch(&m25_async_failures, 1u, __ATOMIC_RELAXED);
+  __atomic_add_fetch(&m25_async_completions, 1u, __ATOMIC_RELEASE);
+}
+
+static int m25_bytes_equal(const uint8_t *left, const uint8_t *right,
+                           size_t length) {
+  for (size_t i = 0; i < length; ++i)
+    if (left[i] != right[i]) return 0;
+  return 1;
+}
+
+static int m25_block_test(void) {
+  block_status status = m25_block_init();
+  if (status != BLOCK_OK) {
+    serial("M25:DEVICE:FAIL status="); hex(status); serial("\nM25:FAIL\n");
+    return 0;
+  }
+  serial("M25:DEVICE:READY capacity="); hex(m25_driver.device.capacity_blocks);
+  serial(" logical="); hex(m25_driver.device.logical_block_size); serial("\n");
+  if (m25_driver.device.logical_block_size != 512 ||
+      m25_driver.device.capacity_blocks < 16)
+    goto fail;
+  for (size_t i = 0; i < sizeof(m25_write_a); ++i) {
+    m25_write_a[i] = (uint8_t)(i ^ 0x5a);
+    m25_write_b[i] = (uint8_t)((i * 3u) ^ 0xa5);
+    m25_boundary[i] = (uint8_t)((i * 7u) ^ 0x3c);
+  }
+  m25_async_completions = 0;
+  m25_async_failures = 0;
+  block_request_init(&m25_async_a, BLOCK_WRITE, 8, 1, m25_write_a,
+                     m25_async_done, 0);
+  block_request_init(&m25_async_b, BLOCK_WRITE, 10, 1, m25_write_b,
+                     m25_async_done, 0);
+  if (block_submit(&m25_driver.device, &m25_async_a) != BLOCK_OK ||
+      block_submit(&m25_driver.device, &m25_async_b) != BLOCK_OK)
+    goto fail;
+  for (uint32_t spin = 0; spin < 10000000u &&
+       __atomic_load_n(&m25_async_completions, __ATOMIC_ACQUIRE) < 2; ++spin) {
+    (void)block_poll(&m25_driver.device, 8);
+    __asm__ volatile("pause");
+  }
+  if (__atomic_load_n(&m25_async_completions, __ATOMIC_ACQUIRE) != 2 ||
+      __atomic_load_n(&m25_async_failures, __ATOMIC_RELAXED))
+    goto fail;
+  block_request read_a;
+  block_request_init(&read_a, BLOCK_READ, 8, 1, m25_readback, 0, 0);
+  if (block_io_sync(&m25_driver.device, &read_a, 10000000u) != BLOCK_OK ||
+      !m25_bytes_equal(m25_readback, m25_write_a, 512))
+    goto fail;
+  block_request read_b;
+  block_request_init(&read_b, BLOCK_READ, 10, 1, m25_readback, 0, 0);
+  if (block_io_sync(&m25_driver.device, &read_b, 10000000u) != BLOCK_OK ||
+      !m25_bytes_equal(m25_readback, m25_write_b, 512))
+    goto fail;
+  uint64_t last = m25_driver.device.capacity_blocks - 1;
+  block_request boundary_write;
+  block_request_init(&boundary_write, BLOCK_WRITE, last, 1, m25_boundary, 0, 0);
+  if (block_io_sync(&m25_driver.device, &boundary_write, 10000000u) != BLOCK_OK)
+    goto fail;
+  block_request boundary_read;
+  block_request_init(&boundary_read, BLOCK_READ, last, 1, m25_readback, 0, 0);
+  if (block_io_sync(&m25_driver.device, &boundary_read, 10000000u) != BLOCK_OK ||
+      !m25_bytes_equal(m25_readback, m25_boundary, 512))
+    goto fail;
+  block_request flush;
+  block_request_init(&flush, BLOCK_FLUSH, 0, 0, 0, 0, 0);
+  if (block_io_sync(&m25_driver.device, &flush, 10000000u) != BLOCK_OK)
+    goto fail;
+  serial("M25:ASYNC_CALLBACK:PASS\nM25:SYNC_IO:PASS\n");
+  serial("M25:BOUNDARY:PASS\nM25:FLUSH:PASS\nM25:PASS\n");
+  return 1;
+fail:
+  serial("M25:IO:FAIL\nM25:FAIL\n");
+  return 0;
+}
 #endif
 #if defined(LAMIX_M16_GRAPHICS)
 #if defined(LAMIX_M17_VIRTIO_GPU)
