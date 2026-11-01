@@ -33,6 +33,10 @@
 #if defined(LAMIX_M20_PROCESS)
 #include "process.h"
 #endif
+#if defined(LAMIX_M21_SYSCALL)
+#include "syscall.h"
+#include "m21_payloads.h"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -70,6 +74,9 @@ static idt_gate idt[IDT_ENTRIES] __attribute__((aligned(16)));
 static uint64_t gdt[64] __attribute__((aligned(16)));
 static tss64 tss;
 static uint8_t df_stack[16384] __attribute__((aligned(16)));
+#if defined(LAMIX_M21_SYSCALL)
+static uint8_t m21_exception_stacks[3][16384] __attribute__((aligned(16)));
+#endif
 static volatile uint32_t ticks;
 static uint8_t serial_ready;
 #if defined(LAMIX_M14_APIC)
@@ -167,6 +174,9 @@ static scheduler_mutex m19_test_mutex;
 #endif
 #if defined(LAMIX_M20_PROCESS)
 static process m20_process_a, m20_process_b;
+#if defined(LAMIX_M21_SYSCALL)
+static process m21_process_c;
+#endif
 static uint64_t m20_boot_stack_top;
 static int kernel_alloc_frame(uint64_t *physical);
 static int kernel_free_frame(uint64_t physical);
@@ -174,6 +184,17 @@ static int vmm_allocate(void *context, uint64_t *physical);
 static int vmm_release(void *context, uint64_t physical);
 static volatile uint64_t *vmm_access(void *context, uint64_t physical);
 static void vmm_invalidate(void *context, uint64_t virtual_address);
+#endif
+#if defined(LAMIX_M21_SYSCALL)
+uint64_t m21_entry_state[16];
+uint64_t m21_kernel_stack;
+uint64_t m21_fast_return;
+uint64_t m21_return_rip, m21_return_flags, m21_return_rsp, m21_return_rax;
+static uint8_t m21_force_iret = 1;
+static uint32_t m21_iret_count;
+extern void m21_syscall_entry(void);
+static int m21_syscall_init(void);
+void *m21_syscall_dispatch_frame(scheduler_frame *frame);
 #endif
 static __attribute__((noreturn)) void fail(void);
 
@@ -227,6 +248,9 @@ static void m19_fatal(void *context, uint64_t reason) {
 static void m20_context_switch(void *context, scheduler_thread *next) {
   (void)context;
   tss.rsp0 = next->kernel_stack_top ? next->kernel_stack_top : m20_boot_stack_top;
+#if defined(LAMIX_M21_SYSCALL)
+  m21_kernel_stack = tss.rsp0;
+#endif
   process *instance = next->user_mode ? (process *)next->private_context : 0;
   uint64_t root = instance ? instance->address_space.root_physical
                            : kernel_space.root_physical;
@@ -234,6 +258,135 @@ static void m20_context_switch(void *context, scheduler_thread *next) {
     instance->state = PROCESS_RUNNING;
   __asm__ volatile("mov %0,%%cr3" : : "r"(root) : "memory");
 }
+#if defined(LAMIX_M21_SYSCALL)
+static uint64_t m21_rdmsr(uint32_t msr) {
+  uint32_t low, high;
+  __asm__ volatile("rdmsr" : "=a"(low), "=d"(high) : "c"(msr));
+  return ((uint64_t)high << 32) | low;
+}
+static void m21_wrmsr(uint32_t msr, uint64_t value) {
+  __asm__ volatile("wrmsr" : : "c"(msr), "a"((uint32_t)value),
+                   "d"((uint32_t)(value >> 32)) : "memory");
+}
+static int m21_syscall_init(void) {
+  uint32_t eax, ebx, ecx, edx;
+  __asm__ volatile("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
+                   : "a"(0x80000000u), "c"(0));
+  if (eax < 0x80000001u)
+    return 0;
+  __asm__ volatile("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
+                   : "a"(0x80000001u), "c"(0));
+  if (!(edx & (1u << 11)))
+    return 0;
+  const uint64_t efer = UINT32_C(0xc0000080);
+  const uint64_t star = UINT32_C(0xc0000081);
+  const uint64_t lstar = UINT32_C(0xc0000082);
+  const uint64_t fmask = UINT32_C(0xc0000084);
+  uint64_t selectors = (UINT64_C(0x13) << 48) | (UINT64_C(0x08) << 32);
+  /* Mask IF, TF, DF, NT, RF and AC until a safe kernel frame is active. */
+  uint64_t masked_flags = (UINT64_C(1) << 9) | (UINT64_C(1) << 8) |
+                          (UINT64_C(1) << 10) | (UINT64_C(1) << 14) |
+                          (UINT64_C(1) << 16) | (UINT64_C(1) << 18);
+  m21_wrmsr(star, selectors);
+  m21_wrmsr(lstar, (uint64_t)(uintptr_t)m21_syscall_entry);
+  m21_wrmsr(fmask, masked_flags);
+  m21_wrmsr(efer, m21_rdmsr((uint32_t)efer) | 1u);
+  return 1;
+}
+static int m21_read_user(void *context, uint64_t address, uint8_t *target,
+                         size_t length) {
+  process *instance = context;
+  uint64_t physical = 0, flags = 0;
+  uint32_t permissions = 0;
+  if (vmm_query(&instance->address_space, address, &physical, &permissions,
+                &flags) != VMM_OK || !(permissions & VMM_USER) ||
+      !(permissions & VMM_READ))
+    return 0;
+  volatile uint8_t *page = instance->operations.access_frame(
+      instance->operations.context, physical & ~(VMM_PAGE_SIZE - 1));
+  if (!page)
+    return 0;
+  for (size_t i = 0; i < length; ++i)
+    target[i] = page[(physical & (VMM_PAGE_SIZE - 1)) + i];
+  return 1;
+}
+static int m21_copy_user(process *instance, uint64_t source, uint8_t *target,
+                         uint64_t length) {
+  lamix_user_memory_ops memory = {.context = instance, .read = m21_read_user};
+  return lamix_syscall_copy_from_user(&memory, source, target,
+      (size_t)length, UINT64_C(0x0000800000000000), VMM_PAGE_SIZE);
+}
+static int64_t m21_yield(void *context) {
+  process *instance = context;
+  return instance && scheduler_yield(instance->scheduler_state) == SCHED_OK
+             ? 0 : -LAMIX_ESTATE;
+}
+static int64_t m21_exit(void *context, uint64_t code) {
+  process_note_exit((process *)context, code);
+  return 0;
+}
+static int64_t m21_debug_write(void *context, uint64_t pointer,
+                               uint64_t length) {
+  process *instance = context;
+  if (length > LAMIX_SYSCALL_MAX_WRITE)
+    return -LAMIX_E2BIG;
+  uint8_t copy[LAMIX_SYSCALL_MAX_WRITE];
+  if (!m21_copy_user(instance, pointer, copy, length))
+    return -LAMIX_EFAULT;
+  for (uint64_t i = 0; i < length; ++i)
+    serial_char((char)copy[i]);
+  return (int64_t)length;
+}
+static int m21_user_return_valid(process *instance, scheduler_frame *frame) {
+  uint64_t physical = 0, flags = 0;
+  uint32_t permissions = 0;
+  if (!instance || frame->rip >= UINT64_C(0x0000800000000000) ||
+      !frame->rsp || frame->rsp > UINT64_C(0x0000800000000000) ||
+      vmm_query(&instance->address_space, frame->rip, &physical, &permissions,
+                &flags) != VMM_OK || !(permissions & VMM_USER) ||
+      !(permissions & VMM_EXECUTE))
+    return 0;
+  if (vmm_query(&instance->address_space, frame->rsp - 1, &physical,
+                &permissions, &flags) != VMM_OK ||
+      !(permissions & VMM_USER) || !(permissions & VMM_WRITE))
+    return 0;
+  frame->rflags = (frame->rflags & UINT64_C(0x8d5)) | UINT64_C(0x202);
+  frame->cs = 0x23;
+  frame->ss = 0x1b;
+  return 1;
+}
+void *m21_syscall_dispatch_frame(scheduler_frame *frame) {
+  scheduler_thread *thread = m19_scheduler.current;
+  process *instance = thread && thread->user_mode
+                          ? (process *)thread->private_context : 0;
+  m21_fast_return = 0;
+  if (!frame || !instance || frame->cs != 0x23) {
+    if (instance)
+      process_note_fault(instance, frame ? frame->rip : 0, 0);
+    return scheduler_terminate_interrupt(&m19_scheduler, frame);
+  }
+  lamix_syscall_ops operations = {.context = instance,
+      .yield = m21_yield, .exit = m21_exit, .debug_write = m21_debug_write};
+  uint64_t number = frame->rax;
+  int64_t result = lamix_syscall_dispatch(
+      &operations, number, frame->rdi, frame->rsi, frame->rdx, frame->r10,
+      frame->r8, frame->r9);
+  frame->rax = (uint64_t)result;
+  if (instance->state == PROCESS_EXITED)
+    return scheduler_terminate_interrupt(&m19_scheduler, frame);
+  if (!m21_user_return_valid(instance, frame)) {
+    process_note_fault(instance, frame->rip, UINT64_C(0x4d21));
+    return scheduler_terminate_interrupt(&m19_scheduler, frame);
+  }
+  if (m21_force_iret) {
+    m21_force_iret = 0;
+    ++m21_iret_count;
+    return frame;
+  }
+  m21_fast_return = 1;
+  return frame;
+}
+#endif
 static int m20_allocate_frame(void *context, uint64_t *physical) {
   (void)context;
   return kernel_alloc_frame(physical);
@@ -250,6 +403,14 @@ static volatile uint8_t *m20_access_frame(void *context, uint64_t physical) {
 static void m20_user_idle(void *argument) { (void)argument; for (;;) __asm__ volatile("sti; hlt" ::: "memory"); }
 
 static void m20_run(void) {
+#if defined(LAMIX_M21_SYSCALL)
+  const uint8_t *payload_a = m21_test_payload;
+  const size_t payload_a_size = m21_test_payload_size;
+  const uint8_t *payload_b = m21_invalid_return_payload;
+  const size_t payload_b_size = m21_invalid_return_payload_size;
+  const uint8_t *payload_c = m21_loop_payload;
+  const size_t payload_c_size = m21_loop_payload_size;
+#else
   static const uint8_t fault_payload[] = {
       0x48,0xb8,0x00,0x00,0x10,0x00,0x80,0x00,0x00,0x00,
       0xc7,0x00,0x11,0x20,0x00,0x00,
@@ -258,6 +419,7 @@ static void m20_run(void) {
   static const uint8_t loop_payload[] = {
       0x48,0xb8,0x00,0x00,0x10,0x00,0x80,0x00,0x00,0x00,
       0xc7,0x00,0x22,0x20,0x00,0x00,0xf3,0x90,0xeb,0xfc};
+#endif
   process_operations operations = {.context = 0,
       .allocate_frame = m20_allocate_frame, .release_frame = m20_release_frame,
       .access_frame = m20_access_frame,
@@ -272,21 +434,44 @@ static void m20_run(void) {
       scheduler_init(&m19_scheduler, &scheduler_ops, m20_user_idle);
   process_status process_a_result = scheduler_result == SCHED_OK
       ? process_create(&m20_process_a, &operations, &kernel_space,
-                       &m19_scheduler, 1, fault_payload,
-                       sizeof(fault_payload), 2) : PROCESS_SCHEDULER_ERROR;
+                       &m19_scheduler, 1,
+#if defined(LAMIX_M21_SYSCALL)
+                       payload_a, payload_a_size, 2) : PROCESS_SCHEDULER_ERROR;
+#else
+                       fault_payload, sizeof(fault_payload), 2)
+      : PROCESS_SCHEDULER_ERROR;
+#endif
   process_status process_b_result = process_a_result == PROCESS_OK
       ? process_create(&m20_process_b, &operations, &kernel_space,
-                       &m19_scheduler, 2, loop_payload,
+                       &m19_scheduler, 2,
+#if defined(LAMIX_M21_SYSCALL)
+                       payload_b, payload_b_size, 2) : PROCESS_SCHEDULER_ERROR;
+  process_status process_c_result = process_b_result == PROCESS_OK
+      ? process_create(&m21_process_c, &operations, &kernel_space,
+                       &m19_scheduler, 3, payload_c, payload_c_size, 2)
+      : PROCESS_SCHEDULER_ERROR;
+  vmm_status private_map_result = process_c_result == PROCESS_OK
+      ? VMM_OK : VMM_INVALID_ARGUMENT;
+#else
+                       loop_payload,
                        sizeof(loop_payload), 2) : PROCESS_SCHEDULER_ERROR;
   vmm_status private_map_result = process_b_result == PROCESS_OK
       ? vmm_map_range(&m20_process_b.address_space, PROCESS_USER_PRIVATE,
                       m20_process_b.data_frame, PAGE_SIZE,
                       VMM_READ | VMM_WRITE | VMM_USER, 0) : VMM_INVALID_ARGUMENT;
+#endif
   scheduler_status begin_result = process_b_result == PROCESS_OK &&
+#if defined(LAMIX_M21_SYSCALL)
+      process_c_result == PROCESS_OK && private_map_result == VMM_OK
+#else
       private_map_result == VMM_OK
+#endif
       ? scheduler_begin(&m19_scheduler) : SCHED_BAD_STATE;
   if (scheduler_result != SCHED_OK || process_a_result != PROCESS_OK ||
       process_b_result != PROCESS_OK || private_map_result != VMM_OK ||
+#if defined(LAMIX_M21_SYSCALL)
+      process_c_result != PROCESS_OK ||
+#endif
       begin_result != SCHED_OK) {
     serial("M20:CREATE:FAIL sched="); hex(scheduler_result);
     serial(" a="); hex(process_a_result); serial(" b=");
@@ -301,6 +486,34 @@ static void m20_run(void) {
   __asm__ volatile("sti" ::: "memory");
   uint64_t address = 0, code = 0;
   process_state a_state = process_wait(&m20_process_a, &address, &code);
+#if defined(LAMIX_M21_SYSCALL)
+  if (a_state != PROCESS_EXITED || m20_process_a.exit_code != 0) {
+    serial("M21:USER_EXIT:FAIL code="); hex(m20_process_a.exit_code);
+    serial(" state="); hex(a_state); serial("\nM21:FAIL\n"); halt();
+  }
+  process_state b_state = process_wait(&m20_process_b, &address, &code);
+  if (b_state != PROCESS_FAULTED || code != UINT64_C(0x4d21) ||
+      m21_process_c.state != PROCESS_RUNNING ||
+      *(volatile uint64_t *)m20_access_frame(0, m21_process_c.data_frame) == 0 ||
+      m21_iret_count == 0) {
+    serial("M21:FAULT_ISOLATION:FAIL code="); hex(code);
+    serial(" state="); hex(b_state); serial(" iret=");
+    hex(m21_iret_count); serial("\nM21:FAIL\n"); halt();
+  }
+  if (process_request_kill(&m21_process_c) != PROCESS_OK ||
+      process_wait(&m21_process_c, 0, 0) != PROCESS_KILLED) {
+    serial("M21:KILL_WAIT:FAIL\nM21:FAIL\n"); halt();
+  }
+  scheduler_collect_retired(&m19_scheduler);
+  if (process_destroy(&m20_process_a) != PROCESS_OK ||
+      process_destroy(&m20_process_b) != PROCESS_OK ||
+      process_destroy(&m21_process_c) != PROCESS_OK) {
+    serial("M21:CLEANUP:FAIL\nM21:FAIL\n"); halt();
+  }
+  serial("M21:RETURN_VALIDATION:PASS\nM21:FAULT_ISOLATION:PASS\n");
+  serial("M21:IRETQ_FALLBACK:PASS\nM21:KILL_WAIT:PASS\nM21:PASS\n");
+  serial("M20:PASS\n");
+#else
   if (m20_process_b.state != PROCESS_RUNNING || a_state != PROCESS_FAULTED ||
       address != PROCESS_USER_PRIVATE || !(code & 2) ||
       *(volatile uint32_t *)m20_access_frame(0, m20_process_a.data_frame) != 0x2011 ||
@@ -322,6 +535,7 @@ static void m20_run(void) {
     serial("M20:CLEANUP:FAIL\n"); halt();
   }
   serial("M20:PASS\n");
+#endif
   halt();
 }
 #endif
@@ -481,7 +695,15 @@ static uint16_t gate_selector=KCODE;
 static void gate(unsigned v,uintptr_t a,uint8_t ist){idt[v]=(idt_gate){(uint16_t)a,gate_selector,(uint8_t)(ist&7),0x8e,(uint16_t)(a>>16),(uint32_t)(a>>32),0};}
 static void idt_init(uint16_t selector,int final){
   gate_selector=selector;
-  for(unsigned i=0;i<IDT_ENTRIES;i++)gate(i,interrupt_vectors[i],final && i==8?1:0);
+  for(unsigned i=0;i<IDT_ENTRIES;i++) {
+    uint8_t ist = final && i == 8 ? 1 : 0;
+#if defined(LAMIX_M21_SYSCALL)
+    if (final && i == 2) ist = 2;
+    if (final && i == 1) ist = 3;
+    if (final && i == 18) ist = 4;
+#endif
+    gate(i, interrupt_vectors[i], ist);
+  }
   desc_ptr p={(uint16_t)(sizeof(idt)-1),(uint64_t)idt};__asm__ volatile("lidt %0"::"m"(p):"memory");
 }
 static void gdt_init(uint16_t prior_cs){
@@ -491,12 +713,21 @@ static void gdt_init(uint16_t prior_cs){
   if((prior_cs&4) || (prior_cs&3) || old_index>=62) fail();
   gdt[old_index]=UINT64_C(0x00af9a000000ffff);
   tss.iomap=sizeof(tss);tss.ist1=(uint64_t)(df_stack+sizeof(df_stack));
+#if defined(LAMIX_M21_SYSCALL)
+  tss.ist2=(uint64_t)(m21_exception_stacks[0]+sizeof(m21_exception_stacks[0]));
+  tss.ist3=(uint64_t)(m21_exception_stacks[1]+sizeof(m21_exception_stacks[1]));
+  tss.ist4=(uint64_t)(m21_exception_stacks[2]+sizeof(m21_exception_stacks[2]));
+#endif
   uint64_t b=(uint64_t)&tss;gdt[62]=((uint64_t)(sizeof(tss)-1))|((b&0xffffff)<<16)|UINT64_C(0x890000000000)|((b&0xff000000)<<32);gdt[63]=b>>32;
   desc_ptr p={(uint16_t)(sizeof(gdt)-1),(uint64_t)gdt};__asm__ volatile("lgdt %0"::"m"(p):"memory");
   __asm__ volatile("pushq $0x08; lea 1f(%%rip),%%rax; push %%rax; lretq; 1: mov $0x10,%%ax; mov %%ax,%%ds; mov %%ax,%%es; mov %%ax,%%ss; mov %0,%%ax; ltr %%ax" ::"i"(KTSS):"rax","memory");
 }
 static void pic_pit_init(void){out8(0x21,0xff);out8(0xa1,0xff);out8(PIC1,0x11);out8(PIC2,0x11);out8(PIC1+1,0x20);out8(PIC2+1,0x28);out8(PIC1+1,4);out8(PIC2+1,2);out8(PIC1+1,1);out8(PIC2+1,1);out8(0x21,0xfe);out8(0xa1,0xff);uint16_t divisor=(uint16_t)(1193182/100);out8(PIT+3,0x36);out8(PIT,(uint8_t)divisor);out8(PIT,(uint8_t)(divisor>>8));}
-void *interrupt_dispatch(interrupt_frame*f){if(f->vector==32){
+void *interrupt_dispatch(interrupt_frame*f){
+#if defined(LAMIX_M21_SYSCALL)
+  if(f->vector==2)return f;
+#endif
+  if(f->vector==32){
 #if defined(LAMIX_M14_APIC)
   if (m14_active) panic_frame(f);
 #endif
@@ -565,7 +796,9 @@ void *interrupt_dispatch(interrupt_frame*f){if(f->vector==32){
       serial("M20:USER_FAULT:EXPECTED\n");
     else {
       serial("M20:USER_FAULT:UNEXPECTED vector="); hex(f->vector);
-      serial(" address="); hex(address); serial("\n");
+      serial(" address="); hex(address); serial(" rip="); hex(f->rip);
+      serial(" rsp="); hex(f->rsp); serial(" rax="); hex(f->rax);
+      serial("\n");
     }
     return scheduler_terminate_interrupt(&m19_scheduler, f);
   }
@@ -1934,6 +2167,13 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
     serial("M10:FAIL\n");
     fail();
   }
+#endif
+#if defined(LAMIX_M21_SYSCALL)
+  if (!m21_syscall_init()) {
+    serial("M21:SYSCALL_CPU:UNAVAILABLE\nM21:FAIL\n");
+    fail();
+  }
+  serial("M21:SYSCALL_ENTRY:READY\n");
 #endif
 #if defined(LAMIX_M11_HEAP)
   if (!heap_self_test()) {

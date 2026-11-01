@@ -3,7 +3,7 @@
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
 > **Cập nhật:** 2026-11-01
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 IN_PROGRESS; M22–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 IN_PROGRESS; M22–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -131,7 +131,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M20 — Processes, ring 3, address-space isolation. Trạng thái: DONE (2026-11-01).** PR [#20](https://github.com/duclam2011dz/LamixOS/pull/20) merge commit `88821fdd59a6341b636e37e7e9a045f536d218a8`; acceptance commit `d0b97be7566e793bc0c54810ec574903ae2ed3dc`; annotated tag `milestone/M20` object `651e6ea9b065ac9a3759399fe9e4996511a0ce55` trỏ acceptance commit. Bốn workflow CI SUCCESS trên acceptance SHA: Toolchain [41265639668](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639668), Harness [41265639777](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639777), Documentation [41265639726](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639726), Boot Contract [41265639667](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639667). Guest cùng kernel/image qua SeaBIOS `pc` và OVMF `q35` 3/3 lần mỗi firmware PASS; kiểm tra ring 3, timer scheduling, hai address space, truy cập chéo bị chặn, user fault cô lập, process còn lại tiếp tục và kill/wait/cleanup. M20 cross-build, ASan/UBSan, regressions M17/M19, docs validator và unittest 41/41 PASS. Local CMake/CTest wrapper **NOT RUN** do thiếu `cmake`; CI Toolchain chạy CTest thành công. PC thật và firmware ngoài profile QEMU **NOT RUN**. M18 vẫn PLANNED; M21 chưa bắt đầu.
 
-**M21 — Lamix-specific syscall ABI v1.** syscall calling convention, syscall table/version, return/error policy, handle validation; user-space C wrappers; thiết kế `SYSCALL/SYSRET` và safe fallback return path. Nghiệm thu: ABI integration tests và fault injection invalid args.
+**M21 — Lamix-specific syscall ABI v1. Trạng thái: IN_PROGRESS (2026-11-01).** Đang triển khai syscall calling convention, syscall table/version, return/error policy, handle validation, user-space C wrappers, `SYSCALL/SYSRET` và safe fallback. Profile M21 riêng; không đổi LBP v1 hoặc entry ABI. Local cross-build, CTest **3/3 PASS**, guest BIOS/UEFI 3/3 mỗi firmware và hồi quy M17/M19/M20 hiện PASS. GitHub CI trên acceptance SHA **NOT RUN**; M21 chưa nghiệm thu. Tiêu chí roadmap giữ nguyên: ABI integration tests và fault injection invalid args.
 
 **M22 — Handle-based capabilities và IPC.** Object handles có rights, duplication/transfer, channels/messages, shared memory khi an toàn; quyền tối thiểu, synchronization tests. Nghiệm thu: negative permission tests, race/close/reuse tests.
 

@@ -10,7 +10,7 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00–M12 đã nghiệm thu. M12 Buddy PMM giữ bitmap làm mặc định và có backend Buddy thử nghiệm; bốn workflow CI và guest BIOS/UEFI trên cùng kernel PASS. Xem [handoff](docs/SESSION_HANDOFF.md) để biết bằng chứng và giới hạn. Đây chưa phải kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh; chưa có bản phát hành và chưa đạt Playable.
+M00–M17, M19 và M20 đã nghiệm thu; M18 vẫn PLANNED. M21 đang triển khai syscall ABI v1 trong profile riêng; local CTest **3/3 PASS**, GitHub CI chưa chạy trên acceptance SHA. Xem [handoff](docs/SESSION_HANDOFF.md) để biết bằng chứng và giới hạn. Đây chưa phải kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh; chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 

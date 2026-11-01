@@ -19,7 +19,7 @@ Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc đ
 
 ```text
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 IN_PROGRESS; M21–M44 PLANNED
+Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 IN_PROGRESS; M22–M44 PLANNED
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M15 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -417,7 +417,7 @@ VirtIO-GPU là VGA adapter duy nhất (`-vga none` trước `virtio-vga`). Giữ
 
 ## Scheduler BSP M19
 
-Script chạy thử tổng quát: `./scripts/lamix_qemu.py` mặc định build profile mới nhất (hiện là M19), tạo image BIOS/UEFI trong `out/m19/`, rồi mở cả hai firmware lần lượt. Dùng `--firmware bios` hoặc `--firmware uefi` để chạy riêng; `--build-only` chỉ build. `--profile m17` chọn profile cũ. Cập nhật `LATEST_PROFILE` khi milestone mới trở thành profile chạy thử mới nhất. Script dùng toolchain/QEMU/SeaBIOS/OVMF đã cài, không cài dependencies. Script M17 cũ vẫn có thể dùng để tái hiện riêng M17.
+Script chạy thử tổng quát: `./scripts/lamix_qemu.py` mặc định build profile mới nhất đã nghiệm thu (M20), tạo image BIOS/UEFI trong `out/m20/`, rồi mở firmware đã chọn. Dùng `--profile m21` để chạy profile đang triển khai; `--firmware bios|uefi|both` chọn firmware; `--build-only` chỉ build. `--profile m19`/`m17` giữ profile cũ. `LATEST_PROFILE` vẫn M20 cho tới nghiệm thu M21. Script dùng toolchain/QEMU/SeaBIOS/OVMF đã cài, không cài dependencies. Script M17 cũ vẫn có thể dùng để tái hiện riêng M17.
 
 ```sh
 ./scripts/lamix_qemu.py
@@ -458,4 +458,26 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m20-tests --no-test
 
 Guest dùng cùng kernel/image trên SeaBIOS `pc` và OVMF `q35`; kiểm tra hai process map cùng user VA tới backing khác nhau, vùng chỉ process B map gây user page fault ở A, B tiếp tục chạy, kernel test manager kill B, wait terminal state và thu hồi resources. QEMU marker và JSON/logs ở `out/m20/`; harness so protected image/firmware/kernel fingerprints và cleanup. Không coi compile-only hoặc host test là ring3 guest proof.
 
-Kết quả hiện tại: `m20-kernel` cross-build và `scripts/lamix_qemu.py --profile m20 --build-only` **PASS**; native ASan/UBSan và host pytest **PASS**; guest BIOS/UEFI **3/3 mỗi firmware PASS**. M19 hồi quy pytest **7/7 PASS**, M19 native sanitizer **PASS**, M17 guest regression **4/4 PASS**. CMake/CTest wrapper local **NOT RUN** vì `cmake` không có trên PATH; docs validator **PASS**, unittest tài liệu **41/41 PASS**. GitHub CI trên acceptance SHA **NOT RUN**. M20 **IN_PROGRESS**, chưa có acceptance SHA/PR/tag. PC thật và firmware ngoài profile QEMU **NOT RUN**.
+Kết quả nghiệm thu M20: `m20-kernel` cross-build và `scripts/lamix_qemu.py --profile m20 --build-only` **PASS**; native ASan/UBSan và host pytest **PASS**; guest BIOS/UEFI **3/3 mỗi firmware PASS**. M19 hồi quy pytest **7/7 PASS**, M19 native sanitizer **PASS**, M17 guest regression **4/4 PASS**. Local CMake/CTest wrapper **NOT RUN** vì `cmake` không có trên PATH; CI Toolchain chạy CTest thành công; bốn workflow **SUCCESS** trên acceptance SHA theo [handoff](SESSION_HANDOFF.md). M20 **DONE**. PC thật và firmware ngoài profile QEMU **NOT RUN**.
+
+## Lamix syscall ABI v1 M21
+
+M21 có profile build riêng và giữ `latest` ở M20 cho tới nghiệm thu. Lệnh manual build/run:
+
+```sh
+./scripts/lamix_qemu.py --profile m21 --build-only
+./scripts/lamix_qemu.py --profile m21 --firmware bios
+./scripts/lamix_qemu.py --profile m21 --firmware uefi
+```
+
+CTest M21 gồm `m21-native-sanitize` (dispatcher, signed errors, handle range validator, user-memory page copy và ABI frame layout assertions), host build provenance/wrapper compile, guest BIOS/UEFI ba lần mỗi firmware. Chạy theo suite:
+
+```sh
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m21 -B build/m21-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m21-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m21-tests --no-tests=error --output-on-failure --output-junit "$PWD/out/m21/ctest.xml"
+```
+
+Guest gọi wrapper thật từ ring 3: version query, `debug_write`, null/unmapped/overflow/cross-page/oversize pointers, unknown syscall, yield, DF masking, exit; process thứ hai cố trả về với noncanonical RSP và phải bị cô lập, trong khi process thứ ba tiếp tục chạy. Guest cũng kiểm tra forced `IRETQ` fallback, kill/wait/cleanup, protected image/firmware/kernel fingerprints và QEMU cleanup. Host simulation hoặc compile-only không phải guest boot PASS. Reports ở `out/m21/`; Toolchain CI giữ serial/results/build reports nhưng không upload image/firmware.
+
+M21 local cross-build **PASS**, CMake build **PASS**, CTest **3/3 PASS** (`m21-native-sanitize`, `m21-host`, guest BIOS/UEFI), guest BIOS/UEFI **3/3 mỗi firmware PASS**. Hồi quy guest M17 **4/4**, M19 **6/6**, M20 **6/6** và native M19/M20 **PASS**. GitHub Actions trên acceptance SHA **NOT RUN**; M21 vẫn **IN_PROGRESS**, chưa có PR/acceptance SHA/tag. PC thật/firmware ngoài profile QEMU **NOT RUN**.

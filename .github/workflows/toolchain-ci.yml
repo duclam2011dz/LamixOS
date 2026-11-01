@@ -145,6 +145,12 @@ jobs:
           cmake -S tests/m20 -B build/m20-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m20-tests
           ctest --test-dir build/m20-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m20/ctest.xml"
+      - name: M21 syscall ABI v1 sanitizer và guest ring 3 BIOS/UEFI
+        timeout-minutes: 60
+        run: |
+          cmake -S tests/m21 -B build/m21-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m21-tests
+          ctest --test-dir build/m21-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m21/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -379,4 +385,19 @@ jobs:
             out/m20/runs/**/qmp.log
             build/m20-*/build.json
             build/m20-*/kernel.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M21 syscall reports và guest serial, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m21-syscall-reports
+          path: |
+            out/m21/*.xml
+            out/m21/results/*.json
+            out/m21/runs/**/result.json
+            out/m21/runs/**/serial.log
+            out/m21/runs/**/stderr.log
+            out/m21/runs/**/qmp.log
+            build/m21-*/build.json
+            build/m21-*/kernel.inspection.txt
           if-no-files-found: warn

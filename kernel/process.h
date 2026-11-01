@@ -40,6 +40,7 @@ typedef struct process {
   uint64_t id;
   uint64_t code_frame, stack_frame, data_frame;
   uint64_t fault_address, fault_code;
+  uint64_t exit_code;
   uint32_t creation_stage, creation_vm_status;
   volatile uint8_t kill_requested;
   volatile process_state state;
@@ -59,6 +60,7 @@ process_status process_create(process *instance,
                               const void *image, size_t image_size,
                               uint8_t priority);
 void process_note_fault(process *instance, uint64_t address, uint64_t code);
+void process_note_exit(process *instance, uint64_t code);
 process_status process_request_kill(process *instance);
 process_state process_wait(const process *instance, uint64_t *fault_address,
                            uint64_t *fault_code);
