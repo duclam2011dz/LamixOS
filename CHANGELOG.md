@@ -11,6 +11,8 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 - Toolchain CI PR #28 phát hiện default `latest` bị đổi từ M20 sang M24; đã khôi phục profile M20 và smoke `scripts/smoke.py --reproducible` local PASS. CI trên commit sửa vẫn chờ; M24 chưa DONE.
 - Automated review PR #28 phát hiện ba P1 về stack lifetime khi context switch, `SWAPGS`/MSR GS setup và TLB shootdown lock wait. Đã sửa scheduler để giữ outgoing stack không-stealable/non-reapable tới interrupt kế tiếp trên CPU đó; đồng bộ GS theo CPL và đặt per-CPU GS base khi khởi tạo; lock wait phục vụ IPI, timer/reschedule handler không tái vào scheduler. M24 cross-build và CTest sau sửa **4/4 PASS**: native ASan/UBSan, host provenance, guest BIOS/UEFI × 1/2/4/8 vCPU × 3 lượt cùng fault cases, scheduler TSan. Docs validator **PASS**, unittest tài liệu **41/41 PASS**; CI/review trên commit sửa đang chờ. M24 vẫn IN_PROGRESS, chưa tạo tag/merge, M25 chưa bắt đầu.
 
+- Review bổ sung sau commit `ecd2970` tìm race timer khi shootdown kết thúc: timer có thể đến sau khi xóa `lock_waiting` nhưng trước `cli`. Đã đổi thứ tự kết thúc thành `cli`, clear cờ, unlock; CTest và CI trên commit chứa sửa này đang chờ. M24 vẫn IN_PROGRESS.
+
 ### M23 — DONE (2026-11-01)
 
 - Thêm loader Static PIE ELF64, parser initramfs newc, multi-page user mappings, initial stack `argc/argv/envp`, `crt0`/libc freestanding và hai chương trình kiểm thử trong profile `m23-kernel`. M22 và `latest` M20 giữ nguyên.

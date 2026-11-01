@@ -1318,11 +1318,14 @@ static void m24_tlb_shootdown(uint64_t address, uint64_t target_mask) {
     serial("M24:TLB_SHOOTDOWN:TIMEOUT va="); hex(address); serial("\n");
     halt();
   }
-  __atomic_store_n(&m24_shootdown_lock, 0u, __ATOMIC_RELEASE);
+  /* Keep the wait flag set until IF is masked. Otherwise a timer can land
+     between clearing lock_waiting and cli, re-enter the scheduler while this
+     CPU still owns the scheduler/heap locks, and spin forever. */
+  __asm__ volatile("cli" ::: "memory");
   if (current_id < LAMIX_M24_MAX_CPUS)
     __atomic_store_n(&m24_cpu_locals[current_id].lock_waiting, 0u,
                      __ATOMIC_RELEASE);
-  __asm__ volatile("cli" ::: "memory");
+  __atomic_store_n(&m24_shootdown_lock, 0u, __ATOMIC_RELEASE);
   if (flags & ((uintptr_t)1u << 9)) __asm__ volatile("sti" ::: "memory");
 }
 static int m24_prepare_trampoline(void) {
