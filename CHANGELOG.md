@@ -7,7 +7,7 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 ### M23 — DONE (2026-11-01)
 
 - Thêm loader Static PIE ELF64, parser initramfs newc, multi-page user mappings, initial stack `argc/argv/envp`, `crt0`/libc freestanding và hai chương trình kiểm thử trong profile `m23-kernel`. M22 và `latest` M20 giữ nguyên.
-- Cross-build, native ASan/UBSan, host provenance, guest BIOS/UEFI 6/6, regressions M17/M19–M22, docs validator và unittest 41/41 **PASS**. Bốn workflow CI và review trên PR #26 **SUCCESS/clean**; PR merge và annotated tag `milestone/M23` ghi nhận trong [handoff](docs/SESSION_HANDOFF.md). Chi tiết/lệnh tại [PLANS](PLANS.md) và [TESTING](docs/TESTING.md).
+- Cross-build, native ASan/UBSan, host provenance, guest BIOS/UEFI 6/6, regressions M17/M19–M22, docs validator và unittest 41/41 **PASS**. Review PR #26 phát hiện hai lỗi P2, đã sửa và thêm regression; CI/review trên commit cuối đang chờ hoàn tất. PR merge và annotated tag `milestone/M23` ghi nhận trong [handoff](docs/SESSION_HANDOFF.md). Chi tiết/lệnh tại [PLANS](PLANS.md) và [TESTING](docs/TESTING.md).
 
 ### M22 — DONE (2026-11-01)
 

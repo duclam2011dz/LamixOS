@@ -74,6 +74,11 @@ int main(void) {
   uint64_t relocated=0;memcpy(&relocated,image.bytes+0x1080,8);
   assert(relocated==LAMIX_ELF_LOAD_BASE+0x200);
   lamix_elf_release(&image);assert(allocations==0);
+  make_elf(elf);dynamic(elf+0x2000,0);w64(elf+0x2060,0x2000);
+  assert(lamix_elf_prepare(elf,sizeof(elf),LAMIX_ELF_LOAD_BASE,&allocator,&image)==LAMIX_ELF_OK);
+  memcpy(&relocated,image.bytes+0x1080,8);
+  assert(relocated==LAMIX_ELF_LOAD_BASE+image.size);
+  lamix_elf_release(&image);assert(allocations==0);
   uint8_t bad[0x3000];make_elf(bad);bad[0]=0;
   assert(lamix_elf_prepare(bad,sizeof(bad),LAMIX_ELF_LOAD_BASE,&allocator,&image)==LAMIX_ELF_INVALID);
   make_elf(bad);w64(bad+64+16,UINT64_MAX-8);

@@ -174,7 +174,7 @@ static lamix_elf_status parse_dynamic(const uint8_t *file, size_t file_size,
     uint64_t image_start = image->base + image->minimum_vaddr;
     uint64_t image_end = image_start + image->size;
     if (value >= LAMIX_ELF_USER_LIMIT ||
-        (value && (value < image_start || value >= image_end)))
+        (value && (value < image_start || value > image_end)))
       return LAMIX_ELF_INVALID;
     write64(image->bytes + (biased_target - image->base - image->minimum_vaddr), value);
   }

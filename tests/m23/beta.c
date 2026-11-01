@@ -4,10 +4,12 @@
 
 int main(int argc, char **argv, char **envp) {
   static const char ok[] = "M23:APP_BETA:PASS\n";
-  static uint64_t zero_initialized;
-  if (argc != 2 || argv[1][0] != 'b' || !envp || envp[0][0] != 'M' ||
-      zero_initialized != 0)
+  static volatile uint8_t bss_probe[4096 + 32];
+  if (argc != 2 || argv[1][0] != 'b' || !envp || envp[0][0] != 'M')
     return 12;
+  for (uint64_t i = 0; i < sizeof(bss_probe); ++i)
+    if (bss_probe[i] != 0)
+      return 13;
   (void)lamix_debug_write(ok, sizeof(ok) - 1);
   return 0;
 }
