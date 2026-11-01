@@ -203,9 +203,20 @@ acpi_status acpi_madt_parse(const void *madt_pointer, size_t madt_size,
     const uint8_t *b = entry.bytes;
     if (entry.type == 0) {
       if (entry.length != 8) return ACPI_BAD_ENTRY;
-      if ((b[4] == 1 || b[4] == 2) && b[3] == bsp_apic_id) {
+      uint32_t flags = read32(b + 4);
+      if ((flags & 3u) && b[3] == bsp_apic_id) {
         if (parsed.bsp_present) return ACPI_BAD_ENTRY;
         parsed.bsp_present = 1;
+      }
+      if (flags & 1u) {
+        if (parsed.cpu_count == ACPI_MADT_MAX_CPUS)
+          return ACPI_BUFFER_TOO_SMALL;
+        for (size_t i = 0; i < parsed.cpu_count; ++i)
+          if (parsed.cpus[i].apic_id == b[3] ||
+              parsed.cpus[i].processor_id == b[2])
+            return ACPI_BAD_ENTRY;
+        parsed.cpus[parsed.cpu_count++] =
+            (acpi_cpu_info){b[2], b[3], flags};
       }
     } else if (entry.type == 1) {
       if (entry.length != 12 || parsed.ioapic_count == ACPI_MADT_MAX_IOAPICS)
@@ -234,6 +245,9 @@ acpi_status acpi_madt_parse(const void *madt_pointer, size_t madt_size,
       uint64_t address = read64(b + 4);
       if (!address || (address & 0xfff)) return ACPI_BAD_ADDRESS;
       parsed.lapic_physical = address;
+    } else if (entry.type == 9) {
+      if (entry.length != 16) return ACPI_BAD_ENTRY;
+      if (read32(b + 8) & 3u) parsed.x2apic_present = 1;
     }
   }
   if (!parsed.ioapic_count || !parsed.bsp_present) return ACPI_BAD_ENTRY;

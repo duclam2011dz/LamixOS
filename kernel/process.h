@@ -59,6 +59,7 @@ typedef struct process {
   uint32_t creation_stage, creation_vm_status;
   volatile uint8_t kill_requested;
   volatile process_state state;
+  volatile uint32_t state_lock;
 } process;
 
 #if defined(LAMIX_M23_ELF)

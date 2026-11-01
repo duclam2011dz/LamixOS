@@ -46,7 +46,7 @@ int main(void) {
   assert(vmm_map_range(&kernel,kernel_va,kernel_page,VMM_PAGE_SIZE,VMM_READ|VMM_EXECUTE,0)==VMM_OK);
   assert(vmm_map_range(&kernel,UINT64_C(0x00300000),kernel_page,VMM_PAGE_SIZE,
                        VMM_READ|VMM_WRITE,0)==VMM_OK);
-  scheduler sched; scheduler_operations schedops={&m,heap_alloc,heap_free,irq_save,irq_restore,reschedule,fatal,0};
+  scheduler sched; scheduler_operations schedops={&m,heap_alloc,heap_free,irq_save,irq_restore,reschedule,fatal,0,0};
   assert(scheduler_init(&sched,&schedops,noop)==SCHED_OK);
   process_operations ops={.context=&m,.allocate_frame=allocate,.release_frame=release,.access_frame=access_frame,.vmm=vmops};
   const uint8_t payload[]={0x90,0xeb,0xfe}; process a={0},b={0};

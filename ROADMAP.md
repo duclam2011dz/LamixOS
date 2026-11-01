@@ -3,7 +3,7 @@
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
 > **Cập nhật:** 2026-11-01
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24 IN_PROGRESS; M25–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24 IN_PROGRESS; M25–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -137,7 +137,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M23 — Static ELF64 loader/user runtime. Trạng thái: DONE (2026-11-01).** PR [#26](https://github.com/duclam2011dz/LamixOS/pull/26) merge commit `8c844cb85cca203051d2aa88a3629a992ccb96eb`; acceptance commit `ee3015379ecc9d3bc350b922c5776844d8ba80fe`. Annotated tag `milestone/M23` object `7b26c5f6322c2fc44d41777f8746adc5be401cb3` trỏ acceptance commit. Bốn workflow SUCCESS trên acceptance SHA: Toolchain [41287980720](https://github.com/duclam2011dz/LamixOS/actions/runs/41287980720), Harness [41287980714](https://github.com/duclam2011dz/LamixOS/actions/runs/41287980714), Documentation [41287980716](https://github.com/duclam2011dz/LamixOS/actions/runs/41287980716), Boot Contract [41287980712](https://github.com/duclam2011dz/LamixOS/actions/runs/41287980712); Codex review sạch trên cùng SHA, mọi thread đã resolve. CTest 3/3; guest SeaBIOS `pc`/OVMF `q35` mỗi firmware 3/3; regression M17–M23 PASS. Profile riêng dùng initramfs newc nhúng, ET_DYN Static PIE và duy nhất `R_X86_64_RELATIVE`, hỗ trợ arguments/environment, `crt0`, libc subset và từ chối ELF hỏng mà không panic kernel. Giữ LBP v1, profile M22 và `LATEST_PROFILE=m20`. PC thật, firmware ngoài profile QEMU và audit bảo mật độc lập **NOT RUN**. M18 vẫn PLANNED; M24 chưa bắt đầu.
 
-**M24 — SMP: AP startup và per-CPU scheduler.** MADT AP discovery, trampoline/INIT-SIPI theo thiết kế, per-CPU stacks/TSS/interrupt state, TLB shootdown, per-CPU run queues, affinity/balancing. Nghiệm thu: QEMU 1/2/4/8 vCPU, stress concurrency không deadlock trong tiêu chí test; **không bỏ chế độ BSP-only**.
+**M24 — SMP: AP startup và per-CPU scheduler. Trạng thái: IN_PROGRESS (2026-11-01).** Đang triển khai MADT AP discovery, trampoline/INIT-SIPI theo thiết kế, per-CPU stacks/TSS/interrupt state, TLB shootdown, per-CPU run queues, affinity/balancing. Nghiệm thu: QEMU 1/2/4/8 vCPU, stress concurrency không deadlock trong tiêu chí test; **không bỏ chế độ BSP-only**. Guest BIOS/UEFI matrix và fault injection AP/topology/TLB local PASS sau rerun; lượt CTest đầu có một OVMF startup timeout trước serial, sau đó guest suite rerun PASS. Regressions, CI acceptance SHA, review và đánh giá concurrent teardown/address-space switch còn chờ.
 
 ### P5 — Lưu trữ, filesystem, ứng dụng đầu tiên
 

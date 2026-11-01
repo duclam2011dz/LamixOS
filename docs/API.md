@@ -44,6 +44,8 @@ Header kernel: [`kernel/syscall.h`](../kernel/syscall.h); wrapper freestanding u
 
 Profile M21 định nghĩa IDs append-only `0=version`, `1=yield`, `2=exit`, `3=debug_write`; `debug_write` nhận tối đa 256 byte và chỉ dành cho kiểm thử/debug. Không có syscall nhận handle hoặc cung cấp console SDK. `lamix_syscall_handle_valid()` chỉ là kiểm tra range chung, chưa xác nhận object/rights. M21 ABI 1.0 đã nghiệm thu; wrapper không phải cam kết dịch vụ ổn định.
 
+M24 đang mở rộng scheduler nội bộ `kernel/scheduler.h` với per-CPU queues, affinity mask và work stealing; các entrypoint mới chỉ dùng profile `m24-kernel`. Đây chưa phải ABI user-space hoặc API đã nghiệm thu. Profile cũ giữ BSP scheduler.
+
 ## M22 handles, channels và SHM (đã nghiệm thu trong profile riêng)
 
 `kernel/handle.h` khai báo opaque 64-bit `(generation << 32) | slot`, rights bitmask và per-process table; `kernel/ipc.h` khai báo bounded channel, attachment descriptor 16 byte và SHM APIs. User wrappers trong `user/include/lamix/syscall.h` gồm `lamix_handle_close/duplicate`, `lamix_channel_create/send/receive`, `lamix_shm_create/map/unmap`. Profile M22 dùng ABI 1.1, giữ IDs 0–3 và append IDs 4–11; M21 tiếp tục ABI 1.0. Guest BIOS/UEFI xác nhận hai process trao đổi capability/SHM, read-only fault isolation và cleanup. Native tests kiểm rights, generation, rollback, cycle rejection và atomic MOVE race. Đây là ABI riêng profile M22, chưa phải SDK cấp cao; `latest` vẫn M20.

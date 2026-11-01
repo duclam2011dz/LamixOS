@@ -19,7 +19,7 @@ Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc đ
 
 ```text
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24–M44 PLANNED
+Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24 IN_PROGRESS; M25–M44 PLANNED
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M15 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -481,6 +481,21 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m21-tests --no-test
 Guest gọi wrapper thật từ ring 3: version query, `debug_write`, null/unmapped/overflow/cross-page/oversize pointers, unknown syscall, yield, DF masking, exit; process thứ hai cố trả về với noncanonical RSP và phải bị cô lập, trong khi process thứ ba tiếp tục chạy. Guest cũng kiểm tra forced `IRETQ` fallback, kill/wait/cleanup, protected image/firmware/kernel fingerprints và QEMU cleanup. Host simulation hoặc compile-only không phải guest boot PASS. Reports ở `out/m21/`; Toolchain CI giữ serial/results/build reports nhưng không upload image/firmware.
 
 M21 local cross-build **PASS**, CMake build **PASS**, CTest **3/3 PASS** (`m21-native-sanitize`, `m21-host`, guest BIOS/UEFI), guest BIOS/UEFI **3/3 mỗi firmware PASS**. Hồi quy guest M17 **4/4**, M19 **6/6**, M20 **6/6** và native M19/M20 **PASS**. Bốn workflow GitHub Actions SUCCESS trên acceptance SHA `6793d8f0a622fcd9f4100921e7932fcb46414540`: Toolchain [41270742769](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742769), Harness [41270742714](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742714), Documentation [41270742671](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742671), Boot Contract [41270742711](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742711). PR [#22](https://github.com/duclam2011dz/LamixOS/pull/22) merged; annotated tag `milestone/M21` trỏ acceptance SHA. PC thật/firmware ngoài profile QEMU **NOT RUN**.
+
+## SMP M24 (IN_PROGRESS)
+
+Profile riêng `m24-kernel`; build report ghi hash kernel/initramfs/apps, topology limit và commands. Build tối đa 16 CPU:
+
+```bash
+python3 tests/m24/build_kernel.py --build build/m24 --max-cpus 16
+cmake -S tests/m24 -B build/m24-ctest -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+cmake --build build/m24-ctest --parallel 4
+ctest --test-dir build/m24-ctest --output-on-failure
+```
+
+CMake suite gồm native MADT/scheduler ASan/UBSan, host provenance và guest matrix BIOS/UEFI × 1/2/4/8 vCPU × 3 lượt, cùng scheduler ThreadSanitizer. Chạy riêng guest: `.venv/bin/python -m pytest -q tests/m24/test_m24.py`; chạy host-only: `.venv/bin/python -m pytest -q tests/m24/test_m24.py -m 'not qemu'`. QEMU `cpu_count` truyền qua `-smp`; artifacts/provenance ở `build/m24/`, serial/result logs ở `out/m24/`. Marker M24 kiểm topology/AP online, TLB shootdown, CPU mask/work stealing và M23 ring-3 workload. Chỉ guest log có boot marker được tính; host sanitizer/compile không thay thế guest.
+
+Kết quả local hiện tại: cross-build **PASS**, CTest native ASan/UBSan + host provenance + scheduler TSan **3/3 PASS**. Lượt QEMU CTest đầu **26/27 guest cases PASS**; một OVMF boot không phát serial trước timeout. Exact test retry và `ctest --rerun-failed` chạy lại QEMU suite thành công; suite bao gồm SeaBIOS `pc`/OVMF `q35` ở 1/2/4/8 vCPU, ba lượt mỗi tổ hợp, provenance và fault cases. Serial kiểm AP online/timer IRQ trên AP, IPI TLB shootdown, user CPU mask/work stealing, M23 ring-3 apps, isolation và cleanup. Regression CTest: M17 **3/3**, M19 **3/3**, M20 **3/3**, M21 **3/3**, M22 **4/4**, M23 **3/3 PASS**. Fault injection BIOS guest AP timeout, topology quá giới hạn, TLB ack timeout và native active-CPU teardown guard **PASS**; teardown race đồng thời trong lúc CR3 switch **NOT RUN**. Docs validator **PASS**, unittest **41/41 PASS**, diff check **PASS**. GitHub CI acceptance SHA **PENDING**; M24 chưa DONE. `latest` tiếp tục M20; không đổi profile cũ, LBP v1, syscall ABI hoặc M18.
 
 ## Static ELF64 loader và user runtime M23
 

@@ -47,6 +47,20 @@ static void process_unlock(void *context, uintptr_t flags) {
 }
 #endif
 
+static uintptr_t process_state_lock(process *instance) {
+  uintptr_t flags = instance->scheduler_state->operations.irq_save(
+      instance->scheduler_state->operations.context);
+  while (__atomic_exchange_n(&instance->state_lock, 1u, __ATOMIC_ACQUIRE))
+    __asm__ volatile("pause" ::: "memory");
+  return flags;
+}
+
+static void process_state_unlock(process *instance, uintptr_t flags) {
+  __atomic_store_n(&instance->state_lock, 0u, __ATOMIC_RELEASE);
+  instance->scheduler_state->operations.irq_restore(
+      instance->scheduler_state->operations.context, flags);
+}
+
 #if defined(LAMIX_M23_ELF)
 static void *elf_alloc(void *context, size_t size) {
   process *p = context;
@@ -263,7 +277,12 @@ static process_status process_create_common(
                               process_unlock) != LH_OK)
     return PROCESS_OUT_OF_MEMORY;
 #endif
-  if (vmm_init(&instance->address_space, &operations->vmm,
+  vmm_operations process_vmm = operations->vmm;
+#if defined(LAMIX_M24_SMP)
+  process_vmm.context = instance;
+#endif
+  instance->operations.vmm = process_vmm;
+  if (vmm_init(&instance->address_space, &instance->operations.vmm,
                kernel_space->nx_enabled) != VMM_OK) {
 #if defined(LAMIX_M22_IPC)
     lamix_handle_table_destroy(&instance->handles);
@@ -390,29 +409,49 @@ process_status process_create_elf(process *instance,
 #endif
 
 void process_note_fault(process *instance, uint64_t address, uint64_t code) {
-  if (!instance || instance->state == PROCESS_FAULTED ||
-      instance->state == PROCESS_KILLED || instance->state == PROCESS_EXITED)
+  if (!instance) return;
+  uintptr_t flags = process_state_lock(instance);
+  process_state state = __atomic_load_n(&instance->state, __ATOMIC_RELAXED);
+  if (state == PROCESS_FAULTED || state == PROCESS_KILLED ||
+      state == PROCESS_EXITED) {
+    process_state_unlock(instance, flags);
     return;
+  }
   instance->fault_address = address;
   instance->fault_code = code;
-  instance->state = PROCESS_FAULTED;
+  __atomic_store_n(&instance->state, PROCESS_FAULTED, __ATOMIC_RELEASE);
+  process_state_unlock(instance, flags);
 }
 
 void process_note_exit(process *instance, uint64_t code) {
-  if (!instance || instance->state == PROCESS_FAULTED ||
-      instance->state == PROCESS_KILLED || instance->state == PROCESS_EXITED)
+  if (!instance) return;
+  uintptr_t flags = process_state_lock(instance);
+  process_state state = __atomic_load_n(&instance->state, __ATOMIC_RELAXED);
+  if (state == PROCESS_FAULTED || state == PROCESS_KILLED ||
+      state == PROCESS_EXITED) {
+    process_state_unlock(instance, flags);
     return;
+  }
   instance->exit_code = code;
-  instance->state = PROCESS_EXITED;
+  __atomic_store_n(&instance->state, PROCESS_EXITED, __ATOMIC_RELEASE);
+  process_state_unlock(instance, flags);
 }
 
 process_status process_request_kill(process *instance) {
-  if (!instance || instance->state == PROCESS_EMPTY)
+  if (!instance) return PROCESS_INVALID;
+  uintptr_t flags = process_state_lock(instance);
+  process_state state = __atomic_load_n(&instance->state, __ATOMIC_RELAXED);
+  if (state == PROCESS_EMPTY) {
+    process_state_unlock(instance, flags);
     return PROCESS_INVALID;
-  if (instance->state == PROCESS_FAULTED || instance->state == PROCESS_KILLED ||
-      instance->state == PROCESS_EXITED)
+  }
+  if (state == PROCESS_FAULTED || state == PROCESS_KILLED ||
+      state == PROCESS_EXITED) {
+    process_state_unlock(instance, flags);
     return PROCESS_OK;
-  instance->kill_requested = 1;
+  }
+  __atomic_store_n(&instance->kill_requested, 1, __ATOMIC_RELEASE);
+  process_state_unlock(instance, flags);
   return PROCESS_OK;
 }
 
@@ -420,9 +459,18 @@ process_state process_wait(const process *instance, uint64_t *fault_address,
                            uint64_t *fault_code) {
   if (!instance)
     return PROCESS_EMPTY;
-  while ((instance->state == PROCESS_READY ||
-          instance->state == PROCESS_RUNNING) && instance->scheduler_state &&
+  process_state state;
+  while (((state = __atomic_load_n(&instance->state, __ATOMIC_ACQUIRE)) ==
+              PROCESS_READY || state == PROCESS_RUNNING) &&
+         instance->scheduler_state &&
          instance->scheduler_state->active) {
+    if (scheduler_yield(instance->scheduler_state) != SCHED_OK)
+      break;
+  }
+  while (instance->address_space.initialized &&
+         __atomic_load_n(&instance->address_space.active_cpus,
+                         __ATOMIC_ACQUIRE) &&
+         instance->scheduler_state && instance->scheduler_state->active) {
     if (scheduler_yield(instance->scheduler_state) != SCHED_OK)
       break;
   }
@@ -430,7 +478,7 @@ process_state process_wait(const process *instance, uint64_t *fault_address,
     *fault_address = instance->fault_address;
   if (fault_code)
     *fault_code = instance->fault_code;
-  return instance->state;
+  return __atomic_load_n(&instance->state, __ATOMIC_ACQUIRE);
 }
 
 process_status process_destroy(process *instance) {
@@ -438,6 +486,8 @@ process_status process_destroy(process *instance) {
     return PROCESS_INVALID;
   if (instance->state != PROCESS_FAULTED && instance->state != PROCESS_KILLED &&
       instance->state != PROCESS_EXITED)
+    return PROCESS_BUSY;
+  if (__atomic_load_n(&instance->address_space.active_cpus, __ATOMIC_ACQUIRE))
     return PROCESS_BUSY;
 #if defined(LAMIX_M23_ELF)
   rollback_user_pages(instance);

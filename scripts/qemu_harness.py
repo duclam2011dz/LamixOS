@@ -39,6 +39,7 @@ class Config:
     qmp_screendump_marker: str | None = None
     qmp_screendump_path: Path | None = None
     extra_args: list[str] | None = None
+    cpu_count: int = 1
 
 
 @dataclass
@@ -82,8 +83,10 @@ def qemu_value(path):
 
 
 def build_command(config, directory):
+    if type(config.cpu_count) is not int or not 1 <= config.cpu_count <= 16:
+        raise ValueError("cpu_count phải nằm trong khoảng 1..16")
     command = [config.qemu, "-machine", "pc" if config.profile == "bios" else "q35",
-               "-accel", "tcg", "-smp", "1", "-m", "256M", "-display", "none",
+               "-accel", "tcg", "-smp", str(config.cpu_count), "-m", "256M", "-display", "none",
                "-nic", "none", "-monitor", "none", "-no-reboot", "-no-shutdown",
                "-chardev", f"file,id=serial0,path={qemu_value(directory / 'serial.log')}",
                "-serial", "chardev:serial0", "-qmp", "stdio"]

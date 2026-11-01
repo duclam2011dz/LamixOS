@@ -4,6 +4,11 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M24 — IN_PROGRESS (2026-11-01)
+
+- Bắt đầu profile SMP `m24-kernel`: MADT xAPIC discovery, AP trampoline/INIT-SIPI, per-CPU tables/stacks/syscall state, scheduler queues/affinity/work stealing, scheduler/PMM/heap locks, AP timer-start acknowledgement và IPI TLB shootdown. `latest` giữ M20; LBP v1, ABI syscall và profile cũ không đổi.
+- Cross-build **PASS**; M24 CTest native/host/TSan **3/3 PASS**. Lượt QEMU CTest đầu có 26/27 guest cases **PASS** và một timeout OVMF trước serial; test riêng và `ctest --rerun-failed` sau khi sửa AP timer-start race/harness completion marker **PASS**, bao phủ lại BIOS/UEFI × 1/2/4/8 vCPU × 3 lượt và fault cases. Regression CTest M17 **3/3**, M19 **3/3**, M20 **3/3**, M21 **3/3**, M22 **4/4**, M23 **3/3 PASS**; docs validator và unittest **PASS**, **41/41**. Fault injection AP offline, topology limit và TLB ack timeout cùng teardown active-CPU guard **PASS**; concurrent teardown race chưa mô phỏng. GitHub CI acceptance SHA và review còn chờ; M24 chưa DONE, M25 chưa bắt đầu.
+
 ### M23 — DONE (2026-11-01)
 
 - Thêm loader Static PIE ELF64, parser initramfs newc, multi-page user mappings, initial stack `argc/argv/envp`, `crt0`/libc freestanding và hai chương trình kiểm thử trong profile `m23-kernel`. M22 và `latest` M20 giữ nguyên.
