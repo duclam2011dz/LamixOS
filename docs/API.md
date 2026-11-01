@@ -6,8 +6,8 @@ LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C]
 |---|---|
 | LBP records/layout/kernel note/entry contract | [BOOT_PROTOCOL](BOOT_PROTOCOL.md), [LBP_LAYOUT](LBP_LAYOUT.md) |
 | GPT byte-array structs và host model | [IMAGE_LAYOUT](IMAGE_LAYOUT.md) |
-| Syscall ABI Lamix-specific x86_64 | Chưa triển khai; M21 trong [roadmap](../ROADMAP.md) |
-| Handles/capabilities và IPC | Chưa triển khai; M22 |
+| Syscall ABI Lamix-specific x86_64 | M21 ABI 1.0 DONE; M22 ABI 1.1 đang triển khai trong profile riêng |
+| Handles/capabilities và IPC | M22 IN_PROGRESS; interfaces chưa nghiệm thu ổn định |
 | Static ELF64 và user runtime | Chưa triển khai; M23 |
 | Lamix 2D SDK | Chưa triển khai; milestones gaming |
 
@@ -42,7 +42,11 @@ Kernel dùng entry C/NASM qua LBP v1 và gọi `lbp_validate()` trước khi s�
 
 Header kernel: [`kernel/syscall.h`](../kernel/syscall.h); wrapper freestanding user-space: [`user/include/lamix/syscall.h`](../user/include/lamix/syscall.h) và [`user/syscall.c`](../user/syscall.c). `RAX` mang syscall number/kết quả; sáu đối số ở `RDI, RSI, RDX, R10, R8, R9`; `RCX` và `R11` bị clobber. Version query trả `(major << 32) | minor`; lỗi là signed negative status trong `RAX`, không dùng `errno`.
 
-Profile M21 định nghĩa IDs append-only `0=version`, `1=yield`, `2=exit`, `3=debug_write`; `debug_write` nhận tối đa 256 byte và chỉ dành cho kiểm thử/debug. Không có syscall nhận handle hoặc cung cấp console SDK. `lamix_syscall_handle_valid()` chỉ là kiểm tra range chung, chưa xác nhận object/rights; capabilities và IPC thuộc M22. Đây là ABI v1 đã nghiệm thu, nhưng chưa phải cam kết dịch vụ ổn định ngoài wrapper ABI được mô tả.
+Profile M21 định nghĩa IDs append-only `0=version`, `1=yield`, `2=exit`, `3=debug_write`; `debug_write` nhận tối đa 256 byte và chỉ dành cho kiểm thử/debug. Không có syscall nhận handle hoặc cung cấp console SDK. `lamix_syscall_handle_valid()` chỉ là kiểm tra range chung, chưa xác nhận object/rights. M21 ABI 1.0 đã nghiệm thu; wrapper không phải cam kết dịch vụ ổn định.
+
+## M22 handles, channels và SHM (IN_PROGRESS)
+
+`kernel/handle.h` khai báo opaque 64-bit `(generation << 32) | slot`, rights bitmask và per-process table; `kernel/ipc.h` khai báo bounded channel, attachment descriptor 16 byte và SHM APIs. User wrappers khai báo trong `user/include/lamix/syscall.h`: `lamix_handle_close/duplicate`, `lamix_channel_create/send/receive`, `lamix_shm_create/map/unmap`. Profile M22 báo ABI 1.1, giữ IDs 0–3 và thêm 4–11. Guest đã kiểm MOVE SHM capability giữa hai process; native tests kiểm một số đường rollback. Layout/IDs/wrappers vẫn chưa phải public SDK commitment; full atomic transfer/receive, user-copy fault matrix và concurrency semantics chưa nghiệm thu.
 
 Entry dùng `IA32_EFER.SCE`, `STAR`, `LSTAR`, `FMASK`, chuyển sang kernel stack của thread rồi kiểm tra RIP/RSP user và lọc `RFLAGS`; đường thường `SYSRETQ`, nhánh kiểm thử/fallback dùng `IRETQ`. Kernel copy user memory theo trang sau khi kiểm quyền `VMM_USER`/read, không dereference con trỏ user trực tiếp. Chi tiết lệnh/provenance ở [TESTING M21](TESTING.md#lamix-syscall-abi-v1-m21); nghiệm thu và giới hạn ở [handoff](SESSION_HANDOFF.md).
 

@@ -123,6 +123,39 @@ def build_m21_image(build_root):
     return image
 
 
+def build_m22_image(build_root):
+    build_root = build_root.resolve()
+    if not build_root.is_relative_to(ROOT / "build"):
+        raise ValueError("--build-dir phải nằm trong build/")
+    kernel_build, bios_build, uefi_build = (build_root / "kernel",
+                                             build_root / "bios",
+                                             build_root / "uefi")
+    report = build_if_needed("kernel M22", kernel_build, ("kernel.elf",),
+        [sys.executable, "tests/m22/build_kernel.py", "--build", kernel_build],
+        lambda item: item.get("mode") == "m22-kernel")
+    bios_report = build_if_needed("BIOS Stage2 M16", bios_build,
+        ("stage1.bin", "stage2.bin", "kernel.elf"),
+        [sys.executable, "tests/bios_stage2/build_stage2.py", "--build",
+         bios_build, "--profile", "Release", "--m16-video"],
+        lambda item: item.get("m16_video") is True and item.get("profile") == "Release")
+    uefi_report = build_if_needed("UEFI loader", uefi_build, ("BOOTX64.EFI",),
+        [sys.executable, "tests/uefi/build_uefi.py", "--build", uefi_build])
+    kernel_hash = report["hashes"]["kernel.elf"]
+    stage2_hash = bios_report["hashes"]["stage2.bin"]
+    efi_hash = uefi_report["hashes"]["BOOTX64.EFI"]
+    output = ROOT / "out/m22"
+    output.mkdir(parents=True, exist_ok=True)
+    image = output / f"lamix-m22-{kernel_hash[:12]}-{stage2_hash[:8]}-{efi_hash[:8]}.img"
+    action = "check" if image.exists() else "create"
+    run_step([sys.executable, "scripts/m07_image.py", action, "--image", image,
+              "--bios-build", bios_build, "--uefi-build", uefi_build,
+              "--kernel-build", kernel_build,
+              *( ["--seed", "lamix-m22-capabilities-ipc"] if action == "create" else [] )],
+             capture=True)
+    print(f"PASS: image {action} {image}")
+    return image
+
+
 def build_image(profile, build_root):
     if profile == "m17":
         return build_m17_image(build_root)
@@ -132,12 +165,14 @@ def build_image(profile, build_root):
         return build_m20_image(build_root)
     if profile == "m21":
         return build_m21_image(build_root)
+    if profile == "m22":
+        return build_m22_image(build_root)
     raise ValueError(f"profile không được hỗ trợ: {profile}")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", choices=("latest", "m17", "m19", "m20", "m21"),
+    parser.add_argument("--profile", choices=("latest", "m17", "m19", "m20", "m21", "m22"),
                         default="latest", help="latest hiện trỏ tới M20")
     parser.add_argument("--firmware", choices=("bios", "uefi", "both"),
                         default="both", help="mặc định chạy BIOS rồi UEFI")
@@ -180,7 +215,8 @@ def main():
         env = os.environ.copy()
         env["TMPDIR"] = str(run_dir)
         marker = {"m17": "M17:PASS", "m19": "M19:PASS",
-                  "m20": "M20:PASS", "m21": "M21:PASS"}[profile]
+                  "m20": "M20:PASS", "m21": "M21:PASS",
+                  "m22": "M22:PASS"}[profile]
         print(f"\nKhởi chạy {firmware.upper()} ({profile.upper()}) từ {image}")
         print(f"Serial sẽ hiện trong terminal; chờ marker {marker}.")
         print("$ " + " ".join(command), flush=True)

@@ -15,7 +15,10 @@ def sha(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def build(output, fault="none", m09_pmm=False, m10_vmm=False,
           m11_heap=False, m12_buddy=False, m13_devices=False, m14_apic=False,
           m15_input=False, m16_graphics=False, m17_virtio_gpu=False,
-          m19_scheduler=False, m20_process=False, m21_syscall=False):
+          m19_scheduler=False, m20_process=False, m21_syscall=False,
+          m22_ipc=False):
+    if m22_ipc:
+        m21_syscall = True
     if m21_syscall:
         m20_process = True
     if m20_process:
@@ -90,6 +93,12 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
                         "tests/m21/user.ld", "tests/m21/user_payload.c",
                         "tests/m21/loop_payload.c",
                         "tests/m21/invalid_return.asm"))
+    if m22_ipc:
+        sources.extend(("kernel/handle.c", "kernel/handle.h", "kernel/ipc.c",
+                        "kernel/ipc.h", "tests/m22/build_kernel.py",
+                        "tests/m22/native.c", "tests/m22/CMakeLists.txt",
+                        "tests/m22/concurrency.c", "tests/m22/test_m22.py",
+                        "tests/m22/user_payload.c", "tests/m22/server_payload.c"))
     common=[x["gcc"],"-std=c11","-m64","-mcmodel=kernel","-mno-red-zone","-mgeneral-regs-only","-ffreestanding","-fno-builtin","-fno-pie","-fno-pic","-fno-stack-protector","-fno-asynchronous-unwind-tables","-fno-unwind-tables","-fno-exceptions","-Wall","-Wextra","-Werror","-I",ROOT/"include","-I",ROOT/"kernel","-O2"]
     run("nasm","--reproducible","-f","elf64",*( ["-D", "LAMIX_M14_APIC=1"] if m14_apic else []),"-o",output/"entry.o",ROOT/"kernel/entry.asm")
     run("nasm","--reproducible","-f","elf64",*( ["-D", "LAMIX_M19_SCHEDULER=1"] if m19_scheduler else []),"-o",output/"interrupts.o",ROOT/"kernel/interrupts.asm")
@@ -101,11 +110,14 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
             "-fno-builtin", "-fno-pie", "-fno-pic", "-fno-stack-protector",
             "-fno-asynchronous-unwind-tables", "-fno-unwind-tables", "-O2",
             "-Wall", "-Wextra", "-Werror", "-I", ROOT/"user/include"]
+        if m22_ipc:
+            user_flags += ["-DLAMIX_M22_PROFILE=1"]
         wrapper_obj = output/"user_syscall.o"
         run(*user_flags, "-c", ROOT/"user/syscall.c", "-o", wrapper_obj)
         user_apps = []
-        for name, source in (("test", "tests/m21/user_payload.c"),
-                             ("loop", "tests/m21/loop_payload.c")):
+        payload_sources = (("test", "tests/m22/user_payload.c" if m22_ipc else "tests/m21/user_payload.c"),
+                           ("loop", "tests/m22/server_payload.c" if m22_ipc else "tests/m21/loop_payload.c"))
+        for name, source in payload_sources:
             app_obj = output/f"user_{name}.o"
             app_elf = output/f"user_{name}.elf"
             app_bin = output/f"user_{name}.bin"
@@ -153,8 +165,13 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
         compile_sources.append("kernel/scheduler.c")
     if m20_process:
         compile_sources.append("kernel/process.c")
+    if m22_ipc:
+        sources.append("kernel/handle.c")
+        compile_sources.append("kernel/handle.c")
     if m21_syscall:
         compile_sources.append("kernel/syscall.c")
+    if m22_ipc:
+        compile_sources.append("kernel/ipc.c")
     for source in compile_sources:
         obj=output/(Path(source).stem+".o"); args=common.copy()
         if source=="kernel/kernel.c" and not m10_vmm and variants[fault]: args += ["-D"+variants[fault]+"=1"]
@@ -182,6 +199,12 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
             args += ["-DLAMIX_M20_PROCESS=1"]
         if source=="kernel/kernel.c" and m21_syscall:
             args += ["-DLAMIX_M21_SYSCALL=1", "-I", output]
+        if source=="kernel/kernel.c" and m22_ipc:
+            args += ["-DLAMIX_M22_IPC=1"]
+        if source=="kernel/process.c" and m22_ipc:
+            args += ["-DLAMIX_M22_IPC=1"]
+        if source=="kernel/syscall.c" and m22_ipc:
+            args += ["-DLAMIX_M22_IPC=1"]
         if source=="kernel/pci.c" and m13_devices:
             args += ["-DLAMIX_KERNEL=1"]
         run(*args,"-c",ROOT/source,"-o",obj);objects.append(obj)
@@ -225,7 +248,7 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
         if ".init_array" in sections or ".ctors" in sections:
             raise ValueError("kernel M11 không được có static constructors")
     if b"INTERP" in subprocess.check_output([str(x["readelf"]),"-l",str(elf)]): raise ValueError("PT_INTERP không freestanding")
-    report={"status":"PASS","mode":"m21-kernel" if m21_syscall else "m20-kernel" if m20_process else "m19-kernel" if m19_scheduler else "m17-kernel" if m17_virtio_gpu else "m16-kernel" if m16_graphics else "m15-kernel" if m15_input else "m14-kernel" if m14_apic else "m13-kernel" if m13_devices else "m12-kernel" if m12_buddy else "m11-kernel" if m11_heap else "m10-kernel" if m10_vmm else "m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"commands":commands,
+    report={"status":"PASS","mode":"m22-kernel" if m22_ipc else "m21-kernel" if m21_syscall else "m20-kernel" if m20_process else "m19-kernel" if m19_scheduler else "m17-kernel" if m17_virtio_gpu else "m16-kernel" if m16_graphics else "m15-kernel" if m15_input else "m14-kernel" if m14_apic else "m13-kernel" if m13_devices else "m12-kernel" if m12_buddy else "m11-kernel" if m11_heap else "m10-kernel" if m10_vmm else "m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"commands":commands,
             "tool_versions":{"gcc":subprocess.check_output([str(x["gcc"]),"--version"],text=True).splitlines()[0],"g++":subprocess.check_output([str(x["g++"]),"--version"],text=True).splitlines()[0] if m11_heap else None,"ld":subprocess.check_output([str(x["ld"]),"--version"],text=True).splitlines()[0],"nasm":subprocess.check_output(["nasm","-v"],text=True).strip()},
             "source_hashes":{s:sha(ROOT/s) for s in sources},"hashes":{elf.name:sha(elf)},"elf_inspection":elf.stem+".inspection.txt","load_segments":loads}
     (output/"build.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n")

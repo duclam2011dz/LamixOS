@@ -10,7 +10,7 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00–M17, M19–M21 đã nghiệm thu; M18 vẫn PLANNED. M21 bổ sung syscall ABI v1 trong profile riêng; bốn workflow CI và guest BIOS/UEFI đều PASS trên acceptance commit. Xem [handoff](docs/SESSION_HANDOFF.md) để biết bằng chứng và giới hạn. Đây chưa phải kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh; chưa có bản phát hành và chưa đạt Playable.
+M00–M17, M19–M21 đã nghiệm thu; M18 vẫn PLANNED; M22 đang triển khai trong profile riêng. Guest đã kiểm transfer SHM cross-process và permission fault cơ bản; M22 CTest 4/4 PASS. Negative-rights/invalid-pointer coverage đầy đủ, race matrix và CI vẫn còn. `latest` tiếp tục trỏ M20; ABI M21 vẫn 1.0. Xem [handoff](docs/SESSION_HANDOFF.md) để biết bằng chứng và giới hạn. Đây chưa phải kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh; chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 

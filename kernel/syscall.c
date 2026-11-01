@@ -21,6 +21,19 @@ int64_t lamix_syscall_dispatch(const lamix_syscall_ops *ops, uint64_t number,
     return ops && ops->debug_write
                ? ops->debug_write(ops->context, a0, a1)
                : -LAMIX_ESTATE;
+#if defined(LAMIX_M22_IPC)
+  case LAMIX_SYS_HANDLE_CLOSE:
+  case LAMIX_SYS_HANDLE_DUPLICATE:
+  case LAMIX_SYS_CHANNEL_CREATE:
+  case LAMIX_SYS_CHANNEL_SEND:
+  case LAMIX_SYS_CHANNEL_RECEIVE:
+  case LAMIX_SYS_SHM_CREATE:
+  case LAMIX_SYS_SHM_MAP:
+  case LAMIX_SYS_SHM_UNMAP:
+    return ops && ops->m22_call
+               ? ops->m22_call(ops->context, number, a0, a1, a2, a3, a4, a5)
+               : -LAMIX_ESTATE;
+#endif
   default:
     return -LAMIX_ENOSYS;
   }

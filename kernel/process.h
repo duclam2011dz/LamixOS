@@ -4,6 +4,10 @@
 
 #include "scheduler.h"
 #include "vmm.h"
+#if defined(LAMIX_M22_IPC)
+#include "handle.h"
+#include "ipc.h"
+#endif
 
 typedef enum process_state {
   PROCESS_EMPTY,
@@ -35,6 +39,10 @@ typedef struct process_operations {
 typedef struct process {
   process_operations operations;
   vmm_space address_space;
+#if defined(LAMIX_M22_IPC)
+  lamix_handle_table handles;
+  lamix_shm_mapping *shm_mappings;
+#endif
   scheduler *scheduler_state;
   scheduler_thread *thread;
   uint64_t id;
