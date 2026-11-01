@@ -58,13 +58,16 @@ lamix_initramfs_status lamix_initramfs_find(const void *archive,
     data_end = data_offset + filesize;
     if (!align4(data_end, &next) || next > archive_size)
       return LAMIX_INITRAMFS_INVALID;
-    int trailer = namesize == sizeof("TRAILER!!!") &&
-                  bytes[header_end] == 'T';
+    int trailer = namesize == sizeof("TRAILER!!!");
     if (trailer) {
       static const char trailer_name[] = "TRAILER!!!";
       for (size_t i = 0; i < sizeof(trailer_name); ++i)
-        if (bytes[header_end + i] != (uint8_t)trailer_name[i])
-          return LAMIX_INITRAMFS_INVALID;
+        if (bytes[header_end + i] != (uint8_t)trailer_name[i]) {
+          trailer = 0;
+          break;
+        }
+    }
+    if (trailer) {
       if (filesize)
         return LAMIX_INITRAMFS_INVALID;
       for (size_t i = next; i < archive_size; ++i)

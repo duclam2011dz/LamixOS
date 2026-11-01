@@ -110,6 +110,13 @@ int main(void) {
   assert(lamix_initramfs_find(archive,used-1,"alpha.elf",&file)==LAMIX_INITRAMFS_INVALID);
   archive[0]='x';assert(lamix_initramfs_find(archive,used,"alpha.elf",&file)==LAMIX_INITRAMFS_INVALID);
   memset(archive,0,sizeof(archive));used=0;
+  used=add_file(archive,used,"Test01.elf",0100644,payload,sizeof(payload));
+  used=add_file(archive,used,"alpha.elf",0100644,payload,sizeof(payload));
+  used=add_file(archive,used,"TRAILER!!!",0,0,0);
+  assert(lamix_initramfs_find(archive,used,"Test01.elf",&file)==LAMIX_INITRAMFS_OK);
+  assert(file.size==sizeof(payload)&&!memcmp(file.data,payload,sizeof(payload)));
+  assert(lamix_initramfs_find(archive,used,"alpha.elf",&file)==LAMIX_INITRAMFS_OK);
+  memset(archive,0,sizeof(archive));used=0;
   used=add_file(archive,used,"alpha.elf",0100644,payload,sizeof(payload));
   used=add_file(archive,used,"alpha.elf",0100644,payload,sizeof(payload));
   used=add_file(archive,used,"TRAILER!!!",0,0,0);
