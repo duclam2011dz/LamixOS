@@ -1,17 +1,17 @@
 # Chỉ mục API và ABI
 
-LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader, M06 EFI loader, M07 parity probe; kernel bootstrap M08, PMM M09, VMM BSP M10, kernel heap M11, Buddy PMM thử nghiệm M12, ACPI/PCI/device framework M13, input PS/2 M15, software renderer M16, VirtIO-GPU 2D M17, scheduler BSP M19, process/ring 3 M20 và syscall ABI v1 M21 đã DONE. API subsystem kernel dưới đây là nội bộ; syscall ABI M21 là boundary riêng cho user-space và chưa phải API dịch vụ ổn định ngoài các wrapper đã mô tả.
+LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader, M06 EFI loader, M07 parity probe; kernel bootstrap M08, PMM M09, VMM BSP M10, kernel heap M11, Buddy PMM thử nghiệm M12, ACPI/PCI/device framework M13, input PS/2 M15, software renderer M16, VirtIO-GPU 2D M17, scheduler BSP M19, process/ring 3 M20 và syscall ABI v1 M21 đã DONE. API subsystem kernel dưới đây là nội bộ; syscall ABI M21 và M22 là boundary riêng theo profile cho user-space, chưa phải API dịch vụ SDK cấp cao.
 
 | Giao diện | Nguồn |
 |---|---|
 | LBP records/layout/kernel note/entry contract | [BOOT_PROTOCOL](BOOT_PROTOCOL.md), [LBP_LAYOUT](LBP_LAYOUT.md) |
 | GPT byte-array structs và host model | [IMAGE_LAYOUT](IMAGE_LAYOUT.md) |
-| Syscall ABI Lamix-specific x86_64 | M21 ABI 1.0 DONE; M22 ABI 1.1 đang triển khai trong profile riêng |
-| Handles/capabilities và IPC | M22 IN_PROGRESS; interfaces chưa nghiệm thu ổn định |
+| Syscall ABI Lamix-specific x86_64 | M21 ABI 1.0; M22 profile ABI 1.1 đã nghiệm thu |
+| Handles/capabilities và IPC | M22 ABI 1.1 profile riêng đã nghiệm thu; chưa phải SDK cấp cao |
 | Static ELF64 và user runtime | Chưa triển khai; M23 |
 | Lamix 2D SDK | Chưa triển khai; milestones gaming |
 
-Ownership, lifetime, validation và status của LBP đã đặc tả trong BOOT_PROTOCOL; không suy ra các ABI còn lại đã được đóng băng. M20 chưa tạo syscall ABI, user executable format hoặc ELF loader.
+Ownership, lifetime, validation và status của LBP đã đặc tả trong BOOT_PROTOCOL; không suy ra ABI profile đã trở thành SDK cấp cao. M20 chưa có syscall ABI; ELF loader/runtime vẫn thuộc M23.
 
 ## Loader bootstrap M05
 
@@ -44,9 +44,9 @@ Header kernel: [`kernel/syscall.h`](../kernel/syscall.h); wrapper freestanding u
 
 Profile M21 định nghĩa IDs append-only `0=version`, `1=yield`, `2=exit`, `3=debug_write`; `debug_write` nhận tối đa 256 byte và chỉ dành cho kiểm thử/debug. Không có syscall nhận handle hoặc cung cấp console SDK. `lamix_syscall_handle_valid()` chỉ là kiểm tra range chung, chưa xác nhận object/rights. M21 ABI 1.0 đã nghiệm thu; wrapper không phải cam kết dịch vụ ổn định.
 
-## M22 handles, channels và SHM (IN_PROGRESS)
+## M22 handles, channels và SHM (đã nghiệm thu trong profile riêng)
 
-`kernel/handle.h` khai báo opaque 64-bit `(generation << 32) | slot`, rights bitmask và per-process table; `kernel/ipc.h` khai báo bounded channel, attachment descriptor 16 byte và SHM APIs. User wrappers khai báo trong `user/include/lamix/syscall.h`: `lamix_handle_close/duplicate`, `lamix_channel_create/send/receive`, `lamix_shm_create/map/unmap`. Profile M22 báo ABI 1.1, giữ IDs 0–3 và thêm 4–11. Guest đã kiểm MOVE SHM capability giữa hai process; native tests kiểm một số đường rollback. Layout/IDs/wrappers vẫn chưa phải public SDK commitment; full atomic transfer/receive, user-copy fault matrix và concurrency semantics chưa nghiệm thu.
+`kernel/handle.h` khai báo opaque 64-bit `(generation << 32) | slot`, rights bitmask và per-process table; `kernel/ipc.h` khai báo bounded channel, attachment descriptor 16 byte và SHM APIs. User wrappers trong `user/include/lamix/syscall.h` gồm `lamix_handle_close/duplicate`, `lamix_channel_create/send/receive`, `lamix_shm_create/map/unmap`. Profile M22 dùng ABI 1.1, giữ IDs 0–3 và append IDs 4–11; M21 tiếp tục ABI 1.0. Guest BIOS/UEFI xác nhận hai process trao đổi capability/SHM, read-only fault isolation và cleanup. Native tests kiểm rights, generation, rollback, cycle rejection và atomic MOVE race. Đây là ABI riêng profile M22, chưa phải SDK cấp cao; `latest` vẫn M20.
 
 Entry dùng `IA32_EFER.SCE`, `STAR`, `LSTAR`, `FMASK`, chuyển sang kernel stack của thread rồi kiểm tra RIP/RSP user và lọc `RFLAGS`; đường thường `SYSRETQ`, nhánh kiểm thử/fallback dùng `IRETQ`. Kernel copy user memory theo trang sau khi kiểm quyền `VMM_USER`/read, không dereference con trỏ user trực tiếp. Chi tiết lệnh/provenance ở [TESTING M21](TESTING.md#lamix-syscall-abi-v1-m21); nghiệm thu và giới hạn ở [handoff](SESSION_HANDOFF.md).
 

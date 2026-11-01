@@ -4,9 +4,9 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
-### M22 — IN_PROGRESS
+### M22 — DONE (2026-11-01)
 
-- Bắt đầu profile `m22-kernel` với process-local generation handles, rights table, channel FIFO nonblocking, SHM page backing/mapping lifetime, syscall IDs 4–11 và wrapper freestanding ABI 1.1. `latest` vẫn M20; profile M21 giữ ABI 1.0. Guest chuyển MOVE SHM capability giữa hai process, kiểm shared write/read và cô lập write fault trên mapping chỉ đọc; M22 CTest **4/4 PASS** gồm native ASan/UBSan, TSAN và guest BIOS/UEFI **6/6 PASS**. Negative-rights/invalid-pointer matrix đầy đủ, race matrix và CI vẫn chờ.
+- Hoàn tất profile riêng `m22-kernel`: process-local generation handles/rights, channel FIFO nonblocking với MOVE/DUP, anonymous SHM 1–16 page, syscall ABI 1.1 và wrapper C freestanding. Thêm atomic batch transfer gắn với enqueue và ngăn channel queue tạo reference cycle. M22 CTest **4/4 PASS**, guest BIOS/UEFI **6/6 PASS**, bốn workflow CI SUCCESS trên acceptance SHA; PR #24 merge, tag `milestone/M22` trỏ acceptance commit. `latest` vẫn M20, M21 giữ ABI 1.0; xem [PLANS](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md) cho provenance/giới hạn.
 
 ### M21 — DONE (2026-11-01)
 
