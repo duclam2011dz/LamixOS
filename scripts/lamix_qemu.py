@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.m17_qemu import (build_if_needed, build_image as build_m17_image,
                               project_path, qemu_command, run_step)
 
-LATEST_PROFILE = "m24"
+LATEST_PROFILE = "m20"
 
 
 def resolve_profile(profile):
