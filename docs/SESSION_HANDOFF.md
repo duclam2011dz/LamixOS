@@ -1,13 +1,14 @@
-# Bàn giao hiện hành — M20 IN_PROGRESS — 2026-10-31
+# Bàn giao hiện hành — M20 DONE — 2026-11-01
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: IN_PROGRESS; M21–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21–M44: PLANNED
 
-## Tiếp tục M20
+## M20 — nghiệm thu
 
 - M20 BSP profile có process address space riêng, ring 3, user/supervisor mappings, TSS `rsp0`, fault isolation và API kernel nội bộ cho kill/wait. Một thread mỗi process; payload chỉ nhúng để test. M21 syscall ABI, M23 ELF loader/runtime và M18 không được bắt đầu/kích hoạt.
 - Cross-build, `scripts/lamix_qemu.py --profile m20 --build-only`, native ASan/UBSan, M20 host tests và guest BIOS/UEFI 3/3 mỗi firmware hiện PASS. Guest kiểm tra một process ghi vùng user chỉ process kia map rồi fault; process còn lại tiếp tục, bị kill qua test manager và resources được thu hồi. M19 pytest 7/7 và M17 guest regression 4/4 PASS.
-- CMake/CTest wrapper NOT RUN do `cmake` không hiện diện trên PATH; đã chạy sanitizer executable và pytest trực tiếp. Docs validator PASS, unittest tài liệu 41/41 PASS. GitHub CI chưa chạy; chưa có acceptance SHA, PR hoặc tag. M20 vẫn IN_PROGRESS. PC thật và firmware ngoài profile QEMU NOT RUN.
+- PR [#20](https://github.com/duclam2011dz/LamixOS/pull/20) merge commit `88821fdd59a6341b636e37e7e9a045f536d218a8`; acceptance commit `d0b97be7566e793bc0c54810ec574903ae2ed3dc`; annotated tag `milestone/M20` object `651e6ea9b065ac9a3759399fe9e4996511a0ce55` trỏ acceptance commit. Bốn workflow CI SUCCESS trên đúng SHA: Toolchain [41265639668](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639668), Harness [41265639777](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639777), Documentation [41265639726](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639726), Boot Contract [41265639667](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639667). Toolchain CI chạy M20 CTest/build và BIOS/UEFI guest tests PASS. Local CMake/CTest wrapper NOT RUN vì `cmake` không có trên PATH; docs validator PASS, unittest 41/41 PASS. PC thật/firmware ngoài profile QEMU NOT RUN.
+- M20 đã DONE. M18 vẫn PLANNED/để dành; M21 chưa bắt đầu. Script chạy thử mới nhất: [scripts/lamix_qemu.py](../scripts/lamix_qemu.py), mặc định M20; profile `m19`/`m17` vẫn chọn được. Chi tiết build/run tại [TESTING](TESTING.md#processes-ring-3-và-cô-lập-address-space-m20).
 - Script chạy thử hiện được cập nhật mặc định sang profile M20: [scripts/lamix_qemu.py](../scripts/lamix_qemu.py); dùng `--profile m19`/`m17` cho profile cũ. Chi tiết tại [TESTING](TESTING.md#processes-ring-3-và-cô-lập-address-space-m20).
 
 ## M19 — nghiệm thu
