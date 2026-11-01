@@ -19,7 +19,7 @@ Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc đ
 
 ```text
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24 DONE; M25–M44 PLANNED
+Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24 DONE; M25 IN_PROGRESS; M26–M44 PLANNED
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M15 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -482,6 +482,27 @@ Guest gọi wrapper thật từ ring 3: version query, `debug_write`, null/unmap
 
 M21 local cross-build **PASS**, CMake build **PASS**, CTest **3/3 PASS** (`m21-native-sanitize`, `m21-host`, guest BIOS/UEFI), guest BIOS/UEFI **3/3 mỗi firmware PASS**. Hồi quy guest M17 **4/4**, M19 **6/6**, M20 **6/6** và native M19/M20 **PASS**. Bốn workflow GitHub Actions SUCCESS trên acceptance SHA `6793d8f0a622fcd9f4100921e7932fcb46414540`: Toolchain [41270742769](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742769), Harness [41270742714](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742714), Documentation [41270742671](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742671), Boot Contract [41270742711](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742711). PR [#22](https://github.com/duclam2011dz/LamixOS/pull/22) merged; annotated tag `milestone/M21` trỏ acceptance SHA. PC thật/firmware ngoài profile QEMU **NOT RUN**.
 
+## Block I/O + VirtIO-Blk M25 (IN_PROGRESS)
+
+Build riêng profile và image:
+
+```bash
+python3 tests/m25/build_kernel.py --build build/m25-guest/kernel --max-cpus 16
+python3 scripts/lamix_qemu.py --profile m25 --build-only --build-dir build/m25-guest
+```
+
+Suite đầy đủ trong môi trường có CMake, Ninja, pytest, QEMU và firmware:
+
+```bash
+cmake -S tests/m25 -B build/m25-tests -G Ninja
+cmake --build build/m25-tests
+ctest --test-dir build/m25-tests --no-tests=error --output-on-failure
+```
+
+Guest runner tạo regular file riêng trong `out/m25/runs/`, khởi động boot image BIOS/UEFI trên 2 vCPU, rồi kiểm tra serial markers `M25:DEVICE:READY`, `M25:ASYNC_CALLBACK:PASS`, `M25:SYNC_IO:PASS`, `M25:BOUNDARY:PASS`, `M25:FLUSH:PASS` và `M25:PASS`. Sau QEMU, host xác minh toàn bộ 128 sector (pattern tại LBA 8, 10, 127; guard sectors zero), hash test disk trước/sau và fingerprints image/firmware. Không dùng disk block host. `--profile latest` vẫn là M24 trong khi M25 chưa nghiệm thu.
+
+Tại 2026-11-02: cross-build và build-only **PASS**; native ASan/UBSan và TSan direct **PASS**. Guest SeaBIOS `pc`/OVMF `q35` × 2 vCPU × 3 lượt **PASS** sau chỉnh PCI registration/capability traversal; từng lượt xác minh sector patterns/guards, provenance và fingerprints image/firmware trước/sau. M25 pytest host + guest **10/10 PASS** qua `.venv/bin/pytest`; CMake/CTest **NOT RUN** vì thiếu `cmake`. Docs validator **PASS**, unittest tài liệu **41/41 PASS**; hồi quy M17/M19–M24 local **NOT RUN**, CI **PENDING**. Host/compile-only không thay thế guest boot.
+
 ## SMP M24 (DONE)
 
 Profile riêng `m24-kernel`; build report ghi hash kernel/initramfs/apps, topology limit và commands. Build tối đa 16 CPU:
@@ -499,7 +520,7 @@ M24 cross-build **PASS**; CTest local **4/4 PASS** gồm native ASan/UBSan, host
 
 Review tìm bốn P1 về scheduler stack lifetime, trạng thái GS/SWAPGS, shootdown lock wait và timer race khi clear `lock_waiting`; các lỗi đã sửa và bốn thread đã resolve theo chấp thuận của người dùng. Chưa có review receipt mới gắn với acceptance head cuối. PR [#28](https://github.com/duclam2011dz/LamixOS/pull/28) merge commit `590ebae8eacaa1f0a582051e67bae750a717bdcc`; acceptance commit `ecbeef72846e473e1b8e0cb572a086bd7e7c5dc9`; annotated tag `milestone/M24` object `7dd2b905a08e93320146cd041ed28c033b813b28` trỏ acceptance commit. PR #29 merge tại `31d867bcbd9f896dc918c4d52cc7a44df96ef39c` cập nhật kiểm tra marker app. Selector `LATEST_PROFILE=m24` thuộc follow-up PR #30.
 
-GitHub Actions trên PR #28: Toolchain [41313786645](https://github.com/duclam2011dz/LamixOS/actions/runs/41313786645) **SUCCESS** attempt 2 sau khi attempt 1 gặp assertion thiếu `M23:APP_ALPHA:PASS` ở một lượt UEFI/8 vCPU dù guest sau đó phát `M23:PASS`; attempt 2 chạy lại toàn bộ Toolchain job, gồm M24 CTest. Harness [41313786650](https://github.com/duclam2011dz/LamixOS/actions/runs/41313786650), Documentation [41313786705](https://github.com/duclam2011dz/LamixOS/actions/runs/41313786705), Boot Contract [41313786583](https://github.com/duclam2011dz/LamixOS/actions/runs/41313786583) **SUCCESS**. Follow-up PR #30 nhận ra `debug_write` khóa riêng từng ký tự, có thể làm xen payload giữa CPU; commit `aa5129998e342f392d720163f0759c3b0aa7255a` khóa quanh cả payload. BIOS/8 vCPU regression **3/3 PASS local**. Trên head cũ `0501889`, Documentation [41323916927](https://github.com/duclam2011dz/LamixOS/actions/runs/41323916927), Boot Contract [41323916941](https://github.com/duclam2011dz/LamixOS/actions/runs/41323916941), Harness [41323917166](https://github.com/duclam2011dz/LamixOS/actions/runs/41323917166) **SUCCESS**; Toolchain lượt đầu [41323916937](https://github.com/duclam2011dz/LamixOS/actions/runs/41323916937) **FAIL** do marker BIOS/8 vCPU thiếu, rerun Toolchain **SUCCESS** sau đó. Trên head đã sửa `1dcec57`, bốn workflow **SUCCESS**: Toolchain [41326028033](https://github.com/duclam2011dz/LamixOS/actions/runs/41326028033), Harness [41326028120](https://github.com/duclam2011dz/LamixOS/actions/runs/41326028120), Documentation [41326028016](https://github.com/duclam2011dz/LamixOS/actions/runs/41326028016), Boot Contract [41326028088](https://github.com/duclam2011dz/LamixOS/actions/runs/41326028088). Profile BSP-only vẫn chọn tường minh; `LATEST_PROFILE=m24`, LBP v1 và syscall ABI không đổi; M18 vẫn PLANNED. Race teardown/address-space switch đồng thời, audit bảo mật độc lập, PC thật và firmware ngoài profile QEMU **NOT RUN**. M25 vẫn PLANNED.
+GitHub Actions trên PR #28: Toolchain [41313786645](https://github.com/duclam2011dz/LamixOS/actions/runs/41313786645) **SUCCESS** attempt 2 sau khi attempt 1 gặp assertion thiếu `M23:APP_ALPHA:PASS` ở một lượt UEFI/8 vCPU dù guest sau đó phát `M23:PASS`; attempt 2 chạy lại toàn bộ Toolchain job, gồm M24 CTest. Harness [41313786650](https://github.com/duclam2011dz/LamixOS/actions/runs/41313786650), Documentation [41313786705](https://github.com/duclam2011dz/LamixOS/actions/runs/41313786705), Boot Contract [41313786583](https://github.com/duclam2011dz/LamixOS/actions/runs/41313786583) **SUCCESS**. Follow-up PR #30 nhận ra `debug_write` khóa riêng từng ký tự, có thể làm xen payload giữa CPU; commit `aa5129998e342f392d720163f0759c3b0aa7255a` khóa quanh cả payload. BIOS/8 vCPU regression **3/3 PASS local**. Trên head cũ `0501889`, Documentation [41323916927](https://github.com/duclam2011dz/LamixOS/actions/runs/41323916927), Boot Contract [41323916941](https://github.com/duclam2011dz/LamixOS/actions/runs/41323916941), Harness [41323917166](https://github.com/duclam2011dz/LamixOS/actions/runs/41323917166) **SUCCESS**; Toolchain lượt đầu [41323916937](https://github.com/duclam2011dz/LamixOS/actions/runs/41323916937) **FAIL** do marker BIOS/8 vCPU thiếu, rerun Toolchain **SUCCESS** sau đó. Trên head đã sửa `1dcec57`, bốn workflow **SUCCESS**: Toolchain [41326028033](https://github.com/duclam2011dz/LamixOS/actions/runs/41326028033), Harness [41326028120](https://github.com/duclam2011dz/LamixOS/actions/runs/41326028120), Documentation [41326028016](https://github.com/duclam2011dz/LamixOS/actions/runs/41326028016), Boot Contract [41326028088](https://github.com/duclam2011dz/LamixOS/actions/runs/41326028088). Profile BSP-only vẫn chọn tường minh; `LATEST_PROFILE=m24`, LBP v1 và syscall ABI không đổi; M18 vẫn PLANNED. Race teardown/address-space switch đồng thời, audit bảo mật độc lập, PC thật và firmware ngoài profile QEMU **NOT RUN**. M25 đang IN_PROGRESS; xem mục M25 phía trên.
 
 ## Static ELF64 loader và user runtime M23
 

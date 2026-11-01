@@ -14,7 +14,7 @@ jobs:
   toolchain:
     name: Build and verify freestanding sample
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
+    timeout-minutes: 180
     env:
       LAMIX_CROSS_ROOT: ${{ github.workspace }}/out/m01/cross
     steps:
@@ -169,6 +169,12 @@ jobs:
           cmake -S tests/m24 -B build/m24-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m24-tests
           ctest --test-dir build/m24-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m24/ctest.xml"
+      - name: M25 block I/O, VirtIO-Blk và test disk BIOS/UEFI
+        timeout-minutes: 120
+        run: |
+          cmake -S tests/m25 -B build/m25-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m25-tests
+          ctest --test-dir build/m25-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m25/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -467,4 +473,19 @@ jobs:
             build/m24-*/kernel.inspection.txt
             build/m24-*/alpha.inspection.txt
             build/m24-*/beta.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M25 block reports và guest serial, không upload test disk/image/firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m25-block-reports
+          path: |
+            out/m25/*.xml
+            out/m25/results/*.json
+            out/m25/runs/**/result.json
+            out/m25/runs/**/serial.log
+            out/m25/runs/**/stderr.log
+            out/m25/runs/**/qmp.log
+            build/m25-*/build.json
+            build/m25-*/kernel.inspection.txt
           if-no-files-found: warn
