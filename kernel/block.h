@@ -38,6 +38,8 @@ struct block_request {
   volatile uint32_t state;
 };
 
+/* Request and buffer stay live through callback return; DONE is published after. */
+
 struct block_device;
 typedef struct block_device_ops {
   block_status (*submit)(struct block_device *device, block_request *request);

@@ -77,6 +77,9 @@ block_status block_io_sync(block_device *device, block_request *request,
       return request->status;
     (void)block_poll(device, 16);
   }
+  if (__atomic_load_n(&request->state, __ATOMIC_ACQUIRE) ==
+      BLOCK_REQUEST_DONE)
+    return request->status;
   status = device->operations->reset(device);
   if (status != BLOCK_OK) return BLOCK_RESET_TIMEOUT;
   if (__atomic_load_n(&request->state, __ATOMIC_ACQUIRE) ==
@@ -92,7 +95,7 @@ void block_request_complete(block_request *request, block_status status) {
           BLOCK_REQUEST_COMPLETING, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
     return;
   request->status = status;
-  __atomic_store_n(&request->state, BLOCK_REQUEST_DONE, __ATOMIC_RELEASE);
   if (request->completion)
     request->completion(request, request->completion_context);
+  __atomic_store_n(&request->state, BLOCK_REQUEST_DONE, __ATOMIC_RELEASE);
 }

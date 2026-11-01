@@ -2629,8 +2629,7 @@ static int m25_find_device(void) {
       if (bar == notify_bar) notify_va = va + notify_offset;
       if (bar == device_bar) device_va = va + device_offset;
     }
-    if (common_offset > common_length || common_length >
-        function->bars[common_bar].size - common_offset ||
+    if (common_length > function->bars[common_bar].size - common_offset ||
         notify_offset > function->bars[notify_bar].size ||
         notify_length > function->bars[notify_bar].size - notify_offset ||
         device_offset > function->bars[device_bar].size ||

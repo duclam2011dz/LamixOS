@@ -14,6 +14,7 @@ typedef struct mock {
   uint32_t features_low;
   uint32_t features_high;
   uint16_t queue_size;
+  uint16_t queue_max_size;
   uint16_t queue_select;
   uint16_t queue_enabled;
   uint16_t notify_offset;
@@ -62,7 +63,7 @@ static void complete(mock *m, uint16_t head) {
       data[i] = (uint8_t)((header->sector + i) & 0xff);
   }
   uint16_t index = *d->used_index;
-  d->used_ring[index % d->queue_size] = (virtio_blk_used_element){
+  d->used_ring[index % m->queue_size] = (virtio_blk_used_element){
       m->fail_used_id ? VIRTIO_BLK_QUEUE_SIZE : head,
       m->corrupt_length ? length + 1u : length};
   __atomic_thread_fence(__ATOMIC_RELEASE);
@@ -75,7 +76,7 @@ static uint32_t read_common(void *context, uint16_t offset, unsigned width) {
     return m->reset_stuck && m->status == 0 ? MOCK_STATUS_ACK : m->status;
   if (offset == 4 && width == 4)
     return m->device_feature_select ? m->features_high : m->features_low;
-  if (offset == 24 && width == 2) return m->queue_size;
+  if (offset == 24 && width == 2) return m->queue_max_size;
   if (offset == 28 && width == 2) return m->queue_enabled;
   if (offset == 30 && width == 2) return m->notify_offset;
   if (offset == 21 && width == 1) return 1;
@@ -89,6 +90,7 @@ static void write_common(void *context, uint16_t offset, unsigned width,
     if (!value && !m->reset_stuck) m->status = 0;
   } else if (offset == 0 && width == 4) m->device_feature_select = value;
   else if (offset == 12 && width == 4) m->driver_feature_select = value;
+  else if (offset == 24 && width == 2) m->queue_size = (uint16_t)value;
   else if (offset == 22 && width == 2) m->queue_select = (uint16_t)value;
   else if (offset == 28 && width == 2) m->queue_enabled = (uint16_t)value;
 }
@@ -106,7 +108,8 @@ static void notify(void *context, uint16_t queue, uint16_t offset) {
   virtio_blk *d = m->driver;
   uint16_t count = *d->available_index;
   while (m->last_available != count) {
-    uint16_t head = d->available_ring[m->last_available % d->queue_size];
+    assert(m->queue_size != 0);
+    uint16_t head = d->available_ring[m->last_available % m->queue_size];
     ++m->last_available;
     m->pending[m->pending_count++] = head;
   }
@@ -139,6 +142,8 @@ static void callback(block_request *request, void *context) {
   mock *m = context;
   ++m->callbacks;
   if (request->status != BLOCK_OK) ++m->callback_errors;
+  if (__atomic_load_n(&request->state, __ATOMIC_ACQUIRE) != 3u)
+    ++m->callback_errors;
 }
 
 static void reset_storage(void) {
@@ -149,13 +154,14 @@ static void reset_storage(void) {
   memset(statuses, 0, sizeof(statuses));
 }
 static block_status initialize_version(mock *m, virtio_blk *d, int flush,
-                                       int read_only, int version_1) {
+                                       int read_only, int version_1,
+                                       uint16_t maximum_queue_size) {
   reset_storage();
   *m = (mock){.features_low = (UINT32_C(1) << 6) |
       (flush ? UINT32_C(1) << 9 : 0) |
       (read_only ? UINT32_C(1) << 5 : 0),
       .features_high = version_1 ? UINT32_C(1) : 0,
-      .queue_size = 32, .capacity = 128,
+      .queue_size = 0, .queue_max_size = maximum_queue_size, .capacity = 128,
       .block_size = 512, .auto_complete = 1, .reverse_pair = 1};
   virtio_blk_memory memory = {descriptors, sizeof(descriptors),
       (uintptr_t)descriptors, available, sizeof(available),
@@ -170,7 +176,7 @@ static block_status initialize_version(mock *m, virtio_blk *d, int flush,
 
 static block_status initialize(mock *m, virtio_blk *d, int flush,
                                int read_only) {
-  return initialize_version(m, d, flush, read_only, 1);
+  return initialize_version(m, d, flush, read_only, 1, 32);
 }
 
 static void test_features_and_out_of_order_completion(void) {
@@ -194,6 +200,34 @@ static void test_features_and_out_of_order_completion(void) {
   assert(m.callbacks == 3);
 }
 
+static void test_queue_reduction_and_wraparound(void) {
+  mock m;
+  virtio_blk d;
+  assert(initialize_version(&m, &d, 1, 0, 1, 256) == BLOCK_OK);
+  assert(d.queue_size == VIRTIO_BLK_QUEUE_SIZE);
+  assert(m.queue_size == VIRTIO_BLK_QUEUE_SIZE);
+  for (uint64_t i = 0; i < 40; ++i) {
+    block_request request;
+    block_request_init(&request, BLOCK_WRITE, i, 1, test_data[i % 8],
+                       callback, &m);
+    assert(block_io_sync(&d.device, &request, 1) == BLOCK_OK);
+    assert(__atomic_load_n(&request.state, __ATOMIC_ACQUIRE) == 2u);
+    assert(d.initialized && !d.offline);
+  }
+  assert(m.callbacks == 40 && !m.callback_errors);
+}
+
+static void test_sync_completion_at_budget_boundary(void) {
+  mock m;
+  virtio_blk d;
+  assert(initialize(&m, &d, 1, 0) == BLOCK_OK);
+  block_request request;
+  block_request_init(&request, BLOCK_READ, 1, 1, test_data[0], callback, &m);
+  assert(block_io_sync(&d.device, &request, 1) == BLOCK_OK);
+  assert(d.initialized && d.accepting && !d.offline);
+  assert(m.callbacks == 1 && !m.callback_errors);
+}
+
 static void test_validation_and_read_only(void) {
   mock m;
   virtio_blk d;
@@ -211,7 +245,7 @@ static void test_validation_and_read_only(void) {
   assert(initialize(&m, &d, 0, 0) == BLOCK_OK);
   block_request_init(&request, BLOCK_FLUSH, 0, 0, 0, 0, 0);
   assert(block_io_sync(&d.device, &request, 10) == BLOCK_UNSUPPORTED);
-  assert(initialize_version(&m, &d, 1, 0, 0) == BLOCK_UNSUPPORTED);
+  assert(initialize_version(&m, &d, 1, 0, 0, 32) == BLOCK_UNSUPPORTED);
 }
 
 typedef struct reentrant_context {
@@ -304,6 +338,8 @@ static void test_malformed_used_id_fails_closed(void) {
 
 int main(void) {
   test_features_and_out_of_order_completion();
+  test_queue_reduction_and_wraparound();
+  test_sync_completion_at_budget_boundary();
   test_validation_and_read_only();
   test_callback_can_submit_async();
   test_queue_exhaustion_and_reset_lifetimes();

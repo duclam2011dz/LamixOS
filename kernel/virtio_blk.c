@@ -342,6 +342,7 @@ block_status virtio_blk_initialize(virtio_blk *driver,
   if (driver->queue_size < 24 || (driver->queue_size &
                                    (driver->queue_size - 1)))
     goto bad_queue;
+  write_common(driver, 24, 2, driver->queue_size);
   for (size_t i = 0; i < driver->memory.descriptors_size; ++i)
     driver->memory.descriptors[i] = 0;
   for (size_t i = 0; i < 6u + driver->queue_size * 2u; ++i)
