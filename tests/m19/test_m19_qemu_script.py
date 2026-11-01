@@ -9,8 +9,9 @@ from scripts.lamix_qemu import LATEST_PROFILE, resolve_profile
 
 
 def test_latest_profile_tracks_current_milestone():
-    assert LATEST_PROFILE == "m20"
-    assert resolve_profile("latest") == "m20"
+    assert LATEST_PROFILE == "m24"
+    assert resolve_profile("latest") == "m24"
     assert resolve_profile("m17") == "m17"
     assert resolve_profile("m19") == "m19"
     assert resolve_profile("m20") == "m20"
+    assert resolve_profile("m24") == "m24"

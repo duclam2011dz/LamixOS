@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Build image rồi chạy Lamix OS mới nhất (hiện vẫn là M20) trên QEMU."""
+"""Build image rồi chạy Lamix OS mới nhất (hiện là M24) trên QEMU."""
 import argparse
 from pathlib import Path
 import os
@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.m17_qemu import (build_if_needed, build_image as build_m17_image,
                               project_path, qemu_command, run_step)
 
-LATEST_PROFILE = "m20"
+LATEST_PROFILE = "m24"
 
 
 def resolve_profile(profile):
@@ -241,7 +241,7 @@ def build_image(profile, build_root):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=("latest", "m17", "m19", "m20", "m21", "m22", "m23", "m24"),
-                        default="latest", help="latest hiện trỏ tới M20")
+                        default="latest", help="latest hiện trỏ tới M24")
     parser.add_argument("--firmware", choices=("bios", "uefi", "both"),
                         default="both", help="mặc định chạy BIOS rồi UEFI")
     parser.add_argument("--build-dir", type=Path,
