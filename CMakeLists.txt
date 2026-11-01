@@ -29,7 +29,7 @@ set_property(TARGET m01-smoke APPEND PROPERTY LINK_DEPENDS "${CMAKE_SOURCE_DIR}/
 include(CTest)
 if(BUILD_TESTING)
   add_test(NAME host-tests COMMAND "${Python3_EXECUTABLE}" -m pytest -q -m "not qemu" "${CMAKE_SOURCE_DIR}/tests")
-  set_tests_properties(host-tests PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 60)
+  set_tests_properties(host-tests PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" TIMEOUT 120)
   add_test(NAME sample-elf COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/verify_elf.py" "${CMAKE_BINARY_DIR}")
   set_tests_properties(sample-elf PROPERTIES TIMEOUT 30)
 endif()

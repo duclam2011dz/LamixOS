@@ -8,10 +8,10 @@ LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C]
 | GPT byte-array structs và host model | [IMAGE_LAYOUT](IMAGE_LAYOUT.md) |
 | Syscall ABI Lamix-specific x86_64 | M21 ABI 1.0; M22 profile ABI 1.1 đã nghiệm thu |
 | Handles/capabilities và IPC | M22 ABI 1.1 profile riêng đã nghiệm thu; chưa phải SDK cấp cao |
-| Static ELF64 và user runtime | Chưa triển khai; M23 |
+| Static ELF64 và user runtime | M23 profile riêng đã nghiệm thu; chưa phải public SDK |
 | Lamix 2D SDK | Chưa triển khai; milestones gaming |
 
-Ownership, lifetime, validation và status của LBP đã đặc tả trong BOOT_PROTOCOL; không suy ra ABI profile đã trở thành SDK cấp cao. M20 chưa có syscall ABI; ELF loader/runtime vẫn thuộc M23.
+Ownership, lifetime, validation và status của LBP đã đặc tả trong BOOT_PROTOCOL; không suy ra ABI profile đã trở thành SDK cấp cao. M23 đã bổ sung static ELF64 loader và runtime tối thiểu trong profile riêng; giới hạn hiện tại ghi tại [TESTING M23](TESTING.md#static-elf64-loader-và-user-runtime-m23). Không mở rộng sang dynamic linking hay API SDK.
 
 ## Loader bootstrap M05
 
@@ -23,7 +23,7 @@ API native [loader.h](../include/lamix/boot/loader.h): reader read_at, GPT/FAT32
 
 ## Kernel bootstrap M08
 
-Kernel dùng entry C/NASM qua LBP v1 và gọi `lbp_validate()` trước khi sử dụng BootInfo. GDT/IDT/TSS, serial panic và PIC/PIT self-test thuộc M08. M09 thêm API PMM nội bộ trong `kernel/pmm.h`: `pmm_init`, `pmm_alloc_frame`, `pmm_free_frame`; đây không phải ABI LBP hay API kernel public. M10 thêm API VMM nội bộ trong `kernel/vmm.h`: `vmm_init`, `vmm_map_range`, `vmm_unmap_range`, `vmm_protect_range`, `vmm_query`, `vmm_destroy`; callback truy cập page-table frame là scratch mapping, leaf-frame ownership vẫn thuộc caller. M11 cung cấp C API heap nội bộ trong `kernel/heap.h`: `kheap_init`, `kheap_alloc`, `kheap_calloc`, `kheap_free`, `kheap_get_stats`; không thêm global `new/delete`. M12 hoàn tất API Buddy thử nghiệm nội bộ `pmm_buddy_init`, `pmm_buddy_alloc_order`, `pmm_buddy_free_order`, `pmm_buddy_alloc_frame`, `pmm_buddy_free_frame`, `pmm_buddy_get_stats`; order 0 wrapper là frame 4 KiB, tối đa order 18. Bitmap API hiện hữu không đổi và vẫn backend mặc định. M13 thêm API nội bộ: `acpi_discover`/`acpi_madt_entry_at`, `pci_parse_mcfg`/`pci_enumerate_mcfg`/`pci_probe_bars`/`pci_map_bar`, `device_registry_init`/`device_register_pci`/`device_dma_acquire`/`device_dma_release`. Caller sở hữu scratch/storage; DMA API chỉ giữ owner/generation, không cấp buffer hoặc khởi động DMA. Interfaces không phải public ABI. Chưa có timer API, scheduler hay process address spaces. Chi tiết nằm trong [quản lý bộ nhớ](MEMORY_MANAGEMENT.md), [TESTING M13](TESTING.md#acpi-pci-device-framework-m13) và [handoff](SESSION_HANDOFF.md).
+Kernel dùng entry C/NASM qua LBP v1 và gọi `lbp_validate()` trước khi sử dụng BootInfo. GDT/IDT/TSS, serial panic và PIC/PIT self-test thuộc M08. M09 thêm API PMM nội bộ trong `kernel/pmm.h`: `pmm_init`, `pmm_alloc_frame`, `pmm_free_frame`; đây không phải ABI LBP hay API kernel public. M10 thêm API VMM nội bộ trong `kernel/vmm.h`: `vmm_init`, `vmm_map_range`, `vmm_unmap_range`, `vmm_protect_range`, `vmm_query`, `vmm_destroy`; callback truy cập page-table frame là scratch mapping, leaf-frame ownership vẫn thuộc caller. M11 cung cấp C API heap nội bộ trong `kernel/heap.h`: `kheap_init`, `kheap_alloc`, `kheap_calloc`, `kheap_free`, `kheap_get_stats`; không thêm global `new/delete`. M12 hoàn tất API Buddy thử nghiệm nội bộ `pmm_buddy_init`, `pmm_buddy_alloc_order`, `pmm_buddy_free_order`, `pmm_buddy_alloc_frame`, `pmm_buddy_free_frame`, `pmm_buddy_get_stats`; order 0 wrapper là frame 4 KiB, tối đa order 18. Bitmap API hiện hữu không đổi và vẫn backend mặc định. M13 thêm API nội bộ: `acpi_discover`/`acpi_madt_entry_at`, `pci_parse_mcfg`/`pci_enumerate_mcfg`/`pci_probe_bars`/`pci_map_bar`, `device_registry_init`/`device_register_pci`/`device_dma_acquire`/`device_dma_release`. Caller sở hữu scratch/storage; DMA API chỉ giữ owner/generation, không cấp buffer hoặc khởi động DMA. Interfaces không phải public ABI. M14 có APIC timer; M19 có scheduler BSP; M20 có process address spaces. Chi tiết nằm trong [quản lý bộ nhớ](MEMORY_MANAGEMENT.md), [TESTING M13](TESTING.md#acpi-pci-device-framework-m13) và [handoff](SESSION_HANDOFF.md).
 
 
 ## Input PS/2 M15 (nội bộ kernel)

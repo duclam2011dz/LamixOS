@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+"""Build kernel M23 cùng user ELF64 Static PIE và initramfs newc."""
+import argparse
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tests/m08"))
+from build_kernel import build
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--build", type=Path, required=True)
+    args = parser.parse_args()
+    build(args.build, m23_elf=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

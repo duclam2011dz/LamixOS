@@ -1,7 +1,15 @@
-# Bàn giao hiện hành — M22 DONE; M23 chưa bắt đầu — 2026-11-01
+# Bàn giao hiện hành — M23 DONE — 2026-11-01
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: DONE; M23–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: DONE; M23: DONE; M24–M44: PLANNED
+
+## M23 — nghiệm thu và bàn giao
+
+- M23 thêm Static PIE ET_DYN ELF64 loader, parser read-only newc initramfs, relocation `R_X86_64_RELATIVE`, process mappings nhiều trang, W^X/BSS, initial stack `argc/argv/envp`, `crt0`, libc freestanding và hai chương trình user độc lập trong profile `m23-kernel`. Giữ LBP v1, ABI 1.1/profile M22 và `LATEST_PROFILE=m20`; không thêm filesystem runtime, dynamic linking, ASLR, spawn hay SMP.
+- Codex review trên commit `2861267e38878e9c2cd3275b11cf3d7e177af2f5` phát hiện hai lỗi P2: con trỏ relocation one-past-end hợp lệ bị từ chối và fixture BSS bị tối ưu bỏ. Đã sửa loader để nhận `image_end` hợp lệ, thêm native regression, và dùng volatile BSS probe >4 KiB. CTest M23 **3/3 PASS**, gồm guest BIOS/UEFI 3/3 mỗi firmware; readelf xác nhận section `.bss` NOBITS. CI/review trên commit sửa lỗi cuối đang chờ hoàn tất.
+- Bốn workflow trước các sửa lỗi SUCCESS trên `73a9563702673426d8430fa36469831bd1784744`: Toolchain [41286125940](https://github.com/duclam2011dz/LamixOS/actions/runs/41286125940), Harness [41286126005](https://github.com/duclam2011dz/LamixOS/actions/runs/41286126005), Documentation [41286126032](https://github.com/duclam2011dz/LamixOS/actions/runs/41286126032), Boot Contract [41286125975](https://github.com/duclam2011dz/LamixOS/actions/runs/41286125975). Không dùng các run này thay cho CI trên commit cuối.
+- PR [#26](https://github.com/duclam2011dz/LamixOS/pull/26), acceptance commit/tag và merge provenance được ghi sau khi thao tác hoàn tất. PC thật, firmware ngoài profile QEMU, fault-injection allocation exhaustive và audit bảo mật độc lập **NOT RUN**. M18 vẫn PLANNED; không bắt đầu M24 trong lượt đóng này.
+- Build/provenance tại `build/m23/`, guest logs tại `out/m23/`; lệnh và marker ở [TESTING M23](TESTING.md#static-elf64-loader-và-user-runtime-m23). `latest` tiếp tục là M20. Giữ file untracked người dùng `PROMPT_NEXT_SESSION_M21.md` nguyên trạng.
 
 ## M22 — nghiệm thu và bàn giao
 
@@ -9,8 +17,8 @@ Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DON
 - Bốn workflow SUCCESS: Toolchain [41277685047](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685047) (attempt 2), Harness [41277685300](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685300), Documentation [41277685046](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685046), Boot Contract [41277685160](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685160). Toolchain attempt 1 fail ở M08 UEFI PF vì log thiếu `cr2`; retry đầy đủ PASS.
 - Cross-build M22 **PASS**; CTest M22 **4/4 PASS**; guest BIOS/UEFI **3/3 mỗi firmware PASS**; regressions M17/M19/M20/M21 **1/1 mỗi profile/firmware PASS** trong lượt local trước review-fix, full Toolchain CI regressions xanh sau review-fix. Docs validator và unittest tài liệu **PASS**, **41/41** trước thay đổi closure docs.
 - Review đã sửa self/cross-channel reference cycle và atomic MOVE/enqueue; native tests xác nhận cleanup và đúng một MOVE thành công. Threads review resolved. ASan/UBSan chạy với `detect_leaks=0` theo CTest; allocator-accounting regression kiểm cycle cleanup. Allocation-failure matrix exhaustive, mọi tổ hợp guest invalid args, PC thật/firmware ngoài profile QEMU và audit bảo mật độc lập **NOT RUN**.
-- Baseline: profile M22 riêng; `latest` giữ M20; M21 ABI 1.0; M22 ABI 1.1; LBP v1/entry ABI không đổi. M18 vẫn PLANNED. M23 chưa bắt đầu trong lượt đóng này.
-- Bước tiếp theo chỉ là **phiên lập kế hoạch M23**: người dùng phải bật Codex Plan Mode thật; đọc handoff/roadmap/plans và tài liệu liên quan, chỉ khảo sát/lập kế hoạch rồi chờ phê duyệt triển khai. Xem [prompt bàn giao M23](../PROMPT_NEXT_SESSION_M23.md).
+- Baseline: profile M22 riêng; `latest` giữ M20; M21 ABI 1.0; M22 ABI 1.1; LBP v1/entry ABI không đổi. M18 vẫn PLANNED. M24 chưa bắt đầu trong lượt đóng này.
+- Ghi chú lịch sử: trước lượt hiện tại, bước tiếp theo là phiên lập kế hoạch M23; M23 hiện đã được duyệt triển khai nhưng chưa nghiệm thu.
 
 ## M21 — Lamix-specific syscall ABI v1 — DONE
 
@@ -23,7 +31,7 @@ Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DON
 
 ## M20 — nghiệm thu
 
-- M20 BSP profile có process address space riêng, ring 3, user/supervisor mappings, TSS `rsp0`, fault isolation và API kernel nội bộ cho kill/wait. Một thread mỗi process; payload chỉ nhúng để test. M21 syscall ABI đã nghiệm thu; M23 ELF loader/runtime và M18 vẫn chưa được bắt đầu/kích hoạt.
+- M20 BSP profile có process address space riêng, ring 3, user/supervisor mappings, TSS `rsp0`, fault isolation và API kernel nội bộ cho kill/wait. Một thread mỗi process; payload chỉ nhúng để test. M21 syscall ABI đã nghiệm thu; M23 ELF loader/runtime được triển khai sau thời điểm nghiệm thu M20; M18 vẫn PLANNED.
 - Cross-build, `scripts/lamix_qemu.py --profile m20 --build-only`, native ASan/UBSan, M20 host tests và guest BIOS/UEFI 3/3 mỗi firmware hiện PASS. Guest kiểm tra một process ghi vùng user chỉ process kia map rồi fault; process còn lại tiếp tục, bị kill qua test manager và resources được thu hồi. M19 pytest 7/7 và M17 guest regression 4/4 PASS.
 - PR [#20](https://github.com/duclam2011dz/LamixOS/pull/20) merge commit `88821fdd59a6341b636e37e7e9a045f536d218a8`; acceptance commit `d0b97be7566e793bc0c54810ec574903ae2ed3dc`; annotated tag `milestone/M20` object `651e6ea9b065ac9a3759399fe9e4996511a0ce55` trỏ acceptance commit. Bốn workflow CI SUCCESS trên đúng SHA: Toolchain [41265639668](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639668), Harness [41265639777](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639777), Documentation [41265639726](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639726), Boot Contract [41265639667](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639667). Toolchain CI chạy M20 CTest/build và BIOS/UEFI guest tests PASS. Local CMake/CTest wrapper NOT RUN vì `cmake` không có trên PATH; docs validator PASS, unittest 41/41 PASS. PC thật/firmware ngoài profile QEMU NOT RUN.
 - M20 đã DONE. M18 vẫn PLANNED/để dành; M21 đã DONE. Script chạy thử mới nhất: [scripts/lamix_qemu.py](../scripts/lamix_qemu.py), mặc định M20; profile `m21`, `m19` và `m17` chọn riêng được. Chi tiết build/run tại [TESTING](TESTING.md#lamix-syscall-abi-v1-m21).
