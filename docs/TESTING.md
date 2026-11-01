@@ -19,7 +19,7 @@ Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc đ
 
 ```text
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 IN_PROGRESS; M20–M44 PLANNED
+Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 IN_PROGRESS; M21–M44 PLANNED
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M15 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -434,4 +434,28 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m19-tests --no-test
 
 `m19-native-sanitize` chạy cùng `kernel/scheduler.c` với ASan/UBSan. Host pytest kiểm build provenance; guest pytest tạo image M19 dựa trên M17 và boot cùng kernel qua SeaBIOS `pc` cùng OVMF `q35`, ba lần mỗi firmware. Guest gắn `virtio-vga`, yêu cầu preemption thật từ hai CPU-bound worker, priority aging đến mức chạy, mutex priority inheritance/direct handoff và wakeup. Serial evidence và JSON ở `out/m19/`; image, firmware và logs không đưa vào Git. Profile chỉ định nghĩa `LAMIX_M19_SCHEDULER`, không build M18.
 
-Trạng thái nghiệm thu M19: native sanitizer+host CTest local **2/2 PASS**, guest BIOS/UEFI **3/3 mỗi firmware PASS**, `m19-kernel` cross-build **PASS**; M19 CTest trong Toolchain CI **3/3 PASS**. Guest phát marker M19, aging đo 300 tick, mutex inheritance/handoff đạt và protected inputs/cleanup sạch. Bốn workflow CI SUCCESS trên acceptance SHA `9a0861ec4b152e189144251ece884bc6ffd466d5`; Codex review clean. PC thật và firmware khác profile QEMU **NOT RUN**. M19 DONE; M18 vẫn PLANNED, M20 chưa bắt đầu.
+Trạng thái nghiệm thu M19: native sanitizer+host CTest local **2/2 PASS**, guest BIOS/UEFI **3/3 mỗi firmware PASS**, `m19-kernel` cross-build **PASS**; M19 CTest trong Toolchain CI **3/3 PASS**. Guest phát marker M19, aging đo 300 tick, mutex inheritance/handoff đạt và protected inputs/cleanup sạch. Bốn workflow CI SUCCESS trên acceptance SHA `9a0861ec4b152e189144251ece884bc6ffd466d5`; Codex review clean. PC thật và firmware khác profile QEMU **NOT RUN**. M19 DONE; M18 vẫn PLANNED.
+
+## Processes, ring 3 và cô lập address space M20
+
+Script QEMU tổng quát `./scripts/lamix_qemu.py` hiện mặc định M20, dựng image raw GPT dùng chung BIOS/UEFI trong `out/m20/` rồi mở firmware đã chọn. `--profile m19` và `--profile m17` giữ khả năng chạy lại profile cũ; `--build-only` chỉ dựng artifact.
+
+```sh
+./scripts/lamix_qemu.py
+./scripts/lamix_qemu.py --firmware bios
+./scripts/lamix_qemu.py --firmware uefi
+./scripts/lamix_qemu.py --build-only
+./scripts/lamix_qemu.py --profile m19 --firmware both
+```
+
+CTest M20 gồm `m20-native-sanitize` (implementation thật `process.c`, `vmm.c`, `scheduler.c` với ASan/UBSan), host provenance và guest BIOS/UEFI ba lần mỗi firmware. CI config/build/test:
+
+```sh
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m20 -B build/m20-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m20-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m20-tests --no-tests=error --output-on-failure --output-junit "$PWD/out/m20/ctest.xml"
+```
+
+Guest dùng cùng kernel/image trên SeaBIOS `pc` và OVMF `q35`; kiểm tra hai process map cùng user VA tới backing khác nhau, vùng chỉ process B map gây user page fault ở A, B tiếp tục chạy, kernel test manager kill B, wait terminal state và thu hồi resources. QEMU marker và JSON/logs ở `out/m20/`; harness so protected image/firmware/kernel fingerprints và cleanup. Không coi compile-only hoặc host test là ring3 guest proof.
+
+Kết quả hiện tại: `m20-kernel` cross-build và `scripts/lamix_qemu.py --profile m20 --build-only` **PASS**; native ASan/UBSan và host pytest **PASS**; guest BIOS/UEFI **3/3 mỗi firmware PASS**. M19 hồi quy pytest **7/7 PASS**, M19 native sanitizer **PASS**, M17 guest regression **4/4 PASS**. CMake/CTest wrapper local **NOT RUN** vì `cmake` không có trên PATH; docs validator **PASS**, unittest tài liệu **41/41 PASS**. GitHub CI trên acceptance SHA **NOT RUN**. M20 **IN_PROGRESS**, chưa có acceptance SHA/PR/tag. PC thật và firmware ngoài profile QEMU **NOT RUN**.

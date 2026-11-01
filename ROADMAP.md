@@ -3,7 +3,7 @@
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
 > **Cập nhật:** 2026-10-31
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 IN_PROGRESS; M21–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 IN_PROGRESS; M21–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -129,7 +129,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M19 — Preemptive priority round-robin scheduler (BSP). Trạng thái: DONE (2026-10-31).** Thêm kernel threads BSP, context switch qua LAPIC timer, bốn mức priority/RR, aging, mutex FIFO/direct handoff và priority inheritance; M18 giữ PLANNED và không phải dependency. Acceptance commit `9a0861ec4b152e189144251ece884bc6ffd466d5`; PR [#18](https://github.com/duclam2011dz/LamixOS/pull/18) merge commit `c550210f4ba69f7181ed4a3cf0001e20059ea52a`; annotated tag `milestone/M19` object `6d055839a1dce6356eba49c0e2a22e6630708b8a` trỏ acceptance commit. Bốn workflow SUCCESS trên SHA nghiệm thu: Toolchain [41213184919](https://github.com/duclam2011dz/LamixOS/actions/runs/41213184919), Harness [41213184786](https://github.com/duclam2011dz/LamixOS/actions/runs/41213184786), Documentation [41213184903](https://github.com/duclam2011dz/LamixOS/actions/runs/41213184903), Boot Contract [41213184777](https://github.com/duclam2011dz/LamixOS/actions/runs/41213184777). Native ASan/UBSan và host tests PASS; guest BIOS/UEFI ba lần mỗi firmware PASS với preemption CPU-bound, RR, aging và mutex inheritance/handoff/wakeup; M17 guest regression 4/4 PASS; docs validator và unittest 41/41 PASS. Codex review sạch trên acceptance SHA, mọi review thread resolved. PC thật và firmware ngoài profile QEMU **NOT RUN**. Chi tiết nghiệm thu tại [PLANS](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md).
 
-**M20 — Processes, ring 3, address-space isolation.** Separate user mappings, user stack/TSS transitions, process lifecycle, kill/wait, invalid pointer protections. Nghiệm thu: hai process độc lập, vi phạm user memory không làm hỏng kernel.
+**M20 — Processes, ring 3, address-space isolation. Trạng thái: IN_PROGRESS (2026-10-31).** Profile M20 BSP có một scheduler thread/process, ring 3, user mappings/stack riêng, TSS stack transition, process fault/kill/wait nội bộ. Host ASan/UBSan, guest QEMU BIOS/UEFI, docs validator và unittest hiện PASS; CTest wrapper và GitHub CI trên acceptance SHA chưa chạy. Chưa đánh dấu DONE. Hai process test chứng minh mapping riêng; user fault không làm hỏng kernel/process còn lại. Syscall ABI M21 và ELF loader/runtime M23 ngoài phạm vi.
 
 **M21 — Lamix-specific syscall ABI v1.** syscall calling convention, syscall table/version, return/error policy, handle validation; user-space C wrappers; thiết kế `SYSCALL/SYSRET` và safe fallback return path. Nghiệm thu: ABI integration tests và fault injection invalid args.
 

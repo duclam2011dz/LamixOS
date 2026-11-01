@@ -47,6 +47,7 @@ typedef struct scheduler_operations {
   /* Returns after the caller is scheduled again; host models may return 0. */
   int (*request_reschedule)(void *context);
   void (*fatal)(void *context, uint64_t reason);
+  void (*context_switch)(void *context, scheduler_thread *next);
 } scheduler_operations;
 
 struct scheduler_thread {
@@ -68,6 +69,9 @@ struct scheduler_thread {
   uint8_t age_priority;
   scheduler_thread_state state;
   uint8_t idle;
+  uint8_t user_mode;
+  uintptr_t kernel_stack_top;
+  void *private_context;
 };
 
 struct scheduler_mutex {
@@ -91,6 +95,11 @@ scheduler_status scheduler_init(scheduler *state,
 scheduler_status scheduler_create(scheduler *state, scheduler_entry entry,
                                   void *argument, uint8_t priority,
                                   scheduler_thread **thread_out);
+scheduler_status scheduler_configure_user(scheduler_thread *thread,
+                                          uintptr_t entry,
+                                          uintptr_t user_stack);
+void *scheduler_terminate_interrupt(scheduler *state, void *interrupt_frame);
+void scheduler_collect_retired(scheduler *state);
 scheduler_status scheduler_begin(scheduler *state);
 scheduler_status scheduler_yield(scheduler *state);
 scheduler_status scheduler_exit(scheduler *state);

@@ -1,7 +1,14 @@
-# Bàn giao hiện hành — M19 DONE — 2026-10-31
+# Bàn giao hiện hành — M20 IN_PROGRESS — 2026-10-31
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: IN_PROGRESS; M21–M44: PLANNED
+
+## Tiếp tục M20
+
+- M20 BSP profile có process address space riêng, ring 3, user/supervisor mappings, TSS `rsp0`, fault isolation và API kernel nội bộ cho kill/wait. Một thread mỗi process; payload chỉ nhúng để test. M21 syscall ABI, M23 ELF loader/runtime và M18 không được bắt đầu/kích hoạt.
+- Cross-build, `scripts/lamix_qemu.py --profile m20 --build-only`, native ASan/UBSan, M20 host tests và guest BIOS/UEFI 3/3 mỗi firmware hiện PASS. Guest kiểm tra một process ghi vùng user chỉ process kia map rồi fault; process còn lại tiếp tục, bị kill qua test manager và resources được thu hồi. M19 pytest 7/7 và M17 guest regression 4/4 PASS.
+- CMake/CTest wrapper NOT RUN do `cmake` không hiện diện trên PATH; đã chạy sanitizer executable và pytest trực tiếp. Docs validator PASS, unittest tài liệu 41/41 PASS. GitHub CI chưa chạy; chưa có acceptance SHA, PR hoặc tag. M20 vẫn IN_PROGRESS. PC thật và firmware ngoài profile QEMU NOT RUN.
+- Script chạy thử hiện được cập nhật mặc định sang profile M20: [scripts/lamix_qemu.py](../scripts/lamix_qemu.py); dùng `--profile m19`/`m17` cho profile cũ. Chi tiết tại [TESTING](TESTING.md#processes-ring-3-và-cô-lập-address-space-m20).
 
 ## M19 — nghiệm thu
 

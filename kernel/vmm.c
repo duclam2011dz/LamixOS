@@ -3,15 +3,19 @@
 
 #define PTE_PRESENT UINT64_C(0x001)
 #define PTE_WRITE UINT64_C(0x002)
+#define PTE_USER UINT64_C(0x004)
 #define PTE_PWT UINT64_C(0x008)
 #define PTE_PCD UINT64_C(0x010)
 #define PTE_HUGE UINT64_C(0x080)
 #define PTE_NX UINT64_C(0x8000000000000000)
 #define PTE_ADDRESS UINT64_C(0x000ffffffffff000)
-#define PTE_PERMISSION_MASK (PTE_WRITE | PTE_NX)
+#define PTE_PERMISSION_MASK (PTE_WRITE | PTE_USER | PTE_NX)
 #define PTE_ATTRIBUTE_MASK (PTE_PWT | PTE_PCD)
 #define PTE_ALLOWED_MASK (PTE_PRESENT | PTE_PERMISSION_MASK | PTE_ATTRIBUTE_MASK | PTE_ADDRESS)
 #define VMM_MAGIC UINT32_C(0x564d4d31)
+#define VMM_PROCESS_USER_PML4 1u
+#define VMM_PROCESS_USER_BASE UINT64_C(0x0000008000000000)
+#define VMM_PROCESS_USER_LIMIT (VMM_PROCESS_USER_BASE + (UINT64_C(1) << 39))
 
 typedef struct vmm_path {
   uint64_t tables[4];
@@ -26,7 +30,7 @@ static int canonical(uint64_t address) {
 }
 
 static int valid_permissions(uint32_t permissions) {
-  const uint32_t allowed = VMM_READ | VMM_WRITE | VMM_EXECUTE;
+  const uint32_t allowed = VMM_READ | VMM_WRITE | VMM_EXECUTE | VMM_USER;
   return (permissions & VMM_READ) && !(permissions & ~allowed) &&
          (permissions & (VMM_WRITE | VMM_EXECUTE)) !=
              (VMM_WRITE | VMM_EXECUTE);
@@ -44,6 +48,14 @@ static int valid_range(uint64_t virtual_address, uint64_t physical_address,
   return canonical(virtual_address) && canonical(virtual_end) &&
          ((virtual_address >> 47) == (virtual_end >> 47)) &&
          physical_end <= VMM_PHYSICAL_LIMIT;
+}
+
+static int valid_user_range(uint64_t virtual_address, uint64_t length,
+                            uint32_t permissions) {
+  return !(permissions & VMM_USER) ||
+         (virtual_address >= VMM_PROCESS_USER_BASE &&
+          virtual_address < VMM_PROCESS_USER_LIMIT &&
+          length <= VMM_PROCESS_USER_LIMIT - virtual_address);
 }
 
 static int valid_space(const vmm_space *space) {
@@ -109,7 +121,8 @@ static vmm_status walk_leaf(vmm_space *space, uint64_t virtual_address,
         (void)space->operations.release_page(space->operations.context, child);
         return VMM_CORRUPT_TABLE;
       }
-      table[index] = child | PTE_PRESENT | PTE_WRITE;
+      table[index] = child | PTE_PRESENT | PTE_WRITE |
+                     ((space->mapping_permissions & VMM_USER) ? PTE_USER : 0);
       entry = table[index];
     } else if (entry & PTE_HUGE) {
       return VMM_CORRUPT_TABLE;
@@ -123,9 +136,24 @@ static vmm_status walk_leaf(vmm_space *space, uint64_t virtual_address,
   return status;
 }
 
+static vmm_status allow_user_path(vmm_space *space, const vmm_path *path) {
+  for (unsigned level = 0; level < 3; ++level) {
+    volatile uint64_t *table = 0;
+    vmm_status status = access_table(space, path->tables[level], &table);
+    if (status != VMM_OK)
+      return status;
+    if (!(table[path->indices[level]] & PTE_PRESENT))
+      return VMM_CORRUPT_TABLE;
+    table[path->indices[level]] |= PTE_USER;
+  }
+  return VMM_OK;
+}
+
 static uint64_t make_leaf(const vmm_space *space, uint64_t physical,
                           uint32_t permissions, uint32_t attributes) {
   uint64_t entry = physical | PTE_PRESENT;
+  if (permissions & VMM_USER)
+    entry |= PTE_USER;
   if (permissions & VMM_WRITE)
     entry |= PTE_WRITE;
   if (space->nx_enabled && !(permissions & VMM_EXECUTE))
@@ -209,6 +237,7 @@ vmm_status vmm_init(vmm_space *space, const vmm_operations *operations,
   vmm_space candidate = {.operations = *operations,
                          .root_physical = 0,
                          .nx_enabled = nx_enabled != 0,
+                         .mapping_permissions = 0,
                          .initialized = 0};
   vmm_status status = allocate_table(&candidate, &candidate.root_physical);
   if (status != VMM_OK)
@@ -216,6 +245,50 @@ vmm_status vmm_init(vmm_space *space, const vmm_operations *operations,
   candidate.initialized = VMM_MAGIC;
   *space = candidate;
   return VMM_OK;
+}
+
+vmm_status vmm_copy_kernel_mappings(vmm_space *destination,
+                                    const vmm_space *kernel) {
+  if (!valid_space(destination) || !valid_space(kernel) ||
+      destination == kernel || destination->root_physical == kernel->root_physical)
+    return VMM_INVALID_ARGUMENT;
+  volatile uint64_t *dst = 0, *src = 0;
+  vmm_status status = access_table(destination, destination->root_physical,
+                                   &dst);
+  if (status != VMM_OK)
+    return status;
+  if (dst[VMM_PROCESS_USER_PML4] & PTE_PRESENT)
+    return VMM_ALREADY_MAPPED;
+  for (unsigned i = 0; i < 512; ++i) {
+    if (i == VMM_PROCESS_USER_PML4)
+      continue;
+    status = access_table((vmm_space *)kernel, kernel->root_physical, &src);
+    if (status != VMM_OK)
+      return status;
+    uint64_t entry = src[i];
+    if (entry & PTE_USER)
+      return VMM_CORRUPT_TABLE;
+    status = access_table(destination, destination->root_physical, &dst);
+    if (status != VMM_OK)
+      return status;
+    if (dst[i] & PTE_PRESENT)
+      return VMM_ALREADY_MAPPED;
+    dst[i] = entry;
+  }
+  return VMM_OK;
+}
+
+vmm_status vmm_destroy_process_space(vmm_space *space) {
+  if (!valid_space(space))
+    return VMM_INVALID_ARGUMENT;
+  volatile uint64_t *root = 0;
+  vmm_status status = access_table(space, space->root_physical, &root);
+  if (status != VMM_OK)
+    return status;
+  for (unsigned i = 0; i < 512; ++i)
+    if (i != VMM_PROCESS_USER_PML4)
+      root[i] = 0;
+  return vmm_destroy(space);
 }
 
 static vmm_status destroy_table(vmm_space *space, uint64_t physical,
@@ -264,16 +337,24 @@ vmm_status vmm_map_range(vmm_space *space, uint64_t virtual_address,
                          uint32_t permissions, uint32_t attributes) {
   if (!valid_space(space) || !valid_range(virtual_address, physical_address,
                                          length) ||
-      !valid_permissions(permissions) || (attributes & ~VMM_MAP_UNCACHED))
+      !valid_permissions(permissions) ||
+      !valid_user_range(virtual_address, length, permissions) ||
+      (attributes & ~VMM_MAP_UNCACHED))
     return VMM_INVALID_ARGUMENT;
   vmm_status status = preflight(space, virtual_address, length, 0);
   if (status != VMM_OK)
     return status;
   uint64_t completed = 0;
+  space->mapping_permissions = permissions & VMM_USER;
   for (uint64_t offset = 0; offset < length; offset += VMM_PAGE_SIZE) {
     vmm_path path = {0};
     volatile uint64_t *leaf = 0;
     status = walk_leaf(space, virtual_address + offset, 1, &path, &leaf);
+    if (status == VMM_OK && (permissions & VMM_USER)) {
+      status = allow_user_path(space, &path);
+      if (status == VMM_OK)
+        status = access_table(space, path.tables[3], &leaf);
+    }
     if (status == VMM_OK && !(leaf[path.indices[3]] & PTE_PRESENT)) {
       leaf[path.indices[3]] = make_leaf(space, physical_address + offset,
                                         permissions, attributes);
@@ -301,8 +382,10 @@ vmm_status vmm_map_range(vmm_space *space, uint64_t virtual_address,
       if (cleanup_status != VMM_OK)
         return cleanup_status;
     }
+    space->mapping_permissions = 0;
     return status;
   }
+  space->mapping_permissions = 0;
   return VMM_OK;
 }
 
@@ -333,7 +416,8 @@ vmm_status vmm_unmap_range(vmm_space *space, uint64_t virtual_address,
 vmm_status vmm_protect_range(vmm_space *space, uint64_t virtual_address,
                              uint64_t length, uint32_t permissions) {
   if (!valid_space(space) || !valid_range(virtual_address, 0, length) ||
-      !valid_permissions(permissions))
+      !valid_permissions(permissions) ||
+      !valid_user_range(virtual_address, length, permissions))
     return VMM_INVALID_ARGUMENT;
   vmm_status status = preflight(space, virtual_address, length, 1);
   if (status != VMM_OK)
@@ -344,10 +428,20 @@ vmm_status vmm_protect_range(vmm_space *space, uint64_t virtual_address,
     status = walk_leaf(space, virtual_address + offset, 0, &path, &leaf);
     if (status != VMM_OK)
       return status;
+    if (permissions & VMM_USER) {
+      status = allow_user_path(space, &path);
+      if (status != VMM_OK)
+        return status;
+      status = access_table(space, path.tables[3], &leaf);
+      if (status != VMM_OK)
+        return status;
+    }
     uint64_t entry = leaf[path.indices[3]] &
-                     ~(PTE_WRITE | PTE_NX);
+                     ~(PTE_WRITE | PTE_USER | PTE_NX);
     if (permissions & VMM_WRITE)
       entry |= PTE_WRITE;
+    if (permissions & VMM_USER)
+      entry |= PTE_USER;
     if (space->nx_enabled && !(permissions & VMM_EXECUTE))
       entry |= PTE_NX;
     leaf[path.indices[3]] = entry;
@@ -373,6 +467,7 @@ vmm_status vmm_query(vmm_space *space, uint64_t virtual_address,
   *physical_address = (entry & PTE_ADDRESS) |
                       (virtual_address & (VMM_PAGE_SIZE - 1));
   *permissions = VMM_READ | ((entry & PTE_WRITE) ? VMM_WRITE : 0) |
+                 ((entry & PTE_USER) ? VMM_USER : 0) |
                  ((!space->nx_enabled || !(entry & PTE_NX)) ? VMM_EXECUTE
                                                              : 0);
   *entry_flags = entry & ~PTE_ADDRESS;

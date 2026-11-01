@@ -1,6 +1,6 @@
 # Chỉ mục API và ABI
 
-LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader, M06 EFI loader, M07 parity probe; kernel bootstrap M08, PMM M09, VMM BSP M10, kernel heap M11, Buddy PMM thử nghiệm M12, ACPI/PCI/device framework M13, input PS/2 M15 đã DONE; renderer software M16 đang IN_PROGRESS. API M13/M15/M16 dưới đây là nội bộ, không phải public ABI. Chưa có process address spaces hoặc kernel sản phẩm. On-wire structs khác với API native (`lbp_span`, `lbp_view`, status enum).
+LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader, M06 EFI loader, M07 parity probe; kernel bootstrap M08, PMM M09, VMM BSP M10, kernel heap M11, Buddy PMM thử nghiệm M12, ACPI/PCI/device framework M13, input PS/2 M15, software renderer M16, VirtIO-GPU 2D M17 và scheduler BSP M19 đã DONE. Profile process/ring 3 M20 đang IN_PROGRESS. API subsystem kernel dưới đây là nội bộ, không phải public ABI. On-wire structs khác với API native (`lbp_span`, `lbp_view`, status enum).
 
 | Giao diện | Nguồn |
 |---|---|
@@ -11,7 +11,7 @@ LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C]
 | Static ELF64 và user runtime | Chưa triển khai; M23 |
 | Lamix 2D SDK | Chưa triển khai; milestones gaming |
 
-Ownership, lifetime, validation và status của LBP đã đặc tả trong BOOT_PROTOCOL; không suy ra các ABI còn lại đã được đóng băng.
+Ownership, lifetime, validation và status của LBP đã đặc tả trong BOOT_PROTOCOL; không suy ra các ABI còn lại đã được đóng băng. M20 chưa tạo syscall ABI, user executable format hoặc ELF loader.
 
 ## Loader bootstrap M05
 
@@ -30,9 +30,13 @@ Kernel dùng entry C/NASM qua LBP v1 và gọi `lbp_validate()` trước khi s�
 
 `kernel/input.h` định nghĩa `input_event`, keycode, modifier, `input_state`, `input_stats` cùng `input_state_init`, `input_keyboard_scancode`, `input_mouse_byte`, `input_poll`, `input_get_stats`. Queue SPSC 128 phần tử dành cho một consumer kernel; sequence tăng đơn điệu, khi đầy drop event mới và tăng `dropped_events`. Keyboard dùng Set 1 đã dịch và ASCII US QWERTY; mouse dùng packet 3 byte, `dy` dương hướng xuống. Đây không phải syscall hoặc user ABI. `kernel/ps2.h` cung cấp `ps2_initialize` callback-based và `ps2_read_irq_byte`; API chỉ dùng trong profile M15.
 
-## Scheduler BSP M19 (nội bộ kernel, IN_PROGRESS)
+## Scheduler BSP M19 (nội bộ kernel, DONE)
 
-`kernel/scheduler.h` định nghĩa scheduler, TCB, context frame, bốn mức priority, `scheduler_create`, `scheduler_begin`, `scheduler_yield`, `scheduler_exit`, `scheduler_set_priority`, `scheduler_on_tick`, `scheduler_on_reschedule` và mutex nội bộ. TCB/stack 16 KiB cấp từ kernel heap; mutex hỗ trợ priority inheritance và direct handoff. `interrupt_dispatch` trả frame cho NASM interrupt restore path trong profile M19. Đây chỉ là kernel-thread API BSP; không có join/cancel, syscall hoặc user ABI. M18 không được dùng hay kích hoạt bởi profile M19.
+`kernel/scheduler.h` định nghĩa scheduler, TCB, context frame, bốn mức priority, `scheduler_create`, `scheduler_begin`, `scheduler_yield`, `scheduler_exit`, `scheduler_set_priority`, `scheduler_on_tick`, `scheduler_on_reschedule` và mutex nội bộ. M19 đã nghiệm thu context switch BSP qua LAPIC timer, RR/aging và mutex priority inheritance/direct handoff; M18 không phải dependency.
+
+## Processes và ring 3 M20 (nội bộ kernel, IN_PROGRESS)
+
+`kernel/vmm.h` thêm quyền `VMM_USER`; M20 dành PML4 slot 1 (512 GiB đến 1 TiB) cho user mappings, đặt U/S xuyên các cấp page table và từ chối VA user ngoài slot này. `vmm_copy_kernel_mappings` chia sẻ kernel mappings supervisor vào process root; `vmm_destroy_process_space` giữ ownership đúng cho các page table riêng. `kernel/process.h` cung cấp state/status và các thao tác nội bộ `process_create`, `process_note_fault`, `process_request_kill`, `process_wait`, `process_destroy`; hiện mỗi process sở hữu một address space, code/data/stack frame và một scheduler thread. `process_wait` block bằng scheduler yield khi guest scheduler active; trong host fixtures chưa active thì đọc trạng thái hiện thời. Scheduler callback đổi CR3/TSS `rsp0`; CPL3 exception kết thúc process, ring0 exception vẫn panic. Đây là API nội bộ, không phải syscall ABI. User code hiện là payload nhúng trong profile M20; ELF loader/runtime thuộc M23.
 
 ## Software renderer M16 (nội bộ kernel, DONE)
 
