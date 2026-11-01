@@ -38,12 +38,14 @@ struct block_request {
   volatile uint32_t state;
 };
 
-/* Request and buffer stay live through callback return; DONE is published after. */
+/* Request/buffer stay live through callback return; DONE is published after.
+   On reset timeout they remain device-owned and must stay live. */
 
 struct block_device;
 typedef struct block_device_ops {
   block_status (*submit)(struct block_device *device, block_request *request);
   size_t (*poll)(struct block_device *device, size_t budget);
+  /* Success relinquishes every in-flight request and DMA buffer. */
   block_status (*reset)(struct block_device *device);
 } block_device_ops;
 

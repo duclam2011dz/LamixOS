@@ -13,6 +13,7 @@ file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../../out/m25")
 add_executable(m25-native native.c
   "${CMAKE_CURRENT_SOURCE_DIR}/../../kernel/block.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/../../kernel/virtio_blk.c")
+target_link_libraries(m25-native PRIVATE Threads::Threads)
 target_compile_options(m25-native PRIVATE -Wall -Wextra -Werror -Wpedantic
   -fsanitize=address,undefined -fno-omit-frame-pointer)
 target_link_options(m25-native PRIVATE -fsanitize=address,undefined)

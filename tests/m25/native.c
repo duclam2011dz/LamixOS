@@ -2,7 +2,10 @@
 #include "virtio_blk.h"
 
 #include <assert.h>
+#include <pthread.h>
+#include <sched.h>
 #include <stdint.h>
+#include <stdatomic.h>
 #include <string.h>
 
 #define MOCK_STATUS_ACK 1u
@@ -26,6 +29,7 @@ typedef struct mock {
   uint8_t reverse_pair;
   uint8_t fail_used_id;
   uint8_t corrupt_length;
+  uint8_t device_status;
   uint16_t pending[32];
   uint16_t pending_count;
   uint32_t callbacks;
@@ -53,9 +57,9 @@ static void complete(mock *m, uint16_t head) {
   mock_request_header *header =
       (mock_request_header *)(uintptr_t)table[head].address;
   uint8_t *status = (uint8_t *)(uintptr_t)table[head + 2].address;
-  *status = 0;
+  *status = m->device_status;
   uint32_t length = 1;
-  if (header->type == 0) {
+  if (header->type == 0 && m->device_status == 0) {
     virtio_blk_desc *data_desc = &table[head + 1];
     uint8_t *data = (uint8_t *)(uintptr_t)data_desc->address;
     length += data_desc->length;
@@ -228,6 +232,91 @@ static void test_sync_completion_at_budget_boundary(void) {
   assert(m.callbacks == 1 && !m.callback_errors);
 }
 
+static void test_read_error_short_used_length(void) {
+  mock m;
+  virtio_blk d;
+  assert(initialize(&m, &d, 1, 0) == BLOCK_OK);
+  m.device_status = 1;
+  block_request request;
+  block_request_init(&request, BLOCK_READ, 5, 1, test_data[0], callback, &m);
+  assert(block_submit(&d.device, &request) == BLOCK_OK);
+  assert(block_poll(&d.device, 1) == 1);
+  assert(request.state == 2 && request.status == BLOCK_DEVICE_ERROR);
+  assert(d.initialized && !d.offline);
+  assert(m.callbacks == 1 && m.callback_errors == 1);
+}
+
+typedef struct completion_race {
+  block_request *request;
+  atomic_int callback_entered;
+  atomic_int callback_release;
+  atomic_int callback_returned;
+  atomic_int reset_returned;
+} completion_race;
+
+static block_status race_submit(block_device *device, block_request *request) {
+  completion_race *race = device->driver;
+  race->request = request;
+  return BLOCK_OK;
+}
+
+static size_t race_poll(block_device *device, size_t budget) {
+  (void)device;
+  (void)budget;
+  return 0;
+}
+
+static void race_callback(block_request *request, void *context) {
+  completion_race *race = context;
+  assert(request->status == BLOCK_OK);
+  atomic_store_explicit(&race->callback_entered, 1, memory_order_release);
+  while (!atomic_load_explicit(&race->callback_release, memory_order_acquire))
+    sched_yield();
+  atomic_store_explicit(&race->callback_returned, 1, memory_order_release);
+}
+
+static void *race_finish(void *context) {
+  completion_race *race = context;
+  block_request_complete(race->request, BLOCK_OK);
+  return 0;
+}
+
+static void *race_release_callback(void *context) {
+  completion_race *race = context;
+  while (!atomic_load_explicit(&race->reset_returned, memory_order_acquire))
+    sched_yield();
+  for (unsigned i = 0; i < 10000; ++i) sched_yield();
+  atomic_store_explicit(&race->callback_release, 1, memory_order_release);
+  return 0;
+}
+
+static block_status race_reset(block_device *device) {
+  completion_race *race = device->driver;
+  pthread_t finisher;
+  assert(!pthread_create(&finisher, 0, race_finish, race));
+  while (!atomic_load_explicit(&race->callback_entered, memory_order_acquire))
+    sched_yield();
+  atomic_store_explicit(&race->reset_returned, 1, memory_order_release);
+  assert(!pthread_detach(finisher));
+  return BLOCK_OK;
+}
+
+static void test_sync_waits_for_completion_callback(void) {
+  completion_race race = {0};
+  static const block_device_ops ops = {race_submit, race_poll, race_reset};
+  block_device device;
+  assert(block_device_init(&device, &ops, &race, 32, 512, 0) == BLOCK_OK);
+  pthread_t releaser;
+  assert(!pthread_create(&releaser, 0, race_release_callback, &race));
+  uint8_t buffer[512] = {0};
+  block_request request;
+  block_request_init(&request, BLOCK_READ, 0, 1, buffer, race_callback, &race);
+  assert(block_io_sync(&device, &request, 1) == BLOCK_OK);
+  assert(__atomic_load_n(&request.state, __ATOMIC_ACQUIRE) == 2u);
+  assert(atomic_load_explicit(&race.callback_returned, memory_order_acquire));
+  assert(!pthread_join(releaser, 0));
+}
+
 static void test_validation_and_read_only(void) {
   mock m;
   virtio_blk d;
@@ -340,6 +429,8 @@ int main(void) {
   test_features_and_out_of_order_completion();
   test_queue_reduction_and_wraparound();
   test_sync_completion_at_budget_boundary();
+  test_read_error_short_used_length();
+  test_sync_waits_for_completion_callback();
   test_validation_and_read_only();
   test_callback_can_submit_async();
   test_queue_exhaustion_and_reset_lifetimes();

@@ -226,20 +226,22 @@ size_t virtio_blk_poll(virtio_blk *driver, size_t budget) {
     uint16_t slot_id = (uint16_t)(used.id / 3u);
     virtio_blk_slot slot = driver->slots[slot_id];
     uint8_t device_status = driver->memory.statuses[slot_id];
-    uint32_t expected = slot.operation == BLOCK_READ ? slot.bytes + 1u : 1u;
     block_status status = BLOCK_OK;
-    if (used.length != expected) {
-      driver->offline = 1;
-      driver->accepting = 0;
-      malformed = 1;
-      break;
-    }
+    uint32_t expected = 1u;
     if (device_status == DEVICE_S_IOERR)
       status = BLOCK_DEVICE_ERROR;
     else if (device_status == DEVICE_S_UNSUPP)
       status = BLOCK_UNSUPPORTED;
     else if (device_status != DEVICE_S_OK)
       status = BLOCK_DEVICE_ERROR;
+    else if (slot.operation == BLOCK_READ)
+      expected = slot.bytes + 1u;
+    if (used.length != expected) {
+      driver->offline = 1;
+      driver->accepting = 0;
+      malformed = 1;
+      break;
+    }
     driver->slots[slot_id] = (virtio_blk_slot){0};
     done[count++] = (struct completion){slot.request, status};
   }

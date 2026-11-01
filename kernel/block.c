@@ -82,9 +82,12 @@ block_status block_io_sync(block_device *device, block_request *request,
     return request->status;
   status = device->operations->reset(device);
   if (status != BLOCK_OK) return BLOCK_RESET_TIMEOUT;
-  if (__atomic_load_n(&request->state, __ATOMIC_ACQUIRE) ==
-      BLOCK_REQUEST_DONE)
-    return request->status;
+  uint32_t state = __atomic_load_n(&request->state, __ATOMIC_ACQUIRE);
+  while (state == BLOCK_REQUEST_COMPLETING) {
+    __asm__ volatile("pause" ::: "memory");
+    state = __atomic_load_n(&request->state, __ATOMIC_ACQUIRE);
+  }
+  if (state == BLOCK_REQUEST_DONE) return request->status;
   return BLOCK_TIMEOUT;
 }
 
