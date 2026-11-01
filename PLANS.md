@@ -1,7 +1,15 @@
-# Kế hoạch và kết quả — M19 (M18 PLANNED, M17 DONE)
+# Kế hoạch và kết quả — M20 (M18 PLANNED, M19 DONE)
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: IN_PROGRESS; M21–M44: PLANNED
+
+## M20 — Processes, ring 3 và cô lập address space (IN_PROGRESS)
+
+- Thêm `kernel/process.c`/`.h`: process sở hữu VMM root, code/data/stack frame và một scheduler thread; API nội bộ tạo, ghi nhận user fault, yêu cầu kill, đọc trạng thái wait và thu hồi sau khi thread rời context. Mỗi process dùng user VA ở PML4 slot riêng; supervisor mappings của kernel được chia sẻ nhưng giữ quyền supervisor. Không đổi LBP v1, entry ABI, syscall ABI, ELF loader hay M18.
+- Mở rộng VMM với `VMM_USER`, kiểm tra user range thấp/canonical và map/protect U/S ở leaf lẫn intermediate entries. Process root chia sẻ các nhánh supervisor của kernel, giữ slot user riêng; hủy root chỉ thu hồi page tables do process sở hữu.
+- Mở rộng scheduler với user interrupt frame, context-switch callback, `TSS.rsp0`/CR3 cập nhật theo thread và terminate-current từ interrupt. Profile M20 nhúng hai payload ring 3: cùng virtual data address nhưng physical backing khác; một payload ghi vào vùng chỉ process kia map và bị fault, process còn lại tiếp tục rồi bị kernel test manager kill.
+- `m20-kernel` cross-build **PASS**; `scripts/lamix_qemu.py --profile m20 --build-only` **PASS**, tạo image BIOS/UEFI dùng chung trong `out/m20/`. Native process/VMM ASan+UBSan **PASS**; M20 host pytest **1/1 PASS**. Guest QEMU cùng image/kernel BIOS/UEFI **3/3 mỗi firmware PASS**, serial gồm `M20:USER_FAULT:EXPECTED`, `M20:ISOLATION:PASS`, `M20:KILL_WAIT:PASS`, `M20:PASS`; image/firmware/build inputs không đổi và cleanup sạch. M19 pytest **7/7 PASS**; M19 native sanitizer PASS; M17 guest regression **4/4 PASS**.
+- CMake/CTest wrapper **NOT RUN**: `cmake` không có trên PATH của môi trường này; sanitizer executable và pytest chạy trực tiếp. Docs validator **PASS**, unittest tài liệu **41/41 PASS**. GitHub CI chưa chạy vì chưa có acceptance SHA/PR. PC thật và firmware ngoài profile QEMU **NOT RUN**. M20 vẫn `IN_PROGRESS`, chưa có acceptance SHA/PR/tag.
 
 ## M19 — Preemptive priority round-robin scheduler BSP (DONE)
 

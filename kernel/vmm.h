@@ -10,6 +10,7 @@
 #define VMM_READ UINT32_C(1)
 #define VMM_WRITE UINT32_C(2)
 #define VMM_EXECUTE UINT32_C(4)
+#define VMM_USER UINT32_C(8)
 #define VMM_MAP_UNCACHED UINT32_C(1)
 
 typedef enum vmm_status {
@@ -36,10 +37,18 @@ typedef struct vmm_space {
   uint64_t root_physical;
   uint32_t nx_enabled;
   uint32_t initialized;
+  uint32_t mapping_permissions;
 } vmm_space;
 
 vmm_status vmm_init(vmm_space *space, const vmm_operations *operations,
                     int nx_enabled);
+/* Chia sẻ các PML4 entries của kernel ngoại trừ slot 1 dành riêng cho M20 user.
+ * Các entries được chia sẻ phải giữ quyền supervisor. VMM_USER chỉ nhận VA
+ * trong PML4 slot 1 để vòng đời process chỉ sở hữu một nhánh root. */
+vmm_status vmm_copy_kernel_mappings(vmm_space *destination,
+                                    const vmm_space *kernel);
+/* Chỉ hủy process root không còn nạp trong CR3; không thu hồi leaf frames. */
+vmm_status vmm_destroy_process_space(vmm_space *space);
 /* Chỉ hủy root không còn được nạp trong CR3; callbacks phải tiếp tục truy cập
  * được mọi page-table frame trong suốt quá trình thu hồi. */
 vmm_status vmm_destroy(vmm_space *space);

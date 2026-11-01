@@ -4,6 +4,11 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M20 — IN_PROGRESS
+
+- Thêm profile BSP M20 với ring 3, process address spaces tách biệt, user/supervisor page permissions, TSS stack transition và lifecycle kill/wait nội bộ. Không đổi syscall ABI, ELF loader, LBP v1 hoặc profile cũ.
+- Host sanitizer, guest QEMU BIOS/UEFI, docs validator và unittest tài liệu đã chạy PASS; CTest wrapper local **NOT RUN** do thiếu `cmake`, GitHub CI chưa chạy. Xem [kế hoạch/bằng chứng M20](PLANS.md).
+
 ### M19 — DONE
 
 - Thêm scheduler kernel-thread BSP với priority RR, tick aging, mutex priority inheritance/FIFO/direct handoff và context switch qua LAPIC timer; thêm profile M19. Không đổi LBP v1, entry ABI hoặc kích hoạt M18.

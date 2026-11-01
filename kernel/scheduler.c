@@ -39,6 +39,7 @@ static scheduler_thread *new_thread(scheduler *state, scheduler_entry entry,
   }
   uintptr_t top = ((uintptr_t)thread->stack + SCHED_STACK_SIZE) &
                   ~(uintptr_t)15;
+  thread->kernel_stack_top = top;
   top -= sizeof(uintptr_t); /* SysV function entry requires RSP % 16 == 8. */
   thread->frame = (scheduler_frame *)(top - sizeof(*thread->frame));
   zero_memory(thread->frame, sizeof(*thread->frame));
@@ -227,12 +228,24 @@ static void reap_retired(scheduler *state, scheduler_thread *current) {
   }
 }
 
-static void *dispatch(scheduler *state, void *frame, int tick) {
+void scheduler_collect_retired(scheduler *state) {
+  if (!state || !state->active || !state->current)
+    return;
+  uintptr_t flags = lock_scheduler(state);
+  reap_retired(state, state->current);
+  unlock_scheduler(state, flags);
+}
+
+static void *dispatch(scheduler *state, void *frame, int tick, int terminate) {
   if (!state || !state->active || !state->current)
     return frame;
   scheduler_thread *current = state->current;
   current->frame = (scheduler_frame *)frame;
   reap_retired(state, current);
+  if (terminate && current != state->bootstrap && !current->idle) {
+    current->state = SCHED_THREAD_TERMINATED;
+    add_retired(state, current);
+  }
   if (tick) {
     ++state->ticks;
     age_ready_threads(state);
@@ -243,6 +256,8 @@ static void *dispatch(scheduler *state, void *frame, int tick) {
   if (!next)
     return frame;
   state->current = next;
+  if (state->operations.context_switch)
+    state->operations.context_switch(state->operations.context, next);
   return next->frame ? next->frame : frame;
 }
 
@@ -323,11 +338,30 @@ scheduler_status scheduler_begin(scheduler *state) {
 }
 
 void *scheduler_on_tick(scheduler *state, void *interrupt_frame) {
-  return dispatch(state, interrupt_frame, 1);
+  return dispatch(state, interrupt_frame, 1, 0);
 }
 
 void *scheduler_on_reschedule(scheduler *state, void *interrupt_frame) {
-  return dispatch(state, interrupt_frame, 0);
+  return dispatch(state, interrupt_frame, 0, 0);
+}
+
+void *scheduler_terminate_interrupt(scheduler *state, void *interrupt_frame) {
+  return dispatch(state, interrupt_frame, 0, 1);
+}
+
+scheduler_status scheduler_configure_user(scheduler_thread *thread,
+                                          uintptr_t entry,
+                                          uintptr_t user_stack) {
+  if (!thread || !thread->owner || !entry || !user_stack ||
+      thread->state != SCHED_THREAD_READY || !thread->frame)
+    return SCHED_INVALID;
+  thread->frame->rip = entry;
+  thread->frame->cs = (uintptr_t)0x23u;
+  thread->frame->rflags = INITIAL_RFLAGS & ~(uintptr_t)(3u << 12);
+  thread->frame->rsp = user_stack;
+  thread->frame->ss = (uintptr_t)0x1bu;
+  thread->user_mode = 1;
+  return SCHED_OK;
 }
 
 scheduler_status scheduler_yield(scheduler *state) {

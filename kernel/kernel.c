@@ -30,6 +30,9 @@
 #if defined(LAMIX_M19_SCHEDULER)
 #include "scheduler.h"
 #endif
+#if defined(LAMIX_M20_PROCESS)
+#include "process.h"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -162,6 +165,16 @@ static volatile uint64_t m19_medium_progress, m19_medium_at_inheritance;
 static scheduler_thread *m19_owner_thread;
 static scheduler_mutex m19_test_mutex;
 #endif
+#if defined(LAMIX_M20_PROCESS)
+static process m20_process_a, m20_process_b;
+static uint64_t m20_boot_stack_top;
+static int kernel_alloc_frame(uint64_t *physical);
+static int kernel_free_frame(uint64_t physical);
+static int vmm_allocate(void *context, uint64_t *physical);
+static int vmm_release(void *context, uint64_t physical);
+static volatile uint64_t *vmm_access(void *context, uint64_t physical);
+static void vmm_invalidate(void *context, uint64_t virtual_address);
+#endif
 static __attribute__((noreturn)) void fail(void);
 
 static inline uint8_t in8(uint16_t p){uint8_t x;__asm__ volatile("inb %1,%0":"=a"(x):"Nd"(p));return x;}
@@ -210,6 +223,108 @@ static void m19_fatal(void *context, uint64_t reason) {
   serial("M19:KERNEL_ERROR reason="); hex(reason); serial("\nM19:FAIL\n");
   halt();
 }
+#if defined(LAMIX_M20_PROCESS)
+static void m20_context_switch(void *context, scheduler_thread *next) {
+  (void)context;
+  tss.rsp0 = next->kernel_stack_top ? next->kernel_stack_top : m20_boot_stack_top;
+  process *instance = next->user_mode ? (process *)next->private_context : 0;
+  uint64_t root = instance ? instance->address_space.root_physical
+                           : kernel_space.root_physical;
+  if (instance && instance->state == PROCESS_READY)
+    instance->state = PROCESS_RUNNING;
+  __asm__ volatile("mov %0,%%cr3" : : "r"(root) : "memory");
+}
+static int m20_allocate_frame(void *context, uint64_t *physical) {
+  (void)context;
+  return kernel_alloc_frame(physical);
+}
+static int m20_release_frame(void *context, uint64_t physical) {
+  (void)context;
+  return kernel_free_frame(physical);
+}
+static volatile uint8_t *m20_access_frame(void *context, uint64_t physical) {
+  (void)context;
+  volatile uint64_t *page = vmm_access(0, physical);
+  return (volatile uint8_t *)page;
+}
+static void m20_user_idle(void *argument) { (void)argument; for (;;) __asm__ volatile("sti; hlt" ::: "memory"); }
+
+static void m20_run(void) {
+  static const uint8_t fault_payload[] = {
+      0x48,0xb8,0x00,0x00,0x10,0x00,0x80,0x00,0x00,0x00,
+      0xc7,0x00,0x11,0x20,0x00,0x00,
+      0x48,0xb8,0x00,0x00,0x60,0x00,0x80,0x00,0x00,0x00,
+      0xc6,0x00,0x01};
+  static const uint8_t loop_payload[] = {
+      0x48,0xb8,0x00,0x00,0x10,0x00,0x80,0x00,0x00,0x00,
+      0xc7,0x00,0x22,0x20,0x00,0x00,0xf3,0x90,0xeb,0xfc};
+  process_operations operations = {.context = 0,
+      .allocate_frame = m20_allocate_frame, .release_frame = m20_release_frame,
+      .access_frame = m20_access_frame,
+      .vmm = {.context = 0, .allocate_page = vmm_allocate,
+        .release_page = vmm_release, .access_page = vmm_access,
+        .invalidate = vmm_invalidate}};
+  scheduler_operations scheduler_ops = {0, m19_allocate, m19_deallocate,
+      m19_irq_save, m19_irq_restore, m19_request_reschedule, m19_fatal,
+      m20_context_switch};
+  m20_boot_stack_top = m20_boot_stack_top ? m20_boot_stack_top : tss.rsp0;
+  scheduler_status scheduler_result =
+      scheduler_init(&m19_scheduler, &scheduler_ops, m20_user_idle);
+  process_status process_a_result = scheduler_result == SCHED_OK
+      ? process_create(&m20_process_a, &operations, &kernel_space,
+                       &m19_scheduler, 1, fault_payload,
+                       sizeof(fault_payload), 2) : PROCESS_SCHEDULER_ERROR;
+  process_status process_b_result = process_a_result == PROCESS_OK
+      ? process_create(&m20_process_b, &operations, &kernel_space,
+                       &m19_scheduler, 2, loop_payload,
+                       sizeof(loop_payload), 2) : PROCESS_SCHEDULER_ERROR;
+  vmm_status private_map_result = process_b_result == PROCESS_OK
+      ? vmm_map_range(&m20_process_b.address_space, PROCESS_USER_PRIVATE,
+                      m20_process_b.data_frame, PAGE_SIZE,
+                      VMM_READ | VMM_WRITE | VMM_USER, 0) : VMM_INVALID_ARGUMENT;
+  scheduler_status begin_result = process_b_result == PROCESS_OK &&
+      private_map_result == VMM_OK
+      ? scheduler_begin(&m19_scheduler) : SCHED_BAD_STATE;
+  if (scheduler_result != SCHED_OK || process_a_result != PROCESS_OK ||
+      process_b_result != PROCESS_OK || private_map_result != VMM_OK ||
+      begin_result != SCHED_OK) {
+    serial("M20:CREATE:FAIL sched="); hex(scheduler_result);
+    serial(" a="); hex(process_a_result); serial(" b=");
+    hex(process_b_result); serial(" begin="); hex(begin_result);
+    serial(" stage="); hex(m20_process_a.creation_stage);
+    serial(" vm="); hex(m20_process_a.creation_vm_status);
+    serial(" private="); hex(private_map_result);
+    serial("\nM20:FAIL\n"); halt();
+  }
+  m19_scheduler_ready = 1;
+  serial("M20:PROCESS:READY\nM20:RING3:ENTERING\n");
+  __asm__ volatile("sti" ::: "memory");
+  uint64_t address = 0, code = 0;
+  process_state a_state = process_wait(&m20_process_a, &address, &code);
+  if (m20_process_b.state != PROCESS_RUNNING || a_state != PROCESS_FAULTED ||
+      address != PROCESS_USER_PRIVATE || !(code & 2) ||
+      *(volatile uint32_t *)m20_access_frame(0, m20_process_a.data_frame) != 0x2011 ||
+      *(volatile uint32_t *)m20_access_frame(0, m20_process_b.data_frame) != 0x2022) {
+    serial("M20:ISOLATION:FAIL\nM20:FAIL\n"); halt();
+  }
+  serial("M20:ISOLATION:PASS\nM20:USER_FAULT:PASS\n");
+  if (process_request_kill(&m20_process_b) != PROCESS_OK) {
+    serial("M20:KILL:FAIL\nM20:FAIL\n"); halt();
+  }
+  process_state b_state = process_wait(&m20_process_b, 0, 0);
+  if (b_state != PROCESS_KILLED) {
+    serial("M20:WAIT:FAIL\nM20:FAIL\n"); halt();
+  }
+  serial("M20:KILL_WAIT:PASS\n");
+  scheduler_collect_retired(&m19_scheduler);
+  if (process_destroy(&m20_process_a) != PROCESS_OK ||
+      process_destroy(&m20_process_b) != PROCESS_OK) {
+    serial("M20:CLEANUP:FAIL\n"); halt();
+  }
+  serial("M20:PASS\n");
+  halt();
+}
+#endif
 static void m19_idle(void *argument) {
   (void)argument;
   for (;;) __asm__ volatile("sti; hlt" ::: "memory");
@@ -277,9 +392,9 @@ static void m19_mutex_medium(void *argument) {
   m19_medium_done = 1;
   serial("M19:MUTEX:MEDIUM_DONE\n");
 }
-static void m19_run(void) {
+static __attribute__((unused)) void m19_run(void) {
   scheduler_operations operations = {0, m19_allocate, m19_deallocate,
-      m19_irq_save, m19_irq_restore, m19_request_reschedule, m19_fatal};
+      m19_irq_save, m19_irq_restore, m19_request_reschedule, m19_fatal, 0};
   scheduler_thread *workers[2] = {0, 0};
   if (scheduler_init(&m19_scheduler, &operations, m19_idle) != SCHED_OK ||
       scheduler_create(&m19_scheduler, m19_worker, (void *)0, 1,
@@ -356,7 +471,10 @@ static void m19_run(void) {
     serial("M19:MUTEX:FAIL\nM19:FAIL\n"); halt();
   }
   serial("M19:MUTEX:PI_HANDOFF:PASS\nM19:WAKEUP:PASS\n");
-  serial("M19:PASS\n"); halt();
+  serial("M19:PASS\n");
+#if !defined(LAMIX_M20_PROCESS)
+  halt();
+#endif
 }
 #endif
 static uint16_t gate_selector=KCODE;
@@ -368,6 +486,7 @@ static void idt_init(uint16_t selector,int final){
 }
 static void gdt_init(uint16_t prior_cs){
   gdt[1]=UINT64_C(0x00af9a000000ffff);gdt[2]=UINT64_C(0x00cf92000000ffff);
+  gdt[3]=UINT64_C(0x00cff2000000ffff);gdt[4]=UINT64_C(0x00affa000000ffff);
   unsigned old_index=(prior_cs&0xfff8)>>3;
   if((prior_cs&4) || (prior_cs&3) || old_index>=62) fail();
   gdt[old_index]=UINT64_C(0x00af9a000000ffff);
@@ -395,8 +514,18 @@ void *interrupt_dispatch(interrupt_frame*f){if(f->vector==32){
     __asm__ volatile("mfence" ::: "memory");
     m14_lapic[0xb0 / 4] = 0;
 #if defined(LAMIX_M19_SCHEDULER)
-    if (f->vector == 0x31 && m19_scheduler_ready)
+    if (f->vector == 0x31 && m19_scheduler_ready) {
+#if defined(LAMIX_M20_PROCESS)
+      scheduler_thread *current = m19_scheduler.current;
+      process *instance = current && current->user_mode
+                              ? (process *)current->private_context : 0;
+      if (instance && instance->kill_requested) {
+        instance->state = PROCESS_KILLED;
+        return scheduler_terminate_interrupt(&m19_scheduler, f);
+      }
+#endif
       return scheduler_on_tick(&m19_scheduler, f);
+    }
 #endif
     return f;
   }
@@ -420,6 +549,26 @@ void *interrupt_dispatch(interrupt_frame*f){if(f->vector==32){
 #if defined(LAMIX_M19_SCHEDULER)
   if (f->vector == 0x34 && m19_scheduler_ready)
     return scheduler_on_reschedule(&m19_scheduler, f);
+#endif
+#if defined(LAMIX_M20_PROCESS)
+  if ((f->cs & 3u) == 3u && f->vector < 32 && m19_scheduler_ready) {
+    scheduler_thread *current = m19_scheduler.current;
+    process *instance = current && current->user_mode
+                            ? (process *)current->private_context : 0;
+    if (!instance)
+      panic_frame(f);
+    uint64_t address = 0;
+    if (f->vector == 14)
+      __asm__ volatile("mov %%cr2,%0" : "=r"(address));
+    process_note_fault(instance, address, f->error);
+    if (f->vector == 14 && address == PROCESS_USER_PRIVATE)
+      serial("M20:USER_FAULT:EXPECTED\n");
+    else {
+      serial("M20:USER_FAULT:UNEXPECTED vector="); hex(f->vector);
+      serial(" address="); hex(address); serial("\n");
+    }
+    return scheduler_terminate_interrupt(&m19_scheduler, f);
+  }
 #endif
   panic_frame(f);}
 static const uint8_t *record(const lbp_view*v,uint32_t type){for(uint32_t i=0;i<v->count;i++){uint64_t at;if(lbp_record_at(v,i,&at)!=LBP_OK) return 0;const uint8_t*p=v->bytes+at;if(*(const uint32_t*)p==type)return p;}return 0;}
@@ -1763,6 +1912,10 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
 #endif
   const lbp_entry*e=(const lbp_entry*)record(&view,LBP_ENTRY);
   if(!e)fail();
+#if defined(LAMIX_M20_PROCESS)
+  tss.rsp0 = e->rsp;
+  m20_boot_stack_top = e->rsp;
+#endif
 #if defined(LAMIX_M09_PMM)
   if(!pmm_self_test(&view,e)){serial("M09:FAIL\n");fail();}
 #endif
@@ -1858,7 +2011,9 @@ __attribute__((noreturn)) void kernel_main(uint64_t self,uint64_t magic){
   serial("M16:PASS\n");
 #endif
 #endif
-#if defined(LAMIX_M19_SCHEDULER)
+#if defined(LAMIX_M20_PROCESS)
+  m20_run();
+#elif defined(LAMIX_M19_SCHEDULER)
   m19_run();
 #endif
   halt();

@@ -139,6 +139,12 @@ jobs:
           cmake -S tests/m19 -B build/m19-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m19-tests
           ctest --test-dir build/m19-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m19/ctest.xml"
+      - name: M20 ring 3, process isolation và guest BIOS/UEFI
+        timeout-minutes: 60
+        run: |
+          cmake -S tests/m20 -B build/m20-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m20-tests
+          ctest --test-dir build/m20-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m20/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -359,4 +365,18 @@ jobs:
             out/m19/runs/**/qmp.log
             build/m19-*/build.json
             build/m19-*/kernel.inspection.txt
+      - name: Lưu M20 process reports và guest serial, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m20-process-reports
+          path: |
+            out/m20/*.xml
+            out/m20/results/*.json
+            out/m20/runs/**/result.json
+            out/m20/runs/**/serial.log
+            out/m20/runs/**/stderr.log
+            out/m20/runs/**/qmp.log
+            build/m20-*/build.json
+            build/m20-*/kernel.inspection.txt
           if-no-files-found: warn

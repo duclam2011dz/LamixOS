@@ -49,7 +49,7 @@ static void setup(host_context *host, scheduler *state) {
   host->state = state;
   host->irq_enabled = 1;
   scheduler_operations ops = {host, allocate, deallocate, irq_save,
-                               irq_restore, reschedule, fatal};
+                               irq_restore, reschedule, fatal, 0};
   assert(scheduler_init(state, &ops, idle) == SCHED_OK);
 }
 
