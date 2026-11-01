@@ -1,7 +1,16 @@
-# Kế hoạch và kết quả — M21 (M21 DONE; M18 PLANNED, M19/M20 DONE)
+# Kế hoạch và kết quả — M22 (M22 IN_PROGRESS; M21/M20 DONE; M18 PLANNED)
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: IN_PROGRESS; M23–M44: PLANNED
+
+## M22 — Handle-based capabilities và IPC (IN_PROGRESS)
+
+- Đã thêm `kernel/handle.c/.h`: process-local generation handle, rights subset, tăng table 16→256, stale rejection, object reference lifetime. `kernel/ipc.c/.h` có cặp endpoint full-duplex, FIFO giới hạn, nonblocking send/receive, attachment object references, SHM zero-init backing, per-process mapping records và teardown. M22 syscall IDs 4–11 và wrappers freestanding; M22 profile bật ABI 1.1, profile M21 giữ 1.0; `latest` giữ M20.
+- Guest payload hiện kiểm version 1.1, create/duplicate/close endpoint, channel round-trip, close-peer semantics, SHM zero/write/map lifetime/unmap/stale handle, MOVE attachment chuyển SHM giữa hai process ring 3 và fault isolation khi process nhận ghi vào mapping chỉ đọc. Không có process spawn/ELF runtime; test manager vẫn tạo các process M20.
+- Bằng chứng hiện tại: cross-build M20/M21/M22 **PASS**; native M22 ASan/UBSan handles, rights subset, generation reuse, table capacity, queue bounds, MOVE/DUP smoke, receive-capacity rollback và SHM mock **PASS** (LeakSanitizer tắt do môi trường ptrace); TSAN channel send/receive cùng handle duplicate/close/reuse smoke **PASS**. Guest M22 SeaBIOS `pc` **3/3 PASS**, OVMF `q35` **3/3 PASS**; hai process ring 3 đã MOVE capability SHM, quan sát cùng dữ liệu, và process nhận fault khi ghi vào mapping read-only trong khi process còn lại hoàn tất. M21 native regression **PASS**; guest M21 BIOS/UEFI **1/1 mỗi firmware PASS**.
+- Regression guest BIOS/UEFI **1/1 mỗi profile PASS** cho M17, M19, M20 và M21. M22 CTest **4/4 PASS**: native ASan/UBSan, TSAN, host provenance và guest BIOS/UEFI 6/6. Docs validator và unittest **PASS** (41/41). Bốn workflow CI trên SHA M22 **NOT RUN**.
+- Chưa hoàn tất/chứng minh: exhaustive invalid pointer/rights/overflow/allocation-failure injection; close/peer-close/send/receive/reuse race matrix đầy đủ; teardown/frame-release failure rollback exhaustive; bốn workflow CI trên SHA nghiệm thu. Cần hoàn thiện trước khi xem xét DONE.
+- M22 còn IN_PROGRESS: guest có một số negative rights/invalid-pointer cases nhưng chưa đủ matrix; race matrix đóng đồng thời với send/receive/duplicate/reuse chưa đầy đủ; CI trên SHA triển khai chưa chạy. Không tạo tag. Scope rollback: revert riêng các commit M22, giữ `LATEST_PROFILE=m20`, M21 ABI/profile và tag `milestone/M21` nguyên trạng.
 
 ## M21 — Lamix-specific syscall ABI v1 (DONE, 2026-11-01)
 

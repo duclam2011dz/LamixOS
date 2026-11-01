@@ -37,6 +37,10 @@
 #include "syscall.h"
 #include "m21_payloads.h"
 #endif
+#if defined(LAMIX_M22_IPC)
+#include "handle.h"
+#include "ipc.h"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -316,6 +320,50 @@ static int m21_copy_user(process *instance, uint64_t source, uint8_t *target,
   return lamix_syscall_copy_from_user(&memory, source, target,
       (size_t)length, UINT64_C(0x0000800000000000), VMM_PAGE_SIZE);
 }
+#if defined(LAMIX_M22_IPC)
+static int m22_validate_write(process *p,uint64_t destination,size_t length){
+  if(destination>=UINT64_C(0x0000800000000000)||length>UINT64_MAX-destination||destination+length>UINT64_C(0x0000800000000000))return 0;
+  size_t done=0;while(done<length){uint64_t pa=0,flags=0;uint32_t perm=0;uint64_t va=destination+done;
+    if(vmm_query(&p->address_space,va,&pa,&perm,&flags)!=VMM_OK||!(perm&VMM_USER)||!(perm&VMM_WRITE))return 0;
+    size_t chunk=VMM_PAGE_SIZE-(size_t)(pa&(VMM_PAGE_SIZE-1));if(chunk>length-done)chunk=length-done;
+    if(!p->operations.access_frame(p->operations.context,pa&~(VMM_PAGE_SIZE-1)))return 0;
+    done+=chunk;
+  }return 1;
+}
+static int m22_write_user(process *p,uint64_t destination,const uint8_t *source,size_t length){
+  if((!source&&length)||!m22_validate_write(p,destination,length))return 0;
+  size_t done=0;while(done<length){uint64_t pa=0,flags=0;uint32_t perm=0;uint64_t va=destination+done;
+    if(vmm_query(&p->address_space,va,&pa,&perm,&flags)!=VMM_OK)return 0;
+    size_t chunk=VMM_PAGE_SIZE-(size_t)(pa&(VMM_PAGE_SIZE-1));if(chunk>length-done)chunk=length-done;
+    volatile uint8_t *page=p->operations.access_frame(p->operations.context,pa&~(VMM_PAGE_SIZE-1));if(!page)return 0;
+    for(size_t i=0;i<chunk;i++)page[(pa&(VMM_PAGE_SIZE-1))+i]=source[done+i];
+    done+=chunk;
+  }return 1;
+}
+static void *m22_alloc(void *ctx,size_t n){process *p=ctx;return p->scheduler_state->operations.allocate(p->scheduler_state->operations.context,n);}
+static void m22_free(void *ctx,void *v){process *p=ctx;p->scheduler_state->operations.deallocate(p->scheduler_state->operations.context,v);}
+static uintptr_t m22_lock(void *ctx){process *p=ctx;return p->scheduler_state->operations.irq_save(p->scheduler_state->operations.context);}
+static void m22_unlock(void *ctx,uintptr_t f){process *p=ctx;p->scheduler_state->operations.irq_restore(p->scheduler_state->operations.context,f);}
+static int m22_alloc_page(void *ctx,uint64_t *frame){process *p=ctx;return p->operations.allocate_frame(p->operations.context,frame);}
+static int m22_release_page(void *ctx,uint64_t frame){process *p=ctx;return p->operations.release_frame(p->operations.context,frame);}
+static volatile uint8_t *m22_access_page(void *ctx,uint64_t frame){process *p=ctx;return p->operations.access_frame(p->operations.context,frame);}
+static int m22_map_page(void *ctx,uint64_t va,uint64_t frame,uint32_t rights){process *p=ctx;uint32_t permissions=VMM_USER;if(rights&LAMIX_RIGHT_SHM_READ)permissions|=VMM_READ;if(rights&LAMIX_RIGHT_SHM_WRITE)permissions|=VMM_WRITE;return vmm_map_range(&p->address_space,va,frame,VMM_PAGE_SIZE,permissions,0)==VMM_OK;}
+static int m22_unmap_page(void *ctx,uint64_t va){process *p=ctx;return vmm_unmap_range(&p->address_space,va,VMM_PAGE_SIZE)==VMM_OK;}
+static int64_t m22_error(lamix_ipc_status s){switch(s){case LI_OK:return 0;case LI_BADF:return -LAMIX_EBADF;case LI_ACCESS:return -LAMIX_EACCES;case LI_AGAIN:return -LAMIX_EAGAIN;case LI_MSGSIZE:return -LAMIX_EMSGSIZE;case LI_NOMEM:return -LAMIX_ENOMEM;case LI_CLOSED:return -LAMIX_ECLOSED;case LI_EXISTS:return -LAMIX_EEXIST;case LI_FAULT:return -LAMIX_EFAULT;case LI_TOO_MANY:return -LAMIX_EMFILE;default:return -LAMIX_EINVAL;}}
+static int64_t m22_call(void *context,uint64_t number,uint64_t a0,uint64_t a1,uint64_t a2,uint64_t a3,uint64_t a4,uint64_t a5){
+  process *p=context;lamix_ipc_ops io={p,m22_alloc,m22_free,m22_lock,m22_unlock};uint64_t value=0;lamix_handle_status hs;
+  if(number==LAMIX_SYS_HANDLE_CLOSE)return (lamix_handle_close(&p->handles,a0)==LH_OK)?0:-LAMIX_EBADF;
+  if(number==LAMIX_SYS_HANDLE_DUPLICATE){if(a1>UINT32_MAX)return -LAMIX_EINVAL;if(!m22_validate_write(p,a2,sizeof(value)))return -LAMIX_EFAULT;hs=lamix_handle_duplicate(&p->handles,a0,(uint32_t)a1,&value);if(hs!=LH_OK)return hs==LH_BADF?-LAMIX_EBADF:hs==LH_ACCESS?-LAMIX_EACCES:hs==LH_TOO_MANY?-LAMIX_EMFILE:hs==LH_INVALID?-LAMIX_EINVAL:-LAMIX_ENOMEM;return m22_write_user(p,a2,(const uint8_t *)&value,sizeof(value))?0:-LAMIX_EFAULT;}
+  if(number==LAMIX_SYS_CHANNEL_CREATE){uint64_t endpoints[2];if(a0>UINT64_MAX-8||a1>UINT64_MAX-8||(a0<a1+8&&a1<a0+8))return -LAMIX_EINVAL;if(!m22_validate_write(p,a0,sizeof(uint64_t))||!m22_validate_write(p,a1,sizeof(uint64_t)))return -LAMIX_EFAULT;lamix_ipc_status s=lamix_channel_create(&p->handles,&io,&endpoints[0],&endpoints[1]);if(s!=LI_OK)return m22_error(s);if(!m22_write_user(p,a0,(const uint8_t *)&endpoints[0],8)||!m22_write_user(p,a1,(const uint8_t *)&endpoints[1],8)){(void)lamix_handle_close(&p->handles,endpoints[0]);(void)lamix_handle_close(&p->handles,endpoints[1]);return -LAMIX_EFAULT;}return 0;}
+  if(number==LAMIX_SYS_CHANNEL_SEND){if(a2>LAMIX_CHANNEL_MAX_PAYLOAD||a4>LAMIX_CHANNEL_MAX_ATTACHMENTS)return -LAMIX_EMSGSIZE;uint8_t bytes[LAMIX_CHANNEL_MAX_PAYLOAD];lamix_attachment attachments[LAMIX_CHANNEL_MAX_ATTACHMENTS];if(!m21_copy_user(p,a1,bytes,a2)||!m21_copy_user(p,a3,(uint8_t *)attachments,(size_t)a4*sizeof(*attachments)))return -LAMIX_EFAULT;return m22_error(lamix_channel_send(&p->handles,&io,a0,bytes,(size_t)a2,attachments,(size_t)a4));}
+  if(number==LAMIX_SYS_CHANNEL_RECEIVE){if(a2>LAMIX_CHANNEL_MAX_PAYLOAD)return -LAMIX_EMSGSIZE;uint64_t requested=0;if(!m21_copy_user(p,a5,(uint8_t *)&requested,sizeof(requested)))return -LAMIX_EFAULT;if(requested>LAMIX_CHANNEL_MAX_ATTACHMENTS)return -LAMIX_EINVAL;if(!m22_validate_write(p,a1,(size_t)a2)||!m22_validate_write(p,a3,sizeof(uint64_t))||!m22_validate_write(p,a4,(size_t)requested*sizeof(lamix_attachment))||!m22_validate_write(p,a5,sizeof(uint64_t)))return -LAMIX_EFAULT;uint8_t bytes[LAMIX_CHANNEL_MAX_PAYLOAD];lamix_attachment attachments[LAMIX_CHANNEL_MAX_ATTACHMENTS];size_t length=0,count=0;lamix_ipc_status s=lamix_channel_receive(&p->handles,&io,a0,bytes,(size_t)a2,&length,attachments,(size_t)requested,&count);if(s!=LI_OK)return m22_error(s);if(!m22_write_user(p,a1,bytes,length)||!m22_write_user(p,a3,(uint8_t *)&length,sizeof(uint64_t))||!m22_write_user(p,a4,(uint8_t *)attachments,count*sizeof(*attachments))||!m22_write_user(p,a5,(uint8_t *)&count,sizeof(uint64_t)))return -LAMIX_EFAULT;return 0;}
+  lamix_shm_ops so={.memory=io,.allocate_page=m22_alloc_page,.release_page=m22_release_page,.access_page=m22_access_page,.map_page=m22_map_page,.unmap_page=m22_unmap_page};
+  if(number==LAMIX_SYS_SHM_CREATE){if(a0>UINT32_MAX)return -LAMIX_EINVAL;if(!m22_validate_write(p,a1,sizeof(value)))return -LAMIX_EFAULT;lamix_ipc_status s=lamix_shm_create(&p->handles,&so,(uint32_t)a0,&value);if(s!=LI_OK)return m22_error(s);if(!m22_write_user(p,a1,(const uint8_t *)&value,sizeof(value))){(void)lamix_handle_close(&p->handles,value);return -LAMIX_EFAULT;}return 0;}
+  if(number==LAMIX_SYS_SHM_MAP){if(a2>UINT32_MAX)return -LAMIX_EINVAL;return m22_error(lamix_shm_map(&p->handles,&so,&p->shm_mappings,a0,a1,(uint32_t)a2));}
+  if(number==LAMIX_SYS_SHM_UNMAP)return m22_error(lamix_shm_unmap(&so,&p->shm_mappings,a0));
+  (void)a5;return -LAMIX_ENOSYS;
+}
+#endif
 static int64_t m21_yield(void *context) {
   process *instance = context;
   return instance && scheduler_yield(instance->scheduler_state) == SCHED_OK
@@ -367,6 +415,9 @@ void *m21_syscall_dispatch_frame(scheduler_frame *frame) {
   }
   lamix_syscall_ops operations = {.context = instance,
       .yield = m21_yield, .exit = m21_exit, .debug_write = m21_debug_write};
+#if defined(LAMIX_M22_IPC)
+  operations.m22_call=m22_call;
+#endif
   uint64_t number = frame->rax;
   int64_t result = lamix_syscall_dispatch(
       &operations, number, frame->rdi, frame->rsi, frame->rdx, frame->r10,
@@ -404,12 +455,21 @@ static void m20_user_idle(void *argument) { (void)argument; for (;;) __asm__ vol
 
 static void m20_run(void) {
 #if defined(LAMIX_M21_SYSCALL)
+#if defined(LAMIX_M22_IPC)
+  const uint8_t *payload_a = m21_test_payload;
+  const size_t payload_a_size = m21_test_payload_size;
+  const uint8_t *payload_b = m21_loop_payload;
+  const size_t payload_b_size = m21_loop_payload_size;
+  const uint8_t *payload_c = m21_invalid_return_payload;
+  const size_t payload_c_size = m21_invalid_return_payload_size;
+#else
   const uint8_t *payload_a = m21_test_payload;
   const size_t payload_a_size = m21_test_payload_size;
   const uint8_t *payload_b = m21_invalid_return_payload;
   const size_t payload_b_size = m21_invalid_return_payload_size;
   const uint8_t *payload_c = m21_loop_payload;
   const size_t payload_c_size = m21_loop_payload_size;
+#endif
 #else
   static const uint8_t fault_payload[] = {
       0x48,0xb8,0x00,0x00,0x10,0x00,0x80,0x00,0x00,0x00,
@@ -452,6 +512,29 @@ static void m20_run(void) {
       : PROCESS_SCHEDULER_ERROR;
   vmm_status private_map_result = process_c_result == PROCESS_OK
       ? VMM_OK : VMM_INVALID_ARGUMENT;
+#if defined(LAMIX_M22_IPC)
+  if(process_c_result==PROCESS_OK){
+    lamix_ipc_ops channel_ops={&m20_process_a,m22_alloc,m22_free,m22_lock,m22_unlock};
+    uint64_t local=0,remote=0;lamix_object *endpoint=0;
+    if(lamix_channel_create(&m20_process_a.handles,&channel_ops,&local,&remote)!=LI_OK||
+       lamix_handle_lookup(&m20_process_a.handles,remote,LAMIX_OBJECT_CHANNEL,0,&endpoint)!=LH_OK)
+      private_map_result=VMM_CALLBACK_FAILED;
+    else {
+      uint64_t process_b_handle=0;
+      if(lamix_handle_install(&m20_process_b.handles,endpoint,LAMIX_RIGHT_TRANSFER|LAMIX_RIGHT_CHANNEL_SEND|LAMIX_RIGHT_CHANNEL_RECEIVE,&process_b_handle)!=LH_OK)
+        private_map_result=VMM_OUT_OF_MEMORY;
+      else {
+        (void)lamix_handle_close(&m20_process_a.handles,remote);
+        volatile uint64_t *a_data=(volatile uint64_t *)m20_access_frame(0,m20_process_a.data_frame);
+        a_data[0]=local;
+        volatile uint64_t *b_data=(volatile uint64_t *)m20_access_frame(0,m20_process_b.data_frame);
+        b_data[0]=process_b_handle;
+        serial("M22:SEED_A=");hex(local);serial(" DATA=");hex(a_data[0]);serial(" SEED_B=");hex(process_b_handle);serial("\n");
+      }
+      lamix_object_release(endpoint);
+    }
+  }
+#endif
 #else
                        loop_payload,
                        sizeof(loop_payload), 2) : PROCESS_SCHEDULER_ERROR;
@@ -487,6 +570,23 @@ static void m20_run(void) {
   uint64_t address = 0, code = 0;
   process_state a_state = process_wait(&m20_process_a, &address, &code);
 #if defined(LAMIX_M21_SYSCALL)
+#if defined(LAMIX_M22_IPC)
+  process_state m22_b_state=process_wait(&m20_process_b,&address,&code);
+  process_state m22_c_state=process_wait(&m21_process_c,&address,&code);
+  if (a_state != PROCESS_EXITED || m20_process_a.exit_code != 0 ||
+      m22_b_state != PROCESS_FAULTED ||
+      m22_c_state != PROCESS_FAULTED ||
+      code != UINT64_C(0x4d21)) {
+    serial("M22:USER_TEST:FAIL exit=");hex(m20_process_a.exit_code);serial(" a=");hex(a_state);serial(" b=");hex(m22_b_state);serial(" code=");hex(code);serial(" c=");hex(m21_process_c.state);serial("\nM22:FAIL\n"); halt();
+  }
+  scheduler_collect_retired(&m19_scheduler);
+  if (process_destroy(&m20_process_a) != PROCESS_OK ||
+      process_destroy(&m20_process_b) != PROCESS_OK ||
+      process_destroy(&m21_process_c) != PROCESS_OK) {
+    serial("M22:CLEANUP:FAIL\nM22:FAIL\n"); halt();
+  }
+  serial("M22:CAPABILITY_CHANNEL:PASS\nM22:CROSS_PROCESS:PASS\nM22:FAULT_ISOLATION:PASS\nM22:CLEANUP:PASS\nM22:PASS\nM21:PASS\nM20:PASS\n");
+#else
   if (a_state != PROCESS_EXITED || m20_process_a.exit_code != 0) {
     serial("M21:USER_EXIT:FAIL code="); hex(m20_process_a.exit_code);
     serial(" state="); hex(a_state); serial("\nM21:FAIL\n"); halt();
@@ -513,6 +613,7 @@ static void m20_run(void) {
   serial("M21:RETURN_VALIDATION:PASS\nM21:FAULT_ISOLATION:PASS\n");
   serial("M21:IRETQ_FALLBACK:PASS\nM21:KILL_WAIT:PASS\nM21:PASS\n");
   serial("M20:PASS\n");
+#endif
 #else
   if (m20_process_b.state != PROCESS_RUNNING || a_state != PROCESS_FAULTED ||
       address != PROCESS_USER_PRIVATE || !(code & 2) ||

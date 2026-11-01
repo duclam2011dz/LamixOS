@@ -1,7 +1,14 @@
-# Bàn giao hiện hành — M21 DONE — 2026-11-01
+# Bàn giao hiện hành — M22 IN_PROGRESS — 2026-11-01
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: IN_PROGRESS; M23–M44: PLANNED
+
+## M22 — trạng thái triển khai
+
+- Branch `codex/m22-capabilities-ipc`; profile `m22-kernel` riêng, `latest` vẫn M20 và M21 giữ ABI 1.0. Cross-build, native ASan/UBSan, native TSAN handle/channel send-receive-close suite và headless guest SeaBIOS/OVMF 3/3 mỗi firmware đã PASS trong workspace hiện tại.
+- Guest payload hiện kiểm version 1.1, handle duplicate/close, channel round-trip và MOVE SHM capability giữa hai process ring 3, shared write/read qua cùng backing, SHM zero/map lifetime/unmap/stale handle, cùng user fault khi ghi mapping read-only được cô lập. Guest có negative-rights và invalid-pointer cases cơ bản; ma trận đầy đủ và race matrix đồng thời chưa hoàn tất.
+- M22 CTest **4/4 PASS** qua `.venv/bin/cmake`/`.venv/bin/ctest`: native ASan/UBSan, TSAN, host provenance và guest BIOS/UEFI **6/6 PASS**. Guest smoke regression BIOS/UEFI **1/1 mỗi profile PASS** cho M17/M19/M20/M21. Chưa hoàn thành: exhaustive invalid arguments/rights/OOM and queue fault injection, close/send/receive/reuse race matrix, teardown failure paths và CI trên SHA M22. Docs validator **PASS**, unittest tài liệu **41/41 PASS**. Lần chạy QEMU CLI có UI dừng ở GTK trước boot; headless CTest guest đã PASS.
+- Không đánh dấu M22 DONE, không tạo tag, không bắt đầu M23. Xem [kế hoạch/bằng chứng hiện hành](../PLANS.md), [TESTING M22](TESTING.md#handles-capabilities-ipc-và-shared-memory-m22) và [API](API.md).
 
 ## M21 — Lamix-specific syscall ABI v1 — DONE
 
@@ -10,7 +17,7 @@ Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DON
 - Profile cross-build/build-only **PASS**; native ASan/UBSan **PASS**; host provenance pytest **1/1 PASS**; guest QEMU **6/6 PASS** (SeaBIOS `pc` 3/3, OVMF `q35` 3/3). M17 regression **4/4**, M19 **6/6**, M20 **6/6** guest PASS; native M19/M20 ASan/UBSan PASS. Docs validator **PASS**, unittest tài liệu **41/41 PASS**.
 - M21 CMake build **PASS**; CTest **3/3 PASS** qua `.venv/bin/cmake`/`.venv/bin/ctest`. Bốn workflow CI SUCCESS trên acceptance SHA: Toolchain [41270742769](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742769), Harness [41270742714](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742714), Documentation [41270742671](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742671), Boot Contract [41270742711](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742711). PR [#22](https://github.com/duclam2011dz/LamixOS/pull/22) merge commit `20073de921c8a13572c57ca9f106ed83cdd4f886`; acceptance commit `6793d8f0a622fcd9f4100921e7932fcb46414540`; annotated tag `milestone/M21` object `f52683213c48c8851f31e8aef653462d204d38ad` trỏ acceptance commit.
 - Regression guest M17 **4/4**, M19 **6/6**, M20 **6/6 PASS**; native M19/M20 sanitizer PASS. Docs validator **PASS**, unittest tài liệu **41/41 PASS**. PC thật và firmware ngoài profile QEMU **NOT RUN**; chưa audit bảo mật độc lập.
-- Repo gốc đã được merge vào `main`; tiếp tục giữ nguyên file chưa theo dõi `PROMPT_NEXT_SESSION_M21.md`. Handoff lập kế hoạch M22 nằm tại [`PROMPT_NEXT_SESSION_M22.md`](../PROMPT_NEXT_SESSION_M22.md); M22 vẫn `PLANNED` và chưa được bắt đầu.
+- M21 đã merge/tag theo bằng chứng lưu tại [PLANS](../PLANS.md). Prompt cũ M22 chỉ là tư liệu lịch sử; trạng thái hiện hành là `IN_PROGRESS` như phần đầu handoff này.
 
 ## M20 — nghiệm thu
 

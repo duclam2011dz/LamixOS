@@ -4,6 +4,10 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M22 — IN_PROGRESS
+
+- Bắt đầu profile `m22-kernel` với process-local generation handles, rights table, channel FIFO nonblocking, SHM page backing/mapping lifetime, syscall IDs 4–11 và wrapper freestanding ABI 1.1. `latest` vẫn M20; profile M21 giữ ABI 1.0. Guest chuyển MOVE SHM capability giữa hai process, kiểm shared write/read và cô lập write fault trên mapping chỉ đọc; M22 CTest **4/4 PASS** gồm native ASan/UBSan, TSAN và guest BIOS/UEFI **6/6 PASS**. Negative-rights/invalid-pointer matrix đầy đủ, race matrix và CI vẫn chờ.
+
 ### M21 — DONE (2026-11-01)
 
 - Thêm profile syscall riêng với entry `SYSCALL/SYSRETQ`, safe `IRETQ` return, kiểm tra CPU feature, per-thread kernel stack, IST cho NMI/#DB/#MC, dispatcher ABI v1 và user C wrappers freestanding. IDs 0–3 cung cấp version, yield, exit và debug-only write tối đa 256 byte; không có handle syscall.

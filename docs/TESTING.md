@@ -417,7 +417,7 @@ VirtIO-GPU là VGA adapter duy nhất (`-vga none` trước `virtio-vga`). Giữ
 
 ## Scheduler BSP M19
 
-Script chạy thử tổng quát: `./scripts/lamix_qemu.py` mặc định build profile mới nhất đã nghiệm thu (M20), tạo image BIOS/UEFI trong `out/m20/`, rồi mở firmware đã chọn. Dùng `--profile m21` để chạy profile đang triển khai; `--firmware bios|uefi|both` chọn firmware; `--build-only` chỉ build. `--profile m19`/`m17` giữ profile cũ. `LATEST_PROFILE` vẫn M20 cho tới nghiệm thu M21. Script dùng toolchain/QEMU/SeaBIOS/OVMF đã cài, không cài dependencies. Script M17 cũ vẫn có thể dùng để tái hiện riêng M17.
+Script chạy thử tổng quát: `./scripts/lamix_qemu.py` mặc định build profile mới nhất đã nghiệm thu (M20), tạo image BIOS/UEFI trong `out/m20/`, rồi mở firmware đã chọn. Dùng `--profile m21` hoặc `--profile m22` để chạy profile milestone tương ứng; `--firmware bios|uefi|both` chọn firmware; `--build-only` chỉ build. `--profile m19`/`m17` giữ profile cũ. `LATEST_PROFILE` vẫn M20 cho tới khi M22 được nghiệm thu. Script dùng toolchain/QEMU/SeaBIOS/OVMF đã cài, không cài dependencies. Script M17 cũ vẫn có thể dùng để tái hiện riêng M17.
 
 ```sh
 ./scripts/lamix_qemu.py
@@ -481,3 +481,20 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m21-tests --no-test
 Guest gọi wrapper thật từ ring 3: version query, `debug_write`, null/unmapped/overflow/cross-page/oversize pointers, unknown syscall, yield, DF masking, exit; process thứ hai cố trả về với noncanonical RSP và phải bị cô lập, trong khi process thứ ba tiếp tục chạy. Guest cũng kiểm tra forced `IRETQ` fallback, kill/wait/cleanup, protected image/firmware/kernel fingerprints và QEMU cleanup. Host simulation hoặc compile-only không phải guest boot PASS. Reports ở `out/m21/`; Toolchain CI giữ serial/results/build reports nhưng không upload image/firmware.
 
 M21 local cross-build **PASS**, CMake build **PASS**, CTest **3/3 PASS** (`m21-native-sanitize`, `m21-host`, guest BIOS/UEFI), guest BIOS/UEFI **3/3 mỗi firmware PASS**. Hồi quy guest M17 **4/4**, M19 **6/6**, M20 **6/6** và native M19/M20 **PASS**. Bốn workflow GitHub Actions SUCCESS trên acceptance SHA `6793d8f0a622fcd9f4100921e7932fcb46414540`: Toolchain [41270742769](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742769), Harness [41270742714](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742714), Documentation [41270742671](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742671), Boot Contract [41270742711](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742711). PR [#22](https://github.com/duclam2011dz/LamixOS/pull/22) merged; annotated tag `milestone/M21` trỏ acceptance SHA. PC thật/firmware ngoài profile QEMU **NOT RUN**.
+
+## Handles, capabilities, IPC và shared memory M22
+
+M22 có profile `m22-kernel`; `latest` vẫn M20, profile M21 giữ ABI 1.0. Lệnh build riêng:
+
+```sh
+python3 tests/m22/build_kernel.py --build build/m22
+./scripts/lamix_qemu.py --profile m22 --firmware bios
+./scripts/lamix_qemu.py --profile m22 --firmware uefi
+cmake -S tests/m22 -B build/m22-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+cmake --build build/m22-tests
+ctest --test-dir build/m22-tests --no-tests=error --output-on-failure --output-junit "$PWD/out/m22/ctest.xml"
+```
+
+CTest defines ASan/UBSan native object/handle/channel/SHM tests, a separate TSAN handle/channel concurrency test, host provenance and six actual guest runs (SeaBIOS `pc`/OVMF `q35`, three each). Guest marker `M22:PASS` is required; build-only, host simulation and launch-only are not guest boot PASS. Reports/logs stay under `out/m22/`; CI artifacts exclude image and firmware. Current guest profile also checks MOVE SHM transfer and a read-only mapping fault. Guest negative-rights/invalid-pointer cases, exhaustive transfer transaction cases and the full close/send/receive/reuse race matrix remain incomplete; see [M22 plan/evidence](../PLANS.md).
+
+Kết quả workspace hiện tại: M22 CTest **4/4 PASS** (native ASan/UBSan, TSAN, host provenance và guest BIOS/UEFI **6/6 PASS**); build M20/M21/M22 **PASS**; guest smoke regression M17/M19/M20/M21 BIOS/UEFI **1/1 mỗi profile PASS**. Docs validator **PASS**, unittest tài liệu **41/41 PASS**. Bốn workflow CI trên SHA M22 **NOT RUN**; race/fault matrix mở rộng và teardown allocation-failure cases chưa đủ.

@@ -14,7 +14,7 @@ jobs:
   toolchain:
     name: Build and verify freestanding sample
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       LAMIX_CROSS_ROOT: ${{ github.workspace }}/out/m01/cross
     steps:
@@ -151,6 +151,12 @@ jobs:
           cmake -S tests/m21 -B build/m21-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m21-tests
           ctest --test-dir build/m21-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m21/ctest.xml"
+      - name: M22 handles, channels, SHM và guest ring 3 BIOS/UEFI
+        timeout-minutes: 60
+        run: |
+          cmake -S tests/m22 -B build/m22-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m22-tests
+          ctest --test-dir build/m22-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m22/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -400,4 +406,19 @@ jobs:
             out/m21/runs/**/qmp.log
             build/m21-*/build.json
             build/m21-*/kernel.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M22 IPC reports và guest serial, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m22-ipc-reports
+          path: |
+            out/m22/*.xml
+            out/m22/results/*.json
+            out/m22/runs/**/result.json
+            out/m22/runs/**/serial.log
+            out/m22/runs/**/stderr.log
+            out/m22/runs/**/qmp.log
+            build/m22-*/build.json
+            build/m22-*/kernel.inspection.txt
           if-no-files-found: warn

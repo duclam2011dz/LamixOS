@@ -24,6 +24,29 @@ static int allocate_user_frame(process *instance, uint64_t *frame) {
 
 static void process_entry_unused(void *argument) { (void)argument; }
 
+#if defined(LAMIX_M22_IPC)
+static void *process_alloc(void *context, size_t size) {
+  process *p = context;
+  return p->scheduler_state->operations.allocate(
+      p->scheduler_state->operations.context, size);
+}
+static void process_dealloc(void *context, void *pointer) {
+  process *p = context;
+  p->scheduler_state->operations.deallocate(
+      p->scheduler_state->operations.context, pointer);
+}
+static uintptr_t process_lock(void *context) {
+  process *p = context;
+  return p->scheduler_state->operations.irq_save(
+      p->scheduler_state->operations.context);
+}
+static void process_unlock(void *context, uintptr_t flags) {
+  process *p = context;
+  p->scheduler_state->operations.irq_restore(
+      p->scheduler_state->operations.context, flags);
+}
+#endif
+
 static int release_owned_frames(process *instance) {
   uint64_t *frames[] = {&instance->data_frame, &instance->stack_frame,
                         &instance->code_frame};
@@ -51,9 +74,19 @@ process_status process_create(process *instance,
     return PROCESS_INVALID;
   *instance = (process){.operations = *operations,
                         .scheduler_state = scheduler_state, .id = id};
-  if (vmm_init(&instance->address_space, &operations->vmm,
-               kernel_space->nx_enabled) != VMM_OK)
+#if defined(LAMIX_M22_IPC)
+  if (lamix_handle_table_init(&instance->handles, instance, process_alloc,
+                              process_dealloc, process_lock,
+                              process_unlock) != LH_OK)
     return PROCESS_OUT_OF_MEMORY;
+#endif
+  if (vmm_init(&instance->address_space, &operations->vmm,
+               kernel_space->nx_enabled) != VMM_OK) {
+#if defined(LAMIX_M22_IPC)
+    lamix_handle_table_destroy(&instance->handles);
+#endif
+    return PROCESS_OUT_OF_MEMORY;
+  }
   instance->creation_stage = 1;
   vmm_status vm = vmm_copy_kernel_mappings(&instance->address_space,
                                             kernel_space);
@@ -104,10 +137,16 @@ process_status process_create(process *instance,
   return PROCESS_OK;
 
 memory_failure:
+#if defined(LAMIX_M22_IPC)
+  lamix_handle_table_destroy(&instance->handles);
+#endif
   (void)release_owned_frames(instance);
   (void)vmm_destroy_process_space(&instance->address_space);
   return PROCESS_OUT_OF_MEMORY;
 vm_failure:
+#if defined(LAMIX_M22_IPC)
+  lamix_handle_table_destroy(&instance->handles);
+#endif
   (void)release_owned_frames(instance);
   (void)vmm_destroy_process_space(&instance->address_space);
   return PROCESS_VM_ERROR;
@@ -163,6 +202,19 @@ process_status process_destroy(process *instance) {
   if (instance->state != PROCESS_FAULTED && instance->state != PROCESS_KILLED &&
       instance->state != PROCESS_EXITED)
     return PROCESS_BUSY;
+#if defined(LAMIX_M22_IPC)
+  while (instance->shm_mappings) {
+    lamix_shm_mapping *mapping=instance->shm_mappings;
+    if (vmm_unmap_range(&instance->address_space,mapping->address,
+                        (uint64_t)mapping->pages*VMM_PAGE_SIZE)!=VMM_OK)
+      return PROCESS_VM_ERROR;
+    instance->shm_mappings=mapping->next;
+    lamix_object_release(mapping->object);
+    instance->scheduler_state->operations.deallocate(
+        instance->scheduler_state->operations.context,mapping);
+  }
+  lamix_handle_table_destroy(&instance->handles);
+#endif
   if (instance->address_space.initialized) {
     vmm_status status = vmm_destroy_process_space(&instance->address_space);
     if (status != VMM_OK)
