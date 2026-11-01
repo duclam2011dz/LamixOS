@@ -14,6 +14,7 @@ int main(int argc, char **argv, char **envp) {
   for (uint64_t i = 0; i < sizeof(bss_probe); ++i)
     if (bss_probe[i] != 0)
       return 13;
-  (void)lamix_debug_write(ok, sizeof(ok) - 1);
+  if (lamix_debug_write(ok, sizeof(ok) - 1) != (int64_t)(sizeof(ok) - 1))
+    return 15;
   return 0;
 }
