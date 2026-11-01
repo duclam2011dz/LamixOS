@@ -19,7 +19,7 @@ Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc đ
 
 ```text
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 IN_PROGRESS; M22–M44 PLANNED
+Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22–M44 PLANNED
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M15 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -480,4 +480,4 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m21-tests --no-test
 
 Guest gọi wrapper thật từ ring 3: version query, `debug_write`, null/unmapped/overflow/cross-page/oversize pointers, unknown syscall, yield, DF masking, exit; process thứ hai cố trả về với noncanonical RSP và phải bị cô lập, trong khi process thứ ba tiếp tục chạy. Guest cũng kiểm tra forced `IRETQ` fallback, kill/wait/cleanup, protected image/firmware/kernel fingerprints và QEMU cleanup. Host simulation hoặc compile-only không phải guest boot PASS. Reports ở `out/m21/`; Toolchain CI giữ serial/results/build reports nhưng không upload image/firmware.
 
-M21 local cross-build **PASS**, CMake build **PASS**, CTest **3/3 PASS** (`m21-native-sanitize`, `m21-host`, guest BIOS/UEFI), guest BIOS/UEFI **3/3 mỗi firmware PASS**. Hồi quy guest M17 **4/4**, M19 **6/6**, M20 **6/6** và native M19/M20 **PASS**. GitHub Actions trên acceptance SHA **NOT RUN**; M21 vẫn **IN_PROGRESS**, chưa có PR/acceptance SHA/tag. PC thật/firmware ngoài profile QEMU **NOT RUN**.
+M21 local cross-build **PASS**, CMake build **PASS**, CTest **3/3 PASS** (`m21-native-sanitize`, `m21-host`, guest BIOS/UEFI), guest BIOS/UEFI **3/3 mỗi firmware PASS**. Hồi quy guest M17 **4/4**, M19 **6/6**, M20 **6/6** và native M19/M20 **PASS**. Bốn workflow GitHub Actions SUCCESS trên acceptance SHA `6793d8f0a622fcd9f4100921e7932fcb46414540`: Toolchain [41270742769](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742769), Harness [41270742714](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742714), Documentation [41270742671](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742671), Boot Contract [41270742711](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742711). PR [#22](https://github.com/duclam2011dz/LamixOS/pull/22) merged; annotated tag `milestone/M21` trỏ acceptance SHA. PC thật/firmware ngoài profile QEMU **NOT RUN**.
