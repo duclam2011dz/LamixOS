@@ -18,8 +18,8 @@ Chỉ khảo sát và lập kế hoạch cho **M24 — SMP: AP startup và per-C
 
 - Workspace/repository: `/home/lam/projects/LamixOS`, `https://github.com/duclam2011dz/LamixOS`; xác minh lại `git status`, branch/HEAD, remote, PR/tag và CI khi dịch vụ sẵn sàng.
 - M23 bổ sung Static PIE ET_DYN ELF64 loader, newc initramfs, `R_X86_64_RELATIVE`, user runtime freestanding trong profile riêng `m23-kernel`; giữ nguyên LBP v1, ABI 1.1/profile M22 và `LATEST_PROFILE=m20`.
-- Acceptance commit, merge commit và annotated tag `milestone/M23`: **điền provenance thực tế từ `docs/SESSION_HANDOFF.md` khi dùng prompt này**; không suy ra từ snapshot cũ.
-- Bằng chứng M23: CTest 3/3; guest SeaBIOS `pc` và OVMF `q35` 3/3 mỗi firmware; regressions M17/M19/M20/M21/M22; docs validator/unittest; bốn workflow CI và review được ghi cùng SHA trong `docs/SESSION_HANDOFF.md`.
+- Acceptance commit M23 `ee3015379ecc9d3bc350b922c5776844d8ba80fe`; PR #26 merge commit `8c844cb85cca203051d2aa88a3629a992ccb96eb`; annotated tag `milestone/M23` object `7b26c5f6322c2fc44d41777f8746adc5be401cb3` trỏ acceptance commit. Xác minh lại refs/tags/CI khi dịch vụ sẵn sàng; không suy ra trạng thái mới từ snapshot.
+- Bằng chứng M23 trên acceptance SHA: CTest 3/3; guest SeaBIOS `pc` và OVMF `q35` 3/3 mỗi firmware; regressions M17–M23; docs validator/unittest; bốn workflow CI SUCCESS và review clean. Chi tiết/run URLs tại `docs/SESSION_HANDOFF.md`.
 - M18 vẫn `PLANNED`/để dành. `latest` giữ M20. M25+ không thuộc phạm vi. Snapshot chỉ gợi ý; nếu không kiểm tra được mục nào, ghi `NOT RUN`/`chưa xác minh`, không suy diễn PASS.
 
 ## Tài liệu và khảo sát
