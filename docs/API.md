@@ -8,10 +8,10 @@ LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C]
 | GPT byte-array structs và host model | [IMAGE_LAYOUT](IMAGE_LAYOUT.md) |
 | Syscall ABI Lamix-specific x86_64 | M21 ABI 1.0; M22 profile ABI 1.1 đã nghiệm thu |
 | Handles/capabilities và IPC | M22 ABI 1.1 profile riêng đã nghiệm thu; chưa phải SDK cấp cao |
-| Static ELF64 và user runtime | M23 đang triển khai profile riêng; chưa phải public SDK |
+| Static ELF64 và user runtime | M23 profile riêng đã nghiệm thu; chưa phải public SDK |
 | Lamix 2D SDK | Chưa triển khai; milestones gaming |
 
-Ownership, lifetime, validation và status của LBP đã đặc tả trong BOOT_PROTOCOL; không suy ra ABI profile đã trở thành SDK cấp cao. M23 bổ sung static ELF64 loader và runtime tối thiểu trong profile riêng; giới hạn hiện tại ghi tại [TESTING M23](TESTING.md#static-elf64-loader-và-user-runtime-m23). Không mở rộng sang dynamic linking hay API SDK.
+Ownership, lifetime, validation và status của LBP đã đặc tả trong BOOT_PROTOCOL; không suy ra ABI profile đã trở thành SDK cấp cao. M23 đã bổ sung static ELF64 loader và runtime tối thiểu trong profile riêng; giới hạn hiện tại ghi tại [TESTING M23](TESTING.md#static-elf64-loader-và-user-runtime-m23). Không mở rộng sang dynamic linking hay API SDK.
 
 ## Loader bootstrap M05
 

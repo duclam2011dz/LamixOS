@@ -19,7 +19,7 @@ Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc đ
 
 ```text
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 IN PROGRESS; M24–M44 PLANNED
+Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24–M44 PLANNED
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M15 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -484,7 +484,7 @@ M21 local cross-build **PASS**, CMake build **PASS**, CTest **3/3 PASS** (`m21-n
 
 ## Static ELF64 loader và user runtime M23
 
-M23 đang triển khai profile riêng `m23-kernel`; `latest` giữ M20, M22 giữ ABI 1.1. Profile đóng gói hai Static PIE ET_DYN app trong initramfs `newc CPIO` nhúng vào kernel. Loader hiện chỉ hỗ trợ `R_X86_64_RELATIVE`, fixed load bias, không ASLR/interpreter/dynamic linking. Runtime gồm `crt0`, exit và subset memory/string freestanding. Build/CTest/guest:
+M23 đã nghiệm thu profile riêng `m23-kernel`; `latest` giữ M20, M22 giữ ABI 1.1. Profile đóng gói hai Static PIE ET_DYN app trong initramfs `newc CPIO` nhúng vào kernel. Loader hiện chỉ hỗ trợ `R_X86_64_RELATIVE`, fixed load bias, không ASLR/interpreter/dynamic linking. Runtime gồm `crt0`, exit và subset memory/string freestanding. Build/CTest/guest:
 
 ```sh
 python3 tests/m23/build_kernel.py --build build/m23
@@ -495,7 +495,7 @@ python3 tests/m23/build_kernel.py --build build/m23
 ./scripts/lamix_qemu.py --profile m23 --firmware uefi
 ```
 
-CTest **3/3 PASS** (native ASan/UBSan, provenance và guest BIOS/UEFI sáu lượt). Guest serial phải có `M23:MALFORMED_ELF:PASS`, `M23:APP_ALPHA:PASS`, `M23:APP_BETA:PASS`, `M23:PROCESS_ISOLATION:PASS`, `M23:CLEANUP:PASS`, `M23:PASS`; host test/build không thay guest boot. Regressions M17 **3/3**, M19 **3/3**, M20 **3/3**, M21 **3/3**, M22 **4/4** PASS; docs validator và unittest **41/41 PASS**. GitHub CI trên acceptance SHA và acceptance còn PENDING. Artifact/provenance ở `build/m23/`, guest logs ở `out/m23/`. Profile không đổi LBP v1, profile M22 hoặc `LATEST_PROFILE=m20`; M23 chưa DONE.
+CTest **3/3 PASS** (native ASan/UBSan, provenance và guest BIOS/UEFI sáu lượt). Guest serial xác nhận `M23:MALFORMED_ELF:PASS`, `M23:APP_ALPHA:PASS`, `M23:APP_BETA:PASS`, `M23:PROCESS_ISOLATION:PASS`, `M23:CLEANUP:PASS`, `M23:PASS`; host test/build không thay guest boot. Regressions M17/M19/M20/M21/M22 trong Toolchain CI PASS; docs validator và unittest **41/41 PASS**. Bốn workflow GitHub Actions SUCCESS trên acceptance head của PR [#26](https://github.com/duclam2011dz/LamixOS/pull/26): Toolchain [41286125940](https://github.com/duclam2011dz/LamixOS/actions/runs/41286125940), Harness [41286126005](https://github.com/duclam2011dz/LamixOS/actions/runs/41286126005), Documentation [41286126032](https://github.com/duclam2011dz/LamixOS/actions/runs/41286126032), Boot Contract [41286125975](https://github.com/duclam2011dz/LamixOS/actions/runs/41286125975). Artifact/provenance ở `build/m23/`, guest logs ở `out/m23/`. Profile không đổi LBP v1, profile M22 hoặc `LATEST_PROFILE=m20`; PC thật, firmware ngoài profile QEMU và audit bảo mật độc lập **NOT RUN**.
 
 ## Handles, capabilities, IPC và shared memory M22
 

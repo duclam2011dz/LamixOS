@@ -1,14 +1,15 @@
-# Bàn giao hiện hành — M23 IN PROGRESS — 2026-11-01
+# Bàn giao hiện hành — M23 DONE — 2026-11-01
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: DONE; M23: IN PROGRESS; M24–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: DONE; M23: DONE; M24–M44: PLANNED
 
-## M23 — triển khai, chưa nghiệm thu
+## M23 — nghiệm thu và bàn giao
 
-- M23 thêm Static PIE ET_DYN ELF64 loader, `R_X86_64_RELATIVE`, read-only newc initramfs nhúng, user stack/startup/libc freestanding và hai app độc lập trong profile `m23-kernel`. Không đổi LBP v1, profile M22/ABI 1.1 hoặc `LATEST_PROFILE=m20`; M18 vẫn PLANNED, M24 chưa bắt đầu.
-- Cross-build **PASS**; CTest **3/3 PASS**; guest SeaBIOS `pc` **3/3 PASS**, OVMF `q35` **3/3 PASS**. Guest xác nhận malformed ELF bị từ chối không panic kernel, argv/envp/BSS/output/exit, process isolation và cleanup. Native sanitizer và provenance **PASS**.
-- Regressions M17 **3/3**, M19 **3/3**, M20 **3/3**, M21 **3/3**, M22 **4/4**; docs validator và unittest **41/41 PASS**. Bốn GitHub workflows, independent review và acceptance **PENDING**. Không đánh dấu DONE, không tạo tag/PR trong lượt này. Local `cmake` không nằm trên PATH nhưng `.venv/bin/cmake` hoạt động; Ninja thiếu nên local CTest dùng Unix Makefiles. `.git` read-only ngăn tạo branch; workspace hiện có thay đổi trên `main`, file untracked `PROMPT_NEXT_SESSION_M21.md` được giữ nguyên.
-- Tiếp tục hoàn tất regression/docs/review, kiểm tra diff/profile/`latest`, rồi xin duyệt trước thao tác commit/PR/tag/merge. Chưa bắt đầu M24.
+- M23 thêm Static PIE ET_DYN ELF64 loader, parser read-only newc initramfs, relocation `R_X86_64_RELATIVE`, process mappings nhiều trang, W^X/BSS, initial stack `argc/argv/envp`, `crt0`, libc freestanding và hai chương trình user độc lập trong profile `m23-kernel`. Giữ LBP v1, ABI 1.1/profile M22 và `LATEST_PROFILE=m20`; không thêm filesystem runtime, dynamic linking, ASLR, spawn hay SMP.
+- Cross-build, CTest **3/3 PASS**, native ASan/UBSan, provenance và guest SeaBIOS `pc`/OVMF `q35` **3/3 mỗi firmware PASS**. Guest xác nhận malformed ELF bị từ chối mà kernel không panic, `argv/envp`, BSS, output/exit, isolation và cleanup. Regression guest M17 **3/3**, M19 **3/3**, M20 **3/3**, M21 **3/3**, M22 **4/4 PASS**; Toolchain CI chạy full regression M17/M19–M23 thành công. Docs validator **PASS**, unittest **41/41 PASS**.
+- Bốn workflow SUCCESS trên PR head `73a9563702673426d8430fa36469831bd1784744`: Toolchain [41286125940](https://github.com/duclam2011dz/LamixOS/actions/runs/41286125940), Harness [41286126005](https://github.com/duclam2011dz/LamixOS/actions/runs/41286126005), Documentation [41286126032](https://github.com/duclam2011dz/LamixOS/actions/runs/41286126032), Boot Contract [41286125975](https://github.com/duclam2011dz/LamixOS/actions/runs/41286125975). Codex review trên cùng SHA clean.
+- PR [#26](https://github.com/duclam2011dz/LamixOS/pull/26), acceptance commit/tag và merge provenance được ghi ở đây sau khi thao tác hoàn tất. PC thật, firmware ngoài profile QEMU, fault-injection allocation exhaustive và audit bảo mật độc lập **NOT RUN**. M18 vẫn PLANNED; không bắt đầu M24 trong lượt đóng này.
+- Build/provenance tại `build/m23/`, guest logs tại `out/m23/`; lệnh và marker ở [TESTING M23](TESTING.md#static-elf64-loader-và-user-runtime-m23). `latest` tiếp tục là M20. Giữ file untracked người dùng `PROMPT_NEXT_SESSION_M21.md` nguyên trạng.
 
 ## M22 — nghiệm thu và bàn giao
 
@@ -16,7 +17,7 @@ Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DON
 - Bốn workflow SUCCESS: Toolchain [41277685047](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685047) (attempt 2), Harness [41277685300](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685300), Documentation [41277685046](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685046), Boot Contract [41277685160](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685160). Toolchain attempt 1 fail ở M08 UEFI PF vì log thiếu `cr2`; retry đầy đủ PASS.
 - Cross-build M22 **PASS**; CTest M22 **4/4 PASS**; guest BIOS/UEFI **3/3 mỗi firmware PASS**; regressions M17/M19/M20/M21 **1/1 mỗi profile/firmware PASS** trong lượt local trước review-fix, full Toolchain CI regressions xanh sau review-fix. Docs validator và unittest tài liệu **PASS**, **41/41** trước thay đổi closure docs.
 - Review đã sửa self/cross-channel reference cycle và atomic MOVE/enqueue; native tests xác nhận cleanup và đúng một MOVE thành công. Threads review resolved. ASan/UBSan chạy với `detect_leaks=0` theo CTest; allocator-accounting regression kiểm cycle cleanup. Allocation-failure matrix exhaustive, mọi tổ hợp guest invalid args, PC thật/firmware ngoài profile QEMU và audit bảo mật độc lập **NOT RUN**.
-- Baseline: profile M22 riêng; `latest` giữ M20; M21 ABI 1.0; M22 ABI 1.1; LBP v1/entry ABI không đổi. M18 vẫn PLANNED. M23 chưa bắt đầu trong lượt đóng này.
+- Baseline: profile M22 riêng; `latest` giữ M20; M21 ABI 1.0; M22 ABI 1.1; LBP v1/entry ABI không đổi. M18 vẫn PLANNED. M24 chưa bắt đầu trong lượt đóng này.
 - Ghi chú lịch sử: trước lượt hiện tại, bước tiếp theo là phiên lập kế hoạch M23; M23 hiện đã được duyệt triển khai nhưng chưa nghiệm thu.
 
 ## M21 — Lamix-specific syscall ABI v1 — DONE
