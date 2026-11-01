@@ -1,7 +1,15 @@
-# Kế hoạch và kết quả — M22 (M22 DONE; M21/M20 DONE; M18 PLANNED)
+# Kế hoạch và kết quả — M23 (M23 IN PROGRESS; M22/M21/M20 DONE; M18 PLANNED)
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: DONE; M23–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: DONE; M23: IN PROGRESS; M24–M44: PLANNED
+
+## M23 — Static ELF64 loader/user runtime (IN PROGRESS, 2026-11-01)
+
+- Thêm profile `m23-kernel` tách biệt, giữ `LATEST_PROFILE=m20` và profile M22 nguyên trạng. Kernel artifact nhúng read-only `newc CPIO` gồm hai app. Loader kiểm tra ELF64 ET_DYN x86-64, giới hạn segment/bounds/alignment/entry/W^X, từ chối interpreter và metadata/relocations ngoài subset; áp dụng `R_X86_64_RELATIVE` với load bias xác định, không ASLR. Process map nhiều segment, BSS zero, stack `argc/argv/envp` + auxv, và thu hồi các trang do loader sở hữu.
+- Thêm `crt0`, libc freestanding tối thiểu, hai app kiểm tra argv/envp/BSS/output/exit, fixture malformed ELF, CPIO reader, profile/build/provenance, QEMU profile và Toolchain CI step. Không đổi LBP v1, ABI 1.1, M22 hoặc `latest`; không bắt đầu M24.
+- Cross-build `m23-kernel` **PASS**; kernel ELF SHA-256 `6fabfbc2a3dcc1687942de6713dda2261841feb7c2a09f4dc0805ed8848662ed`; CPIO `539b51ad3772f1bce4f2c12c631e0d0027f3ab09cf5652ad89d9f8d3a140e8c8`; app ELF hash/provenance ở `build/m23/build.json`. CTest **3/3 PASS**: ASan/UBSan native, host provenance, guest BIOS/UEFI. Guest SeaBIOS `pc` 3/3 và OVMF `q35` 3/3 **PASS**; log có `M23:MALFORMED_ELF:PASS`, hai app markers, process isolation/cleanup và `M23:PASS`.
+- Native direct sanitizer build **PASS**; Python syntax checks và freestanding `process.c` GCC compile **PASS**. Regression CTest M17 **3/3**, M19 **3/3**, M20 **3/3**, M21 **3/3**, M22 **4/4** đều **PASS**; docs validator **PASS**, unittest tài liệu **41/41 PASS**. Bốn GitHub workflows trên acceptance SHA, review/acceptance và tag **PENDING**. `cmake` mặc định thiếu trên PATH, dùng `.venv/bin/cmake`; Ninja không có nên CTest local dùng generator `Unix Makefiles`. `git switch -c` **NOT RUN thành công** vì `.git` read-only trong sandbox; không commit/PR/tag/push. Workspace thay đổi trên `main`; giữ nguyên untracked `PROMPT_NEXT_SESSION_M21.md`.
+- Chưa DONE: GitHub workflows trên acceptance SHA, review và acceptance chưa chạy/đạt. PC thật, firmware ngoài QEMU và audit bảo mật độc lập **NOT RUN**. Không gắn tag milestone cho tới khi đủ acceptance và người dùng xác nhận.
 
 ## M22 — Handle-based capabilities và IPC (DONE, 2026-11-01)
 

@@ -10,7 +10,7 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00–M17, M19–M22 đã nghiệm thu; M18 vẫn PLANNED. M22 bổ sung handles/capabilities, channel IPC và SHM trong profile riêng; `latest` tiếp tục trỏ M20, ABI M21 vẫn 1.0. M22 CTest 4/4, guest BIOS/UEFI 6/6 và bốn workflow CI trên acceptance SHA đều PASS. Xem [handoff](docs/SESSION_HANDOFF.md) để biết giới hạn và provenance. Đây chưa phải kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh; chưa có bản phát hành và chưa đạt Playable.
+M00–M17, M19–M22 đã nghiệm thu; M18 vẫn PLANNED; M23 đang IN PROGRESS. M22 giữ profile handles/capabilities, channel IPC và SHM riêng; `latest` tiếp tục trỏ M20. M23 thêm Static PIE ELF64 loader/runtime trong profile riêng; build, host/native tests và guest BIOS/UEFI 6/6 hiện PASS, còn regressions, docs, CI và acceptance đang chờ. Xem [handoff](docs/SESSION_HANDOFF.md) để biết giới hạn và provenance. Đây chưa phải kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh; chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 

@@ -157,6 +157,12 @@ jobs:
           cmake -S tests/m22 -B build/m22-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m22-tests
           ctest --test-dir build/m22-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m22/ctest.xml"
+      - name: M23 Static ELF64 loader, runtime và guest BIOS/UEFI
+        timeout-minutes: 60
+        run: |
+          cmake -S tests/m23 -B build/m23-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m23-tests
+          ctest --test-dir build/m23-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m23/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -421,4 +427,21 @@ jobs:
             out/m22/runs/**/qmp.log
             build/m22-*/build.json
             build/m22-*/kernel.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M23 ELF reports và guest serial, không upload image hoặc firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m23-elf-reports
+          path: |
+            out/m23/*.xml
+            out/m23/results/*.json
+            out/m23/runs/**/result.json
+            out/m23/runs/**/serial.log
+            out/m23/runs/**/stderr.log
+            out/m23/runs/**/qmp.log
+            build/m23-*/build.json
+            build/m23-*/kernel.inspection.txt
+            build/m23-*/alpha.inspection.txt
+            build/m23-*/beta.inspection.txt
           if-no-files-found: warn

@@ -3,7 +3,7 @@
 > **Phiên bản kế hoạch:** 1.0 (bản thiết kế ban đầu, chưa triển khai)  
 > **Cập nhật:** 2026-11-01
 > **Ngôn ngữ tài liệu:** Tiếng Việt  
-> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
+> **Trạng thái toàn dự án:** M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 IN PROGRESS; M24–M44 PLANNED; chưa có kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh
 > **Nguồn thẩm quyền:** Các quyết định kiến trúc đã được chủ dự án chốt trong quá trình thiết kế. Khi mã nguồn và tài liệu chưa khớp, phải báo rõ sự khác biệt, không tự ý đổi kiến trúc.
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
@@ -77,7 +77,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 ## 3. ROADMAP theo thứ tự phụ thuộc
 
-**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23–M44 PLANNED.**
+**Cấu trúc:** Giai đoạn lớn `P` gồm các milestone `M`. Mốc triển khai thực tế nên giới hạn trong một phiên chat; nếu vượt quá thì tách thành task nhỏ được duyệt riêng. Thứ tự dưới đây là đề xuất phụ thuộc kỹ thuật, không phải lịch thời gian cố định. **Trạng thái: M00 DONE; M01 DONE; M02 DONE; M03 DONE; M04 DONE; M05 DONE; M06 DONE; M07 DONE; M08 DONE; M09 DONE; M10 DONE; M11 DONE; M12 DONE; M13 DONE; M14 DONE; M15 DONE; M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 IN PROGRESS; M24–M44 PLANNED.**
 
 ### P0 — Khởi tạo và nền tảng chất lượng
 
@@ -135,7 +135,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M22 — Handle-based capabilities và IPC. Trạng thái: DONE (2026-11-01).** PR [#24](https://github.com/duclam2011dz/LamixOS/pull/24) merge commit `d2c3be428f69d439caad901e82c738102fede05e`; acceptance commit `0d2c4b62e860ba336da439abf03c8cd6b421157c`; annotated tag `milestone/M22` object `580ffdf3824102ed2bdb89ddf7e825364a8a00b7` trỏ acceptance commit. Bốn workflow SUCCESS: Toolchain [41277685047](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685047) (attempt 2; lần đầu gặp thiếu `cr2` trong regression M08 UEFI page-fault log), Harness [41277685300](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685300), Documentation [41277685046](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685046), Boot Contract [41277685160](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685160). M22 CTest **4/4 PASS**, gồm native ASan/UBSan, TSAN, host provenance và guest BIOS/UEFI **6/6 PASS**; freestanding `m22-kernel` cross-build **PASS**; guest regression M17/M19/M20/M21 BIOS/UEFI và các regression Toolchain **PASS**. Regression tests ngăn self/cross-channel reference cycles và bảo đảm concurrent MOVE chỉ enqueue một capability. Docs validator và unittest tài liệu **PASS (41/41)**. Profile `m22-kernel` giữ riêng, `latest` vẫn M20; M21 giữ ABI 1.0; LBP v1/entry ABI không đổi. PC thật, firmware ngoài profile QEMU và audit bảo mật độc lập **NOT RUN**. M18 vẫn PLANNED; M23 chưa bắt đầu.
 
-**M23 — Static ELF64 loader/user runtime.** Process loader, relocations hỗ trợ theo phạm vi, arguments/environment, `crt0`, libc subset tối thiểu, executable format validation. Nghiệm thu: chạy hai user programs độc lập từ disk/initramfs, handle lỗi ELF hỏng.
+**M23 — Static ELF64 loader/user runtime. Trạng thái: IN PROGRESS (2026-11-01).** Process loader, relocations hỗ trợ theo phạm vi, arguments/environment, `crt0`, libc subset tối thiểu, executable format validation. Profile M23 riêng dùng initramfs newc nhúng, ET_DYN Static PIE và chỉ `R_X86_64_RELATIVE`; không đổi LBP v1, profile `latest` M20 hoặc profile M22. Build freestanding, native sanitizer/host tests, guest BIOS/UEFI 3/3 mỗi firmware, regressions M17/M19–M22, docs validator và unittest 41/41 **PASS** tại lượt triển khai. Bốn workflow CI trên acceptance SHA và review/acceptance commit còn **PENDING**. M23 chưa DONE; M24 chưa bắt đầu. Xem [PLANS](PLANS.md) và [handoff](docs/SESSION_HANDOFF.md). Nghiệm thu cuối: chạy hai user programs độc lập từ initramfs, xử lý ELF hỏng mà kernel không panic.
 
 **M24 — SMP: AP startup và per-CPU scheduler.** MADT AP discovery, trampoline/INIT-SIPI theo thiết kế, per-CPU stacks/TSS/interrupt state, TLB shootdown, per-CPU run queues, affinity/balancing. Nghiệm thu: QEMU 1/2/4/8 vCPU, stress concurrency không deadlock trong tiêu chí test; **không bỏ chế độ BSP-only**.
 

@@ -35,11 +35,16 @@
 #endif
 #if defined(LAMIX_M21_SYSCALL)
 #include "syscall.h"
+#if !defined(LAMIX_M23_ELF)
 #include "m21_payloads.h"
+#endif
 #endif
 #if defined(LAMIX_M22_IPC)
 #include "handle.h"
 #include "ipc.h"
+#endif
+#if defined(LAMIX_M23_ELF)
+#include "initramfs.h"
 #endif
 #include <stddef.h>
 #include <stdint.h>
@@ -178,7 +183,10 @@ static scheduler_mutex m19_test_mutex;
 #endif
 #if defined(LAMIX_M20_PROCESS)
 static process m20_process_a, m20_process_b;
-#if defined(LAMIX_M21_SYSCALL)
+#if defined(LAMIX_M23_ELF)
+static process m23_rejected_process;
+#endif
+#if defined(LAMIX_M21_SYSCALL) && !defined(LAMIX_M23_ELF)
 static process m21_process_c;
 #endif
 static uint64_t m20_boot_stack_top;
@@ -454,6 +462,79 @@ static volatile uint8_t *m20_access_frame(void *context, uint64_t physical) {
 static void m20_user_idle(void *argument) { (void)argument; for (;;) __asm__ volatile("sti; hlt" ::: "memory"); }
 
 static void m20_run(void) {
+#if defined(LAMIX_M23_ELF)
+  extern const uint8_t m23_initramfs_start[], m23_initramfs_end[];
+  const size_t archive_size = (size_t)(m23_initramfs_end - m23_initramfs_start);
+  lamix_initramfs_file alpha, beta;
+  static const char *const alpha_argv[] = {"alpha", "a"};
+  static const char *const beta_argv[] = {"beta", "b"};
+  static const char *const environment[] = {"MODE=m23"};
+  process_operations operations = {.context = 0,
+      .allocate_frame = m20_allocate_frame, .release_frame = m20_release_frame,
+      .access_frame = m20_access_frame,
+      .vmm = {.context = 0, .allocate_page = vmm_allocate,
+        .release_page = vmm_release, .access_page = vmm_access,
+        .invalidate = vmm_invalidate}};
+  scheduler_operations scheduler_ops = {0, m19_allocate, m19_deallocate,
+      m19_irq_save, m19_irq_restore, m19_request_reschedule, m19_fatal,
+      m20_context_switch};
+  if (lamix_initramfs_find(m23_initramfs_start, archive_size, "alpha.elf",
+                           &alpha) != LAMIX_INITRAMFS_OK ||
+      lamix_initramfs_find(m23_initramfs_start, archive_size, "beta.elf",
+                           &beta) != LAMIX_INITRAMFS_OK) {
+    serial("M23:INITRAMFS:FAIL\nM23:FAIL\n"); halt();
+  }
+  m20_boot_stack_top = m20_boot_stack_top ? m20_boot_stack_top : tss.rsp0;
+  scheduler_status sched = scheduler_init(&m19_scheduler, &scheduler_ops,
+                                           m20_user_idle);
+  uint8_t *bad_elf = sched == SCHED_OK
+      ? m19_allocate(0, alpha.size) : 0;
+  if (!bad_elf) {
+    serial("M23:OOM:FAIL\nM23:FAIL\n");halt();
+  }
+  for (size_t i = 0; i < alpha.size; ++i) bad_elf[i] = alpha.data[i];
+  bad_elf[0] = 0;
+  process_status malformed = process_create_elf(&m23_rejected_process,
+      &operations, &kernel_space, &m19_scheduler, 99, bad_elf, alpha.size,
+      alpha_argv, 2, environment, 1, 2);
+  m19_deallocate(0, bad_elf);
+  if (malformed != PROCESS_INVALID) {
+    serial("M23:MALFORMED_ELF:FAIL\nM23:FAIL\n");halt();
+  }
+  serial("M23:MALFORMED_ELF:PASS\n");
+  process_status a = sched == SCHED_OK
+      ? process_create_elf(&m20_process_a, &operations, &kernel_space,
+          &m19_scheduler, 1, alpha.data, alpha.size, alpha_argv, 2,
+          environment, 1, 2) : PROCESS_SCHEDULER_ERROR;
+  process_status b = a == PROCESS_OK
+      ? process_create_elf(&m20_process_b, &operations, &kernel_space,
+          &m19_scheduler, 2, beta.data, beta.size, beta_argv, 2,
+          environment, 1, 2) : PROCESS_SCHEDULER_ERROR;
+  scheduler_status begin = b == PROCESS_OK ? scheduler_begin(&m19_scheduler)
+                                           : SCHED_BAD_STATE;
+  if (sched != SCHED_OK || a != PROCESS_OK || b != PROCESS_OK ||
+      begin != SCHED_OK) {
+    serial("M23:CREATE:FAIL sched=");hex(sched);serial(" a=");hex(a);
+    serial(" b=");hex(b);serial(" begin=");hex(begin);
+    serial("\nM23:FAIL\n");halt();
+  }
+  m19_scheduler_ready = 1;
+  serial("M20:PROCESS:READY\nM20:RING3:ENTERING\n");
+  __asm__ volatile("sti" ::: "memory");
+  process_state as = process_wait(&m20_process_a, 0, 0);
+  process_state bs = process_wait(&m20_process_b, 0, 0);
+  if (as != PROCESS_EXITED || bs != PROCESS_EXITED ||
+      m20_process_a.exit_code || m20_process_b.exit_code) {
+    serial("M23:USER_PROGRAM:FAIL\nM23:FAIL\n");halt();
+  }
+  scheduler_collect_retired(&m19_scheduler);
+  if (process_destroy(&m20_process_a) != PROCESS_OK ||
+      process_destroy(&m20_process_b) != PROCESS_OK) {
+    serial("M23:CLEANUP:FAIL\nM23:FAIL\n");halt();
+  }
+  serial("M23:PROCESS_ISOLATION:PASS\nM23:CLEANUP:PASS\nM23:PASS\n");
+  serial("M22:PASS\nM21:PASS\nM20:PASS\n");
+#else
 #if defined(LAMIX_M21_SYSCALL)
 #if defined(LAMIX_M22_IPC)
   const uint8_t *payload_a = m21_test_payload;
@@ -638,6 +719,7 @@ static void m20_run(void) {
   serial("M20:PASS\n");
 #endif
   halt();
+#endif
 }
 #endif
 static void m19_idle(void *argument) {

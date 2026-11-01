@@ -47,6 +47,178 @@ static void process_unlock(void *context, uintptr_t flags) {
 }
 #endif
 
+#if defined(LAMIX_M23_ELF)
+static void *elf_alloc(void *context, size_t size) {
+  process *p = context;
+  return p->scheduler_state->operations.allocate(
+      p->scheduler_state->operations.context, size);
+}
+static void elf_free(void *context, void *memory) {
+  process *p = context;
+  p->scheduler_state->operations.deallocate(
+      p->scheduler_state->operations.context, memory);
+}
+static size_t bounded_length(const char *s, size_t limit) {
+  size_t n = 0;
+  if (!s) return limit;
+  while (n < limit && s[n]) ++n;
+  return n;
+}
+static int append_user_page(process *p, uint64_t address, uint32_t permissions,
+                            const uint8_t *source,
+                            process_status *failure) {
+  uint64_t physical = 0;
+  if (!allocate_user_frame(p, &physical)) {
+    *failure = PROCESS_OUT_OF_MEMORY;
+    return 0;
+  }
+  volatile uint8_t *frame = p->operations.access_frame(
+      p->operations.context, physical);
+  if (!frame) {
+    (void)p->operations.release_frame(p->operations.context, physical);
+    *failure = PROCESS_OUT_OF_MEMORY;
+    return 0;
+  }
+  if (source)
+    for (size_t i = 0; i < VMM_PAGE_SIZE; ++i) frame[i] = source[i];
+  vmm_status vm = vmm_map_range(&p->address_space, address, physical,
+                                VMM_PAGE_SIZE, permissions | VMM_USER, 0);
+  if (vm != VMM_OK) {
+    (void)p->operations.release_frame(p->operations.context, physical);
+    *failure = vm == VMM_OUT_OF_MEMORY ? PROCESS_OUT_OF_MEMORY
+                                       : PROCESS_VM_ERROR;
+    return 0;
+  }
+  p->user_pages[p->user_page_count++] =
+      (process_user_page){.address = address, .physical = physical};
+  return 1;
+}
+static void rollback_user_pages(process *p) {
+  while (p->user_page_count) {
+    process_user_page *page = &p->user_pages[--p->user_page_count];
+    (void)vmm_unmap_range(&p->address_space, page->address, VMM_PAGE_SIZE);
+    (void)p->operations.release_frame(p->operations.context, page->physical);
+  }
+  if (p->user_pages) {
+    p->scheduler_state->operations.deallocate(
+        p->scheduler_state->operations.context, p->user_pages);
+    p->user_pages = 0;
+  }
+}
+static int build_initial_stack(process *p, uint64_t stack_frame,
+                               const char *const *argv, size_t argc,
+                               const char *const *envp, size_t envc,
+                               uint64_t entry, uint64_t *rsp_out) {
+  uint64_t argv_address[16], env_address[16];
+  volatile uint8_t *raw = p->operations.access_frame(
+      p->operations.context, stack_frame);
+  if (!raw || argc > 16 || envc > 16 || (argc && !argv) || (envc && !envp))
+    return 0;
+  size_t cursor = VMM_PAGE_SIZE;
+  for (size_t i = envc; i-- > 0;) {
+    size_t n = bounded_length(envp[i], 256);
+    if (!envp[i] || n == 256 || n + 1 > cursor) return 0;
+    cursor -= n + 1;
+    for (size_t j = 0; j <= n; ++j) raw[cursor + j] = (uint8_t)envp[i][j];
+    env_address[i] = PROCESS_USER_STACK + cursor;
+  }
+  for (size_t i = argc; i-- > 0;) {
+    size_t n = bounded_length(argv[i], 256);
+    if (!argv[i] || n == 256 || n + 1 > cursor) return 0;
+    cursor -= n + 1;
+    for (size_t j = 0; j <= n; ++j) raw[cursor + j] = (uint8_t)argv[i][j];
+    argv_address[i] = PROCESS_USER_STACK + cursor;
+  }
+  cursor &= ~(size_t)15;
+  const size_t words = 1 + argc + 1 + envc + 1 + 6;
+  if (words * sizeof(uint64_t) > cursor) return 0;
+  cursor = (cursor - words * sizeof(uint64_t)) & ~(size_t)15;
+  size_t at = cursor;
+#define STACK_WORD(v) do { uint64_t word_ = (uint64_t)(v); \
+  for (unsigned b_ = 0; b_ < 8; ++b_) raw[at++] = (uint8_t)(word_ >> (b_ * 8)); \
+} while (0)
+  STACK_WORD(argc);
+  for (size_t i = 0; i < argc; ++i) STACK_WORD(argv_address[i]);
+  STACK_WORD(0);
+  for (size_t i = 0; i < envc; ++i) STACK_WORD(env_address[i]);
+  STACK_WORD(0);
+  STACK_WORD(6); STACK_WORD(VMM_PAGE_SIZE);
+  STACK_WORD(9); STACK_WORD(entry);
+  STACK_WORD(0); STACK_WORD(0);
+#undef STACK_WORD
+  *rsp_out = PROCESS_USER_STACK + cursor;
+  return (*rsp_out & 15) == 0;
+}
+static int map_elf_image(process *p, const void *file, size_t file_size,
+                         const char *const *argv, size_t argc,
+                         const char *const *envp, size_t envc,
+                         uint64_t *entry, uint64_t *stack_pointer,
+                         process_status *failure) {
+  lamix_elf_image image;
+  lamix_elf_allocator allocator = {p, elf_alloc, elf_free};
+  lamix_elf_status elf_status = lamix_elf_prepare(
+      file, file_size, LAMIX_ELF_LOAD_BASE, &allocator, &image);
+  if (elf_status != LAMIX_ELF_OK) {
+    *failure = elf_status == LAMIX_ELF_NO_MEMORY ? PROCESS_OUT_OF_MEMORY
+                                                  : PROCESS_INVALID;
+    return 0;
+  }
+  size_t page_count = 1;
+  for (uint32_t i = 0; i < image.segment_count; ++i) {
+    uint64_t count = (image.segments[i].memory_size + VMM_PAGE_SIZE - 1) /
+                     VMM_PAGE_SIZE;
+    if (count > SIZE_MAX - page_count) {
+      *failure = PROCESS_INVALID;
+      lamix_elf_release(&image);
+      return 0;
+    }
+    page_count += (size_t)count;
+  }
+  if (page_count > SIZE_MAX / sizeof(*p->user_pages)) {
+    *failure = PROCESS_INVALID;
+    lamix_elf_release(&image);
+    return 0;
+  }
+  p->user_pages = p->scheduler_state->operations.allocate(
+      p->scheduler_state->operations.context,
+      page_count * sizeof(*p->user_pages));
+  if (!p->user_pages) {
+    *failure = PROCESS_OUT_OF_MEMORY;
+    lamix_elf_release(&image);
+    return 0;
+  }
+  for (uint32_t i = 0; i < image.segment_count; ++i) {
+    const lamix_elf_segment *segment = &image.segments[i];
+    uint32_t permissions = VMM_READ;
+    if (segment->flags & 2) permissions |= VMM_WRITE;
+    if (segment->flags & 1) permissions |= VMM_EXECUTE;
+    size_t pages = (size_t)((segment->memory_size + VMM_PAGE_SIZE - 1) /
+                            VMM_PAGE_SIZE);
+    for (size_t j = 0; j < pages; ++j) {
+      uint64_t offset = segment->offset + j * VMM_PAGE_SIZE;
+      if (!append_user_page(p, segment->address + j * VMM_PAGE_SIZE,
+                            permissions, image.bytes + offset, failure)) {
+        rollback_user_pages(p); lamix_elf_release(&image); return 0;
+      }
+    }
+  }
+  if (!append_user_page(p, PROCESS_USER_STACK, VMM_READ | VMM_WRITE, 0,
+                        failure)) {
+    rollback_user_pages(p); lamix_elf_release(&image); return 0;
+  }
+  uint64_t stack_frame = p->user_pages[p->user_page_count - 1].physical;
+  if (!build_initial_stack(p, stack_frame, argv, argc, envp, envc,
+                           image.entry, stack_pointer)) {
+    *failure = PROCESS_INVALID;
+    rollback_user_pages(p); lamix_elf_release(&image); return 0;
+  }
+  *entry = image.entry;
+  *failure = PROCESS_OK;
+  lamix_elf_release(&image);
+  return 1;
+}
+#endif
+
 static int release_owned_frames(process *instance) {
   uint64_t *frames[] = {&instance->data_frame, &instance->stack_frame,
                         &instance->code_frame};
@@ -59,19 +231,30 @@ static int release_owned_frames(process *instance) {
   return 1;
 }
 
-process_status process_create(process *instance,
-                              const process_operations *operations,
-                              const vmm_space *kernel_space,
-                              scheduler *scheduler_state, uint64_t id,
-                              const void *image, size_t image_size,
-                              uint8_t priority) {
+static process_status process_create_common(
+    process *instance, const process_operations *operations,
+    const vmm_space *kernel_space, scheduler *scheduler_state, uint64_t id,
+    const void *image, size_t image_size, uint8_t priority,
+    int elf_image, const char *const *argv, size_t argc,
+    const char *const *envp, size_t envc) {
+#if defined(LAMIX_M23_ELF)
+  process_status failure_status = PROCESS_INVALID;
+#endif
   if (!instance || !operations || !operations->allocate_frame ||
       !operations->release_frame || !operations->access_frame ||
       !operations->vmm.allocate_page || !operations->vmm.release_page ||
       !operations->vmm.access_page || !operations->vmm.invalidate ||
       !kernel_space || !kernel_space->nx_enabled || !scheduler_state || !id || !image || !image_size ||
-      image_size > VMM_PAGE_SIZE || priority > SCHED_PRIORITY_MAX)
+      (!elf_image && image_size > VMM_PAGE_SIZE) ||
+      priority > SCHED_PRIORITY_MAX)
     return PROCESS_INVALID;
+#if defined(LAMIX_M23_ELF)
+  if (elf_image && image_size > LAMIX_ELF_MAX_SPAN * 2)
+    return PROCESS_INVALID;
+#else
+  if (elf_image)
+    return PROCESS_INVALID;
+#endif
   *instance = (process){.operations = *operations,
                         .scheduler_state = scheduler_state, .id = id};
 #if defined(LAMIX_M22_IPC)
@@ -96,38 +279,50 @@ process_status process_create(process *instance,
     goto vm_failure;
   }
   instance->creation_stage = 3;
-  if (!allocate_user_frame(instance, &instance->code_frame) ||
-      !allocate_user_frame(instance, &instance->stack_frame) ||
-      !allocate_user_frame(instance, &instance->data_frame))
-    goto memory_failure;
-  volatile uint8_t *code = operations->access_frame(operations->context,
-                                                    instance->code_frame);
-  if (!code)
-    goto memory_failure;
-  const uint8_t *source = (const uint8_t *)image;
-  for (size_t i = 0; i < image_size; ++i)
-    code[i] = source[i];
   instance->creation_stage = 4;
-  vm = vmm_map_range(&instance->address_space, PROCESS_USER_CODE,
-                     instance->code_frame, VMM_PAGE_SIZE,
-                     VMM_READ | VMM_EXECUTE | VMM_USER, 0);
-  if (vm == VMM_OK)
-    vm = vmm_map_range(&instance->address_space, PROCESS_USER_DATA,
-                       instance->data_frame, VMM_PAGE_SIZE,
-                       VMM_READ | VMM_WRITE | VMM_USER, 0);
-  if (vm == VMM_OK)
-    vm = vmm_map_range(&instance->address_space, PROCESS_USER_STACK,
-                       instance->stack_frame, VMM_PAGE_SIZE,
-                       VMM_READ | VMM_WRITE | VMM_USER, 0);
-  instance->creation_vm_status = (uint32_t)vm;
-  if (vm != VMM_OK)
-    goto vm_failure;
+  uint64_t user_entry = PROCESS_USER_CODE;
+  uint64_t user_stack = PROCESS_USER_STACK + VMM_PAGE_SIZE - 16;
+#if defined(LAMIX_M23_ELF)
+  if (elf_image) {
+    if (!map_elf_image(instance, image, image_size, argv, argc, envp, envc,
+                       &user_entry, &user_stack, &failure_status))
+      goto elf_failure;
+  } else
+#else
+  (void)elf_image; (void)argv; (void)argc; (void)envp; (void)envc;
+#endif
+  {
+    if (!allocate_user_frame(instance, &instance->code_frame) ||
+        !allocate_user_frame(instance, &instance->stack_frame) ||
+        !allocate_user_frame(instance, &instance->data_frame))
+      goto memory_failure;
+    volatile uint8_t *code = operations->access_frame(operations->context,
+                                                      instance->code_frame);
+    if (!code)
+      goto memory_failure;
+    const uint8_t *source = (const uint8_t *)image;
+    for (size_t i = 0; i < image_size; ++i)
+      code[i] = source[i];
+    vm = vmm_map_range(&instance->address_space, PROCESS_USER_CODE,
+                       instance->code_frame, VMM_PAGE_SIZE,
+                       VMM_READ | VMM_EXECUTE | VMM_USER, 0);
+    if (vm == VMM_OK)
+      vm = vmm_map_range(&instance->address_space, PROCESS_USER_DATA,
+                         instance->data_frame, VMM_PAGE_SIZE,
+                         VMM_READ | VMM_WRITE | VMM_USER, 0);
+    if (vm == VMM_OK)
+      vm = vmm_map_range(&instance->address_space, PROCESS_USER_STACK,
+                         instance->stack_frame, VMM_PAGE_SIZE,
+                         VMM_READ | VMM_WRITE | VMM_USER, 0);
+    instance->creation_vm_status = (uint32_t)vm;
+    if (vm != VMM_OK)
+      goto vm_failure;
+  }
   instance->creation_stage = 5;
   if (scheduler_create(scheduler_state, process_entry_unused, instance,
                        priority, &instance->thread) != SCHED_OK)
     goto memory_failure;
-  if (scheduler_configure_user(instance->thread, PROCESS_USER_CODE,
-                               PROCESS_USER_STACK + VMM_PAGE_SIZE - 16) !=
+  if (scheduler_configure_user(instance->thread, user_entry, user_stack) !=
       SCHED_OK) {
     /* Thread storage is scheduler-owned; make creation failure fatal to caller. */
     return PROCESS_SCHEDULER_ERROR;
@@ -137,6 +332,9 @@ process_status process_create(process *instance,
   return PROCESS_OK;
 
 memory_failure:
+#if defined(LAMIX_M23_ELF)
+  rollback_user_pages(instance);
+#endif
 #if defined(LAMIX_M22_IPC)
   lamix_handle_table_destroy(&instance->handles);
 #endif
@@ -144,13 +342,52 @@ memory_failure:
   (void)vmm_destroy_process_space(&instance->address_space);
   return PROCESS_OUT_OF_MEMORY;
 vm_failure:
+#if defined(LAMIX_M23_ELF)
+  rollback_user_pages(instance);
+#endif
 #if defined(LAMIX_M22_IPC)
   lamix_handle_table_destroy(&instance->handles);
 #endif
   (void)release_owned_frames(instance);
   (void)vmm_destroy_process_space(&instance->address_space);
   return PROCESS_VM_ERROR;
+#if defined(LAMIX_M23_ELF)
+elf_failure:
+  rollback_user_pages(instance);
+#if defined(LAMIX_M22_IPC)
+  lamix_handle_table_destroy(&instance->handles);
+#endif
+  (void)release_owned_frames(instance);
+  (void)vmm_destroy_process_space(&instance->address_space);
+  return failure_status;
+#endif
 }
+
+process_status process_create(process *instance,
+                              const process_operations *operations,
+                              const vmm_space *kernel_space,
+                              scheduler *scheduler_state, uint64_t id,
+                              const void *image, size_t image_size,
+                              uint8_t priority) {
+  return process_create_common(instance, operations, kernel_space,
+                               scheduler_state, id, image, image_size,
+                               priority, 0, 0, 0, 0, 0);
+}
+
+#if defined(LAMIX_M23_ELF)
+process_status process_create_elf(process *instance,
+                                  const process_operations *operations,
+                                  const vmm_space *kernel_space,
+                                  scheduler *scheduler_state, uint64_t id,
+                                  const void *image, size_t image_size,
+                                  const char *const *argv, size_t argc,
+                                  const char *const *envp, size_t envc,
+                                  uint8_t priority) {
+  return process_create_common(instance, operations, kernel_space,
+                               scheduler_state, id, image, image_size,
+                               priority, 1, argv, argc, envp, envc);
+}
+#endif
 
 void process_note_fault(process *instance, uint64_t address, uint64_t code) {
   if (!instance || instance->state == PROCESS_FAULTED ||
@@ -202,6 +439,9 @@ process_status process_destroy(process *instance) {
   if (instance->state != PROCESS_FAULTED && instance->state != PROCESS_KILLED &&
       instance->state != PROCESS_EXITED)
     return PROCESS_BUSY;
+#if defined(LAMIX_M23_ELF)
+  rollback_user_pages(instance);
+#endif
 #if defined(LAMIX_M22_IPC)
   while (instance->shm_mappings) {
     lamix_shm_mapping *mapping=instance->shm_mappings;

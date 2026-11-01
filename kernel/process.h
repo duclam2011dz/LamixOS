@@ -4,6 +4,9 @@
 
 #include "scheduler.h"
 #include "vmm.h"
+#if defined(LAMIX_M23_ELF)
+#include "elf_loader.h"
+#endif
 #if defined(LAMIX_M22_IPC)
 #include "handle.h"
 #include "ipc.h"
@@ -49,10 +52,21 @@ typedef struct process {
   uint64_t code_frame, stack_frame, data_frame;
   uint64_t fault_address, fault_code;
   uint64_t exit_code;
+#if defined(LAMIX_M23_ELF)
+  struct process_user_page *user_pages;
+  size_t user_page_count;
+#endif
   uint32_t creation_stage, creation_vm_status;
   volatile uint8_t kill_requested;
   volatile process_state state;
 } process;
+
+#if defined(LAMIX_M23_ELF)
+typedef struct process_user_page {
+  uint64_t address;
+  uint64_t physical;
+} process_user_page;
+#endif
 
 #define PROCESS_USER_CODE UINT64_C(0x0000008000000000)
 #define PROCESS_USER_DATA UINT64_C(0x0000008000100000)
@@ -67,6 +81,16 @@ process_status process_create(process *instance,
                               scheduler *scheduler_state, uint64_t id,
                               const void *image, size_t image_size,
                               uint8_t priority);
+#if defined(LAMIX_M23_ELF)
+process_status process_create_elf(process *instance,
+                                  const process_operations *operations,
+                                  const vmm_space *kernel_space,
+                                  scheduler *scheduler_state, uint64_t id,
+                                  const void *image, size_t image_size,
+                                  const char *const *argv, size_t argc,
+                                  const char *const *envp, size_t envc,
+                                  uint8_t priority);
+#endif
 void process_note_fault(process *instance, uint64_t address, uint64_t code);
 void process_note_exit(process *instance, uint64_t code);
 process_status process_request_kill(process *instance);

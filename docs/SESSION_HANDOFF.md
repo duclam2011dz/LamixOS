@@ -1,7 +1,14 @@
-# Bàn giao hiện hành — M22 DONE; M23 chưa bắt đầu — 2026-11-01
+# Bàn giao hiện hành — M23 IN PROGRESS — 2026-11-01
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: DONE; M23–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: DONE; M23: IN PROGRESS; M24–M44: PLANNED
+
+## M23 — triển khai, chưa nghiệm thu
+
+- M23 thêm Static PIE ET_DYN ELF64 loader, `R_X86_64_RELATIVE`, read-only newc initramfs nhúng, user stack/startup/libc freestanding và hai app độc lập trong profile `m23-kernel`. Không đổi LBP v1, profile M22/ABI 1.1 hoặc `LATEST_PROFILE=m20`; M18 vẫn PLANNED, M24 chưa bắt đầu.
+- Cross-build **PASS**; CTest **3/3 PASS**; guest SeaBIOS `pc` **3/3 PASS**, OVMF `q35` **3/3 PASS**. Guest xác nhận malformed ELF bị từ chối không panic kernel, argv/envp/BSS/output/exit, process isolation và cleanup. Native sanitizer và provenance **PASS**.
+- Regressions M17 **3/3**, M19 **3/3**, M20 **3/3**, M21 **3/3**, M22 **4/4**; docs validator và unittest **41/41 PASS**. Bốn GitHub workflows, independent review và acceptance **PENDING**. Không đánh dấu DONE, không tạo tag/PR trong lượt này. Local `cmake` không nằm trên PATH nhưng `.venv/bin/cmake` hoạt động; Ninja thiếu nên local CTest dùng Unix Makefiles. `.git` read-only ngăn tạo branch; workspace hiện có thay đổi trên `main`, file untracked `PROMPT_NEXT_SESSION_M21.md` được giữ nguyên.
+- Tiếp tục hoàn tất regression/docs/review, kiểm tra diff/profile/`latest`, rồi xin duyệt trước thao tác commit/PR/tag/merge. Chưa bắt đầu M24.
 
 ## M22 — nghiệm thu và bàn giao
 
@@ -10,7 +17,7 @@ Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DON
 - Cross-build M22 **PASS**; CTest M22 **4/4 PASS**; guest BIOS/UEFI **3/3 mỗi firmware PASS**; regressions M17/M19/M20/M21 **1/1 mỗi profile/firmware PASS** trong lượt local trước review-fix, full Toolchain CI regressions xanh sau review-fix. Docs validator và unittest tài liệu **PASS**, **41/41** trước thay đổi closure docs.
 - Review đã sửa self/cross-channel reference cycle và atomic MOVE/enqueue; native tests xác nhận cleanup và đúng một MOVE thành công. Threads review resolved. ASan/UBSan chạy với `detect_leaks=0` theo CTest; allocator-accounting regression kiểm cycle cleanup. Allocation-failure matrix exhaustive, mọi tổ hợp guest invalid args, PC thật/firmware ngoài profile QEMU và audit bảo mật độc lập **NOT RUN**.
 - Baseline: profile M22 riêng; `latest` giữ M20; M21 ABI 1.0; M22 ABI 1.1; LBP v1/entry ABI không đổi. M18 vẫn PLANNED. M23 chưa bắt đầu trong lượt đóng này.
-- Bước tiếp theo chỉ là **phiên lập kế hoạch M23**: người dùng phải bật Codex Plan Mode thật; đọc handoff/roadmap/plans và tài liệu liên quan, chỉ khảo sát/lập kế hoạch rồi chờ phê duyệt triển khai. Xem [prompt bàn giao M23](../PROMPT_NEXT_SESSION_M23.md).
+- Ghi chú lịch sử: trước lượt hiện tại, bước tiếp theo là phiên lập kế hoạch M23; M23 hiện đã được duyệt triển khai nhưng chưa nghiệm thu.
 
 ## M21 — Lamix-specific syscall ABI v1 — DONE
 
@@ -23,7 +30,7 @@ Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DON
 
 ## M20 — nghiệm thu
 
-- M20 BSP profile có process address space riêng, ring 3, user/supervisor mappings, TSS `rsp0`, fault isolation và API kernel nội bộ cho kill/wait. Một thread mỗi process; payload chỉ nhúng để test. M21 syscall ABI đã nghiệm thu; M23 ELF loader/runtime và M18 vẫn chưa được bắt đầu/kích hoạt.
+- M20 BSP profile có process address space riêng, ring 3, user/supervisor mappings, TSS `rsp0`, fault isolation và API kernel nội bộ cho kill/wait. Một thread mỗi process; payload chỉ nhúng để test. M21 syscall ABI đã nghiệm thu; M23 ELF loader/runtime được triển khai sau thời điểm nghiệm thu M20; M18 vẫn PLANNED.
 - Cross-build, `scripts/lamix_qemu.py --profile m20 --build-only`, native ASan/UBSan, M20 host tests và guest BIOS/UEFI 3/3 mỗi firmware hiện PASS. Guest kiểm tra một process ghi vùng user chỉ process kia map rồi fault; process còn lại tiếp tục, bị kill qua test manager và resources được thu hồi. M19 pytest 7/7 và M17 guest regression 4/4 PASS.
 - PR [#20](https://github.com/duclam2011dz/LamixOS/pull/20) merge commit `88821fdd59a6341b636e37e7e9a045f536d218a8`; acceptance commit `d0b97be7566e793bc0c54810ec574903ae2ed3dc`; annotated tag `milestone/M20` object `651e6ea9b065ac9a3759399fe9e4996511a0ce55` trỏ acceptance commit. Bốn workflow CI SUCCESS trên đúng SHA: Toolchain [41265639668](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639668), Harness [41265639777](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639777), Documentation [41265639726](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639726), Boot Contract [41265639667](https://github.com/duclam2011dz/LamixOS/actions/runs/41265639667). Toolchain CI chạy M20 CTest/build và BIOS/UEFI guest tests PASS. Local CMake/CTest wrapper NOT RUN vì `cmake` không có trên PATH; docs validator PASS, unittest 41/41 PASS. PC thật/firmware ngoài profile QEMU NOT RUN.
 - M20 đã DONE. M18 vẫn PLANNED/để dành; M21 đã DONE. Script chạy thử mới nhất: [scripts/lamix_qemu.py](../scripts/lamix_qemu.py), mặc định M20; profile `m21`, `m19` và `m17` chọn riêng được. Chi tiết build/run tại [TESTING](TESTING.md#lamix-syscall-abi-v1-m21).
