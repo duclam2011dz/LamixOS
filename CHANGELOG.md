@@ -4,10 +4,10 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
-### M20 — IN_PROGRESS
+### M20 — DONE (2026-11-01)
 
 - Thêm profile BSP M20 với ring 3, process address spaces tách biệt, user/supervisor page permissions, TSS stack transition và lifecycle kill/wait nội bộ. Không đổi syscall ABI, ELF loader, LBP v1 hoặc profile cũ.
-- Host sanitizer, guest QEMU BIOS/UEFI, docs validator và unittest tài liệu đã chạy PASS; CTest wrapper local **NOT RUN** do thiếu `cmake`, GitHub CI chưa chạy. Xem [kế hoạch/bằng chứng M20](PLANS.md).
+- Native ASan/UBSan, guest BIOS/UEFI 3/3 mỗi firmware, regressions M17/M19 và docs validator/unittest 41/41 **PASS**. Local CMake/CTest wrapper **NOT RUN** do thiếu `cmake`; Toolchain CI CTest và bốn workflow CI **PASS** trên acceptance SHA. PR [#20](https://github.com/duclam2011dz/LamixOS/pull/20) merge commit `88821fdd59a6341b636e37e7e9a045f536d218a8`; acceptance commit `d0b97be7566e793bc0c54810ec574903ae2ed3dc`; annotated tag `milestone/M20` object `651e6ea9b065ac9a3759399fe9e4996511a0ce55`. PC thật và firmware ngoài profile QEMU **NOT RUN**. M18 vẫn PLANNED; không bắt đầu M21. Xem [kế hoạch/bằng chứng M20](PLANS.md).
 
 ### M19 — DONE
 
