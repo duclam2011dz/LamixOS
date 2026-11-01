@@ -1,6 +1,6 @@
 # Chỉ mục API và ABI
 
-LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader, M06 EFI loader, M07 parity probe; kernel bootstrap M08, PMM M09, VMM BSP M10, kernel heap M11, Buddy PMM thử nghiệm M12, ACPI/PCI/device framework M13, input PS/2 M15, software renderer M16, VirtIO-GPU 2D M17, scheduler BSP M19 và process/ring 3 M20 đã DONE. M21 đang bổ sung syscall ABI v1 trong profile riêng. API subsystem kernel dưới đây là nội bộ; syscall ABI M21 là boundary riêng cho user-space và chưa phải API dịch vụ ổn định ngoài các wrapper đã mô tả.
+LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C](../include/lamix/boot/contract.h) và [đặc tả](BOOT_PROTOCOL.md). Thư viện dùng buffers của caller, validation/normalization thuần; M05 có BIOS loader, M06 EFI loader, M07 parity probe; kernel bootstrap M08, PMM M09, VMM BSP M10, kernel heap M11, Buddy PMM thử nghiệm M12, ACPI/PCI/device framework M13, input PS/2 M15, software renderer M16, VirtIO-GPU 2D M17, scheduler BSP M19, process/ring 3 M20 và syscall ABI v1 M21 đã DONE. API subsystem kernel dưới đây là nội bộ; syscall ABI M21 là boundary riêng cho user-space và chưa phải API dịch vụ ổn định ngoài các wrapper đã mô tả.
 
 | Giao diện | Nguồn |
 |---|---|
@@ -38,11 +38,11 @@ Kernel dùng entry C/NASM qua LBP v1 và gọi `lbp_validate()` trước khi s�
 
 `kernel/vmm.h` thêm quyền `VMM_USER`; M20 dành PML4 slot 1 (512 GiB đến 1 TiB) cho user mappings, đặt U/S xuyên các cấp page table và từ chối VA user ngoài slot này. `vmm_copy_kernel_mappings` chia sẻ kernel mappings supervisor vào process root; `vmm_destroy_process_space` giữ ownership đúng cho các page table riêng. `kernel/process.h` cung cấp state/status và các thao tác nội bộ `process_create`, `process_note_fault`, `process_request_kill`, `process_wait`, `process_destroy`; hiện mỗi process sở hữu một address space, code/data/stack frame và một scheduler thread. `process_wait` block bằng scheduler yield khi guest scheduler active; trong host fixtures chưa active thì đọc trạng thái hiện thời. Scheduler callback đổi CR3/TSS `rsp0`; CPL3 exception kết thúc process, ring0 exception vẫn panic. Đây là API nội bộ. User code vẫn được nhúng trong test profile; ELF loader/runtime thuộc M23.
 
-## Lamix syscall ABI v1 M21 (đang triển khai)
+## Lamix syscall ABI v1 M21 (đã nghiệm thu)
 
 Header kernel: [`kernel/syscall.h`](../kernel/syscall.h); wrapper freestanding user-space: [`user/include/lamix/syscall.h`](../user/include/lamix/syscall.h) và [`user/syscall.c`](../user/syscall.c). `RAX` mang syscall number/kết quả; sáu đối số ở `RDI, RSI, RDX, R10, R8, R9`; `RCX` và `R11` bị clobber. Version query trả `(major << 32) | minor`; lỗi là signed negative status trong `RAX`, không dùng `errno`.
 
-Profile M21 hiện định nghĩa IDs append-only `0=version`, `1=yield`, `2=exit`, `3=debug_write`; `debug_write` nhận tối đa 256 byte và chỉ dành cho kiểm thử/debug. Không có syscall nhận handle hoặc cung cấp console SDK. `lamix_syscall_handle_valid()` chỉ là kiểm tra range chung, chưa xác nhận object/rights; capabilities và IPC thuộc M22. Các số và hằng lỗi hiện là baseline triển khai M21, chưa tuyên bố API dịch vụ sản phẩm.
+Profile M21 định nghĩa IDs append-only `0=version`, `1=yield`, `2=exit`, `3=debug_write`; `debug_write` nhận tối đa 256 byte và chỉ dành cho kiểm thử/debug. Không có syscall nhận handle hoặc cung cấp console SDK. `lamix_syscall_handle_valid()` chỉ là kiểm tra range chung, chưa xác nhận object/rights; capabilities và IPC thuộc M22. Đây là ABI v1 đã nghiệm thu, nhưng chưa phải cam kết dịch vụ ổn định ngoài wrapper ABI được mô tả.
 
 Entry dùng `IA32_EFER.SCE`, `STAR`, `LSTAR`, `FMASK`, chuyển sang kernel stack của thread rồi kiểm tra RIP/RSP user và lọc `RFLAGS`; đường thường `SYSRETQ`, nhánh kiểm thử/fallback dùng `IRETQ`. Kernel copy user memory theo trang sau khi kiểm quyền `VMM_USER`/read, không dereference con trỏ user trực tiếp. Chi tiết lệnh/provenance ở [TESTING M21](TESTING.md#lamix-syscall-abi-v1-m21); nghiệm thu và giới hạn ở [handoff](SESSION_HANDOFF.md).
 

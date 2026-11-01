@@ -1,6 +1,6 @@
 # Kiến trúc
 
-**Phần lớn subsystem chưa triển khai.** Kernel bootstrap M08, Bitmap PMM M09, VMM BSP M10, kernel heap M11, Buddy PMM thử nghiệm M12, ACPI/PCI/device framework cơ bản M13, APIC/timer M14, input M15, software renderer M16, VirtIO-GPU 2D M17, scheduler BSP M19 và process/ring 3 M20 đã DONE. M12 giữ bitmap làm backend mặc định; M18 vẫn PLANNED. M21 đang triển khai syscall ABI riêng trên process BSP; ELF loader/runtime M23 và kernel sản phẩm chưa có. M13 guest không cấp RSDP trong LBP nên ACPI traversal guest **NOT RUN**. Baseline kiến trúc nằm ở [roadmap, mục 1](../ROADMAP.md).
+**Phần lớn subsystem chưa triển khai.** Kernel bootstrap M08, Bitmap PMM M09, VMM BSP M10, kernel heap M11, Buddy PMM thử nghiệm M12, ACPI/PCI/device framework cơ bản M13, APIC/timer M14, input M15, software renderer M16, VirtIO-GPU 2D M17, scheduler BSP M19, process/ring 3 M20 và syscall ABI v1 M21 đã DONE. M12 giữ bitmap làm backend mặc định; M18 vẫn PLANNED. ELF loader/runtime M23 và kernel sản phẩm chưa có. M13 guest không cấp RSDP trong LBP nên ACPI traversal guest **NOT RUN**. Baseline kiến trúc nằm ở [roadmap, mục 1](../ROADMAP.md).
 
 Bootloader BIOS và UEFI tự viết → LBP/BootInfo chuẩn hóa → một kernel entry chung. Hybrid Kernel cung cấp quản lý bộ nhớ, scheduler, processes/threads, capabilities, IPC và syscalls. Duy trì cả kernel-mode drivers và user-mode drivers lâu dài; không chuyển toàn bộ driver ra user-space.
 
