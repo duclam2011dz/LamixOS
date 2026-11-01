@@ -44,7 +44,7 @@ Header kernel: [`kernel/syscall.h`](../kernel/syscall.h); wrapper freestanding u
 
 Profile M21 định nghĩa IDs append-only `0=version`, `1=yield`, `2=exit`, `3=debug_write`; `debug_write` nhận tối đa 256 byte và chỉ dành cho kiểm thử/debug. Không có syscall nhận handle hoặc cung cấp console SDK. `lamix_syscall_handle_valid()` chỉ là kiểm tra range chung, chưa xác nhận object/rights. M21 ABI 1.0 đã nghiệm thu; wrapper không phải cam kết dịch vụ ổn định.
 
-M24 đang mở rộng scheduler nội bộ `kernel/scheduler.h` với per-CPU queues, affinity mask và work stealing; các entrypoint mới chỉ dùng profile `m24-kernel`. Đây chưa phải ABI user-space hoặc API đã nghiệm thu. Profile cũ giữ BSP scheduler.
+M24 đã mở rộng scheduler nội bộ `kernel/scheduler.h` với per-CPU queues, affinity mask và work stealing; các entrypoint này chỉ dùng profile `m24-kernel`. Đây không phải ABI user-space hoặc public API. Profile cũ vẫn giữ BSP scheduler.
 
 ## M22 handles, channels và SHM (đã nghiệm thu trong profile riêng)
 
