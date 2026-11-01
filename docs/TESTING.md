@@ -19,7 +19,7 @@ Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc đ
 
 ```text
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24 IN_PROGRESS; M25–M44 PLANNED
+Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24 DONE; M25–M44 PLANNED
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M15 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -482,7 +482,7 @@ Guest gọi wrapper thật từ ring 3: version query, `debug_write`, null/unmap
 
 M21 local cross-build **PASS**, CMake build **PASS**, CTest **3/3 PASS** (`m21-native-sanitize`, `m21-host`, guest BIOS/UEFI), guest BIOS/UEFI **3/3 mỗi firmware PASS**. Hồi quy guest M17 **4/4**, M19 **6/6**, M20 **6/6** và native M19/M20 **PASS**. Bốn workflow GitHub Actions SUCCESS trên acceptance SHA `6793d8f0a622fcd9f4100921e7932fcb46414540`: Toolchain [41270742769](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742769), Harness [41270742714](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742714), Documentation [41270742671](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742671), Boot Contract [41270742711](https://github.com/duclam2011dz/LamixOS/actions/runs/41270742711). PR [#22](https://github.com/duclam2011dz/LamixOS/pull/22) merged; annotated tag `milestone/M21` trỏ acceptance SHA. PC thật/firmware ngoài profile QEMU **NOT RUN**.
 
-## SMP M24 (IN_PROGRESS)
+## SMP M24 (DONE)
 
 Profile riêng `m24-kernel`; build report ghi hash kernel/initramfs/apps, topology limit và commands. Build tối đa 16 CPU:
 
@@ -495,7 +495,11 @@ ctest --test-dir build/m24-ctest --output-on-failure
 
 CMake suite gồm native MADT/scheduler ASan/UBSan, host provenance và guest matrix BIOS/UEFI × 1/2/4/8 vCPU × 3 lượt, cùng scheduler ThreadSanitizer. Chạy riêng guest: `.venv/bin/python -m pytest -q tests/m24/test_m24.py`; chạy host-only: `.venv/bin/python -m pytest -q tests/m24/test_m24.py -m 'not qemu'`. QEMU `cpu_count` truyền qua `-smp`; artifacts/provenance ở `build/m24/`, serial/result logs ở `out/m24/`. Marker M24 kiểm topology/AP online, TLB shootdown, CPU mask/work stealing và M23 ring-3 workload. Chỉ guest log có boot marker được tính; host sanitizer/compile không thay thế guest.
 
-Kết quả trước review cuối: cross-build **PASS**, CTest native ASan/UBSan + host provenance + scheduler TSan **3/3 PASS**; QEMU suite rerun toàn matrix SeaBIOS `pc`/OVMF `q35` × 1/2/4/8 vCPU × 3 lượt cùng fault cases **PASS** sau một timeout OVMF ban đầu. Regression CTest M17–M23 **PASS** theo số lượt ghi ở trên. Automated review sau đó phát hiện ba P1 liên quan stack lifetime, GS state và shootdown lock wait. Sau khi sửa, CTest M24 **4/4 PASS**: native ASan/UBSan, host provenance, full guest BIOS/UEFI × 1/2/4/8 vCPU × 3 lượt cùng fault injection, và scheduler TSan. Hai guest 2 vCPU được kiểm tra riêng sau lần sửa cuối; serial logs ở `out/m24/review-final-runs/`. Docs validator **PASS**, unittest **41/41 PASS**. Regression M17–M23 và GitHub CI trên commit sửa cần xác nhận; review threads còn mở, M24 chưa DONE. Review mới trên commit `ecd2970eb1abeb35db79623dd85c0f3cb57160b1` phát hiện race timer giữa clear `lock_waiting` và `cli`; thứ tự đã sửa trong working tree mới nhưng CTest/CI chưa chạy lại trên sửa đổi này. `latest` tiếp tục M20; không đổi profile cũ, LBP v1, syscall ABI hoặc M18.
+M24 cross-build **PASS**; CTest local **4/4 PASS** gồm native ASan/UBSan, host provenance, guest BIOS/UEFI matrix/fault injection và scheduler ThreadSanitizer. Guest SeaBIOS `pc`/OVMF `q35` × 1/2/4/8 vCPU × 3 lượt **PASS**; fault injection AP timeout, topology limit và TLB acknowledgement timeout **PASS**. Regression CTest M17 **3/3**, M19 **3/3**, M20 **3/3**, M21 **3/3**, M22 **4/4**, M23 **3/3 PASS**. Docs validator và unittest tài liệu **41/41 PASS** trước PR tài liệu bàn giao này.
+
+Review tìm bốn P1 về scheduler stack lifetime, trạng thái GS/SWAPGS, shootdown lock wait và timer race khi clear `lock_waiting`; các lỗi đã sửa và bốn thread đã resolve theo chấp thuận của người dùng. Chưa có review receipt mới gắn với acceptance head cuối. PR [#28](https://github.com/duclam2011dz/LamixOS/pull/28) merge commit `590ebae8eacaa1f0a582051e67bae750a717bdcc`; acceptance commit `ecbeef72846e473e1b8e0cb572a086bd7e7c5dc9`; annotated tag `milestone/M24` object `7dd2b905a08e93320146cd041ed28c033b813b28` trỏ acceptance commit.
+
+GitHub Actions trên PR #28: Toolchain [41313786645](https://github.com/duclam2011dz/LamixOS/actions/runs/41313786645) **SUCCESS** attempt 2 sau khi attempt 1 gặp assertion thiếu `M23:APP_ALPHA:PASS` ở một lượt UEFI/8 vCPU dù guest sau đó phát `M23:PASS`; attempt 2 chạy lại toàn bộ Toolchain job, gồm M24 CTest. Harness [41313786650](https://github.com/duclam2011dz/LamixOS/actions/runs/41313786650), Documentation [41313786705](https://github.com/duclam2011dz/LamixOS/actions/runs/41313786705), Boot Contract [41313786583](https://github.com/duclam2011dz/LamixOS/actions/runs/41313786583) **SUCCESS**. Profile BSP-only, `LATEST_PROFILE=m20`, LBP v1 và syscall ABI không đổi; M18 vẫn PLANNED. Race teardown/address-space switch đồng thời, audit bảo mật độc lập, PC thật và firmware ngoài profile QEMU **NOT RUN**. M25 còn PLANNED, chưa lập kế hoạch hoặc triển khai.
 
 ## Static ELF64 loader và user runtime M23
 
