@@ -17,8 +17,12 @@ static void zero_memory(void *pointer, size_t length) {
 
 static uintptr_t lock_scheduler(scheduler *state) {
   uintptr_t flags = state->operations.irq_save(state->operations.context);
-  while (__atomic_exchange_n(&state->spinlock, 1u, __ATOMIC_ACQUIRE))
-    __asm__ volatile("pause" ::: "memory");
+  while (__atomic_exchange_n(&state->spinlock, 1u, __ATOMIC_ACQUIRE)) {
+    if (state->operations.irq_wait)
+      state->operations.irq_wait(state->operations.context);
+    else
+      __asm__ volatile("pause" ::: "memory");
+  }
   return flags;
 }
 
@@ -133,7 +137,9 @@ static scheduler_thread *queue_take_highest(scheduler *state,
     if (!victim || !victim->online) continue;
     for (int priority = (int)SCHED_PRIORITY_MAX; priority >= 0; --priority) {
       scheduler_thread *thread = victim->ready_tail[priority];
-      while (thread && !(thread->affinity_mask & (UINT64_C(1) << cpu_id)))
+      while (thread &&
+             (thread == victim->switching_from ||
+              !(thread->affinity_mask & (UINT64_C(1) << cpu_id))))
         thread = thread->ready_prev;
       if (!thread) continue;
       queue_remove(state, thread);
@@ -283,7 +289,8 @@ static void add_retired(scheduler *state, scheduler_thread *thread) {
 static int is_running_on_any_cpu(scheduler *state, scheduler_thread *thread) {
   for (uint32_t i = 0; i < state->cpu_limit; ++i) {
     scheduler_cpu *cpu = cpu_state(state, i);
-    if (cpu && cpu->online && cpu->current == thread) return 1;
+    if (cpu && cpu->online &&
+        (cpu->current == thread || cpu->switching_from == thread)) return 1;
   }
   return 0;
 }
@@ -321,6 +328,8 @@ static void *dispatch(scheduler *state, void *frame, int tick, int terminate) {
   uintptr_t flags = lock_scheduler(state);
   scheduler_thread *current = cpu->current;
   current->frame = (scheduler_frame *)frame;
+  /* This interrupt proves the previous return path left the old stack. */
+  cpu->switching_from = 0;
   reap_retired(state);
   if (terminate && current != cpu->bootstrap && !current->idle) {
     current->state = SCHED_THREAD_TERMINATED;
@@ -349,6 +358,7 @@ static void *dispatch(scheduler *state, void *frame, int tick, int terminate) {
     return frame;
   }
   cpu->current = next;
+  if (next != current) cpu->switching_from = current;
   if (next->user_mode)
     __atomic_fetch_or(&state->observed_cpu_mask, UINT64_C(1) << cpu_id,
                       __ATOMIC_RELAXED);

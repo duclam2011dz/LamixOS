@@ -128,7 +128,7 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
                         "scripts/m07_image.py"))
     common=[x["gcc"],"-std=c11","-m64","-mcmodel=kernel","-mno-red-zone","-mgeneral-regs-only","-ffreestanding","-fno-builtin","-fno-pie","-fno-pic","-fno-stack-protector","-fno-asynchronous-unwind-tables","-fno-unwind-tables","-fno-exceptions","-Wall","-Wextra","-Werror","-I",ROOT/"include","-I",ROOT/"kernel","-O2"]
     run("nasm","--reproducible","-f","elf64",*( ["-D", "LAMIX_M14_APIC=1"] if m14_apic else []),"-o",output/"entry.o",ROOT/"kernel/entry.asm")
-    run("nasm","--reproducible","-f","elf64",*( ["-D", "LAMIX_M19_SCHEDULER=1"] if m19_scheduler else []),"-o",output/"interrupts.o",ROOT/"kernel/interrupts.asm")
+    run("nasm","--reproducible","-f","elf64",*( ["-D", "LAMIX_M19_SCHEDULER=1"] if m19_scheduler else []), *( ["-D", "LAMIX_M24_SMP=1"] if m24_smp else []),"-o",output/"interrupts.o",ROOT/"kernel/interrupts.asm")
     if m21_syscall:
         run("nasm", "--reproducible", "-f", "elf64", "-o",
             output/"syscall_entry.o", *( ["-D", "LAMIX_M24_SMP=1"] if m24_smp else []),

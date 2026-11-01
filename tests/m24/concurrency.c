@@ -90,6 +90,7 @@ int main(void) {
       .fatal = fatal,
       .context_switch = context_switch,
       .cpu_id = cpu_id,
+      .irq_wait = 0,
   };
   host_cpu = 0;
   assert(scheduler_init_smp(&state, &operations, idle, 2) == SCHED_OK);

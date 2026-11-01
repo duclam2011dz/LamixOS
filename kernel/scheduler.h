@@ -51,6 +51,8 @@ typedef struct scheduler_operations {
   void (*fatal)(void *context, uint64_t reason);
   void (*context_switch)(void *context, scheduler_thread *next);
   uint32_t (*cpu_id)(void *context);
+  /* Wait with maskable IPIs enabled while contending on an SMP lock. */
+  void (*irq_wait)(void *context);
 } scheduler_operations;
 
 struct scheduler_thread {
@@ -89,6 +91,8 @@ struct scheduler_cpu {
   scheduler_thread *ready_head[SCHED_PRIORITY_LEVELS];
   scheduler_thread *ready_tail[SCHED_PRIORITY_LEVELS];
   scheduler_thread *current, *bootstrap, *idle, *retired;
+  /* Old frame remains live until this CPU has returned on another stack. */
+  scheduler_thread *switching_from;
   uint64_t ticks;
   uint8_t online;
 };
@@ -101,6 +105,7 @@ struct scheduler {
       scheduler_thread *ready_head[SCHED_PRIORITY_LEVELS];
       scheduler_thread *ready_tail[SCHED_PRIORITY_LEVELS];
       scheduler_thread *current, *bootstrap, *idle, *retired;
+      scheduler_thread *switching_from;
       uint64_t ticks;
     };
   };

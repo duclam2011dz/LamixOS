@@ -34,6 +34,14 @@ interrupt_vectors:
 section .text
 interrupt_common:
     cld
+%ifdef LAMIX_M24_SMP
+    ; GS_BASE is user GS whenever an interrupt interrupted CPL3. The syscall
+    ; path and all kernel threads keep the CPU-local pointer in kernel GS.
+    test byte [rsp + 24], 3
+    jz .gs_ready
+    swapgs
+.gs_ready:
+%endif
     push rax
     push rcx
     push rdx
@@ -74,5 +82,13 @@ interrupt_common:
     pop rcx
     pop rax
     add rsp, 16
+%ifdef LAMIX_M24_SMP
+    ; The selected frame may belong to a user thread, including one resumed
+    ; after running on a different CPU. Restore that thread's user GS state.
+    test byte [rsp + 8], 3
+    jz .iret_kernel
+    swapgs
+.iret_kernel:
+%endif
     iretq
 section .note.GNU-stack noalloc noexec nowrite progbits

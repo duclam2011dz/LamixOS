@@ -105,6 +105,7 @@ typedef struct m24_cpu_local {
   volatile uint32_t online;
   volatile uint32_t timer_started;
   volatile uint32_t timer_irqs;
+  volatile uint32_t lock_waiting;
   vmm_space *active_space;
 } m24_cpu_local;
 typedef struct m24_ap_mailbox {
@@ -143,6 +144,7 @@ static uint32_t m24_object_depth[LAMIX_M24_MAX_CPUS];
 static uintptr_t m24_object_flags[LAMIX_M24_MAX_CPUS];
 static uint32_t m24_cpu_id(void *context);
 static uint32_t m24_current_cpu_id(void);
+static void m24_irq_wait(void *context);
 static void m24_install_cpu_tables(uint32_t cpu_id, uintptr_t stack_top);
 static void m24_tlb_shootdown(uint64_t address, uint64_t target_mask);
 static void m24_ap_main(uint32_t cpu_id);
@@ -295,7 +297,7 @@ static int m24_serial_enter(void) {
     if (__atomic_compare_exchange_n(&m24_serial_owner, &expected, id, 0,
                                     __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
       break;
-    __asm__ volatile("pause" ::: "memory");
+    m24_irq_wait(0);
   } while (1);
   m24_serial_flags[id] = flags;
   return (int)id + 1;
@@ -352,9 +354,28 @@ static uint64_t m19_start_tick;
 static uintptr_t m24_lock_acquire(volatile uint32_t *word) {
   uintptr_t flags;
   __asm__ volatile("pushfq; pop %0; cli" : "=r"(flags) :: "memory");
-  while (__atomic_exchange_n(word, 1u, __ATOMIC_ACQUIRE))
-    __asm__ volatile("pause" ::: "memory");
+  uint32_t id = m24_current_cpu_id();
+  while (__atomic_exchange_n(word, 1u, __ATOMIC_ACQUIRE)) {
+    if (id < LAMIX_M24_MAX_CPUS) {
+      __atomic_store_n(&m24_cpu_locals[id].lock_waiting, 1u, __ATOMIC_RELEASE);
+      __asm__ volatile("sti; pause; cli" ::: "memory");
+      __atomic_store_n(&m24_cpu_locals[id].lock_waiting, 0u, __ATOMIC_RELEASE);
+    } else {
+      __asm__ volatile("pause" ::: "memory");
+    }
+  }
   return flags;
+}
+static void m24_irq_wait(void *context) {
+  (void)context;
+  uint32_t id = m24_current_cpu_id();
+  if (id >= LAMIX_M24_MAX_CPUS) {
+    __asm__ volatile("pause" ::: "memory");
+    return;
+  }
+  __atomic_store_n(&m24_cpu_locals[id].lock_waiting, 1u, __ATOMIC_RELEASE);
+  __asm__ volatile("sti; pause; cli" ::: "memory");
+  __atomic_store_n(&m24_cpu_locals[id].lock_waiting, 0u, __ATOMIC_RELEASE);
 }
 static void m24_lock_release(volatile uint32_t *word, uintptr_t flags) {
   __atomic_store_n(word, 0u, __ATOMIC_RELEASE);
@@ -506,8 +527,10 @@ static int m21_syscall_init(void) {
 #if defined(LAMIX_M24_SMP)
   m24_cpu_local *cpu = m24_local_cpu();
   if (!cpu) return 0;
-  m21_wrmsr(UINT32_C(0xc0000101), 0);
-  m21_wrmsr(UINT32_C(0xc0000102), (uint64_t)(uintptr_t)cpu);
+  /* Kernel execution starts with GS_BASE already pointing at this CPU.
+     SWAPGS on user entry/return then exchanges it with the user GS base. */
+  m21_wrmsr(UINT32_C(0xc0000101), (uint64_t)(uintptr_t)cpu);
+  m21_wrmsr(UINT32_C(0xc0000102), 0);
 #endif
   return 1;
 }
@@ -570,7 +593,7 @@ static uintptr_t m24_object_lock(void) {
     if (__atomic_compare_exchange_n(&m24_object_owner, &expected, id, 0,
                                     __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
       break;
-    __asm__ volatile("pause" ::: "memory");
+    m24_irq_wait(0);
   } while (1);
   m24_object_flags[id] = flags;
   m24_object_depth[id] = 1;
@@ -744,6 +767,12 @@ static void m20_run(void) {
 #else
       0
 #endif
+      ,
+#if defined(LAMIX_M24_SMP)
+      m24_irq_wait
+#else
+      0
+#endif
   };
   if (lamix_initramfs_find(m23_initramfs_start, archive_size, "alpha.elf",
                            &alpha) != LAMIX_INITRAMFS_OK ||
@@ -864,7 +893,7 @@ static void m20_run(void) {
         .invalidate = vmm_invalidate}};
   scheduler_operations scheduler_ops = {0, m19_allocate, m19_deallocate,
       m19_irq_save, m19_irq_restore, m19_request_reschedule, m19_fatal,
-      m20_context_switch, 0};
+      m20_context_switch, 0, 0};
   m20_boot_stack_top = m20_boot_stack_top ? m20_boot_stack_top : tss.rsp0;
   scheduler_status scheduler_result =
       scheduler_init(&m19_scheduler, &scheduler_ops, m20_user_idle);
@@ -1086,7 +1115,7 @@ static void m19_mutex_medium(void *argument) {
 }
 static __attribute__((unused)) void m19_run(void) {
   scheduler_operations operations = {0, m19_allocate, m19_deallocate,
-      m19_irq_save, m19_irq_restore, m19_request_reschedule, m19_fatal, 0, 0};
+      m19_irq_save, m19_irq_restore, m19_request_reschedule, m19_fatal, 0, 0, 0};
   scheduler_thread *workers[2] = {0, 0};
   if (scheduler_init(&m19_scheduler, &operations, m19_idle) != SCHED_OK ||
       scheduler_create(&m19_scheduler, m19_worker, (void *)0, 1,
@@ -1256,7 +1285,7 @@ static void m24_tlb_shootdown(uint64_t address, uint64_t target_mask) {
   uintptr_t flags;
   __asm__ volatile("pushfq; pop %0; cli" : "=r"(flags) :: "memory");
   while (__atomic_exchange_n(&m24_shootdown_lock, 1u, __ATOMIC_ACQUIRE))
-    __asm__ volatile("pause" ::: "memory");
+    m24_irq_wait(0);
   uint32_t current = m24_current_cpu_id();
   uint64_t online = (UINT64_C(1) << m24_cpu_count) - 1u;
   target_mask &= online;
@@ -1265,6 +1294,14 @@ static void m24_tlb_shootdown(uint64_t address, uint64_t target_mask) {
   m24_shootdown_targets = target_mask;
   __atomic_store_n(&m24_shootdown_acks, 0, __ATOMIC_RELAXED);
   __atomic_thread_fence(__ATOMIC_RELEASE);
+  /* The handler only reads published atomics and executes INVLPG. Enable
+     maskable interrupts while waiting so a CPU spinning on an irq-save lock
+     can service this IPI; preserve the caller's IF state on return. */
+  uint32_t current_id = m24_current_cpu_id();
+  if (current_id < LAMIX_M24_MAX_CPUS)
+    __atomic_store_n(&m24_cpu_locals[current_id].lock_waiting, 1u,
+                     __ATOMIC_RELEASE);
+  __asm__ volatile("sti" ::: "memory");
   for (uint32_t id = 0; id < m24_cpu_count; ++id) {
     if (!(target_mask & (UINT64_C(1) << id))) continue;
     if (!m24_send_ipi(m24_cpu_apic_ids[id], 0x35)) {
@@ -1282,6 +1319,10 @@ static void m24_tlb_shootdown(uint64_t address, uint64_t target_mask) {
     halt();
   }
   __atomic_store_n(&m24_shootdown_lock, 0u, __ATOMIC_RELEASE);
+  if (current_id < LAMIX_M24_MAX_CPUS)
+    __atomic_store_n(&m24_cpu_locals[current_id].lock_waiting, 0u,
+                     __ATOMIC_RELEASE);
+  __asm__ volatile("cli" ::: "memory");
   if (flags & ((uintptr_t)1u << 9)) __asm__ volatile("sti" ::: "memory");
 }
 static int m24_prepare_trampoline(void) {
@@ -1523,6 +1564,11 @@ void *interrupt_dispatch(interrupt_frame*f){
   }
   if (f->vector == 0x34 && m24_current_cpu_id() != 0) {
     m14_lapic[0xb0 / 4] = 0;
+    uint32_t cpu_id = m24_current_cpu_id();
+    if (cpu_id < LAMIX_M24_MAX_CPUS &&
+        __atomic_load_n(&m24_cpu_locals[cpu_id].lock_waiting,
+                        __ATOMIC_ACQUIRE))
+      return f;
     return scheduler_on_reschedule(&m19_scheduler, f);
   }
 #endif
@@ -1548,6 +1594,13 @@ void *interrupt_dispatch(interrupt_frame*f){
     }
     __asm__ volatile("mfence" ::: "memory");
     m14_lapic[0xb0 / 4] = 0;
+#if defined(LAMIX_M24_SMP)
+    uint32_t wait_cpu = m24_current_cpu_id();
+    if (f->vector == 0x31 && wait_cpu < LAMIX_M24_MAX_CPUS &&
+        __atomic_load_n(&m24_cpu_locals[wait_cpu].lock_waiting,
+                        __ATOMIC_ACQUIRE))
+      return f;
+#endif
 #if defined(LAMIX_M19_SCHEDULER)
     if (f->vector == 0x31 && m19_scheduler_ready) {
 #if defined(LAMIX_M20_PROCESS)

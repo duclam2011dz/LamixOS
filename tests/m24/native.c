@@ -100,14 +100,80 @@ static void test_process_teardown_waits_for_active_cpu(void) {
   assert(process_destroy(&instance) == PROCESS_BUSY);
 }
 
-int main(void) {
-  test_madt_cpu_inventory();
-  test_process_teardown_waits_for_active_cpu();
+static void test_switching_stack_cannot_be_stolen(void) {
   host_context host = {0};
   scheduler state;
   scheduler_operations operations = {
       &host, allocate, deallocate, irq_save, irq_restore, reschedule,
-      fatal, context_switch, host_cpu_id};
+      fatal, context_switch, host_cpu_id, 0};
+  assert(scheduler_init_smp(&state, &operations, idle, 2) == SCHED_OK);
+  assert(scheduler_begin(&state) == SCHED_OK);
+  host.cpu = 1;
+  assert(scheduler_cpu_online(&state, 1, UINT64_C(0xffff800000010000)) ==
+         SCHED_OK);
+  host.cpu = 0;
+  scheduler_thread *first = 0, *second = 0;
+  assert(scheduler_create(&state, worker, 0, 1, &first) == SCHED_OK);
+  assert(scheduler_create(&state, worker, 0, 1, &second) == SCHED_OK);
+  assert(scheduler_set_affinity(first, UINT64_C(3)) == SCHED_OK);
+  assert(scheduler_set_affinity(second, UINT64_C(1)) == SCHED_OK);
+  scheduler_frame frame = {0};
+  (void)scheduler_on_tick(&state, &frame);
+  assert(scheduler_current(&state) == first);
+  (void)scheduler_on_tick(&state, &frame);
+  assert(scheduler_current(&state) == second);
+  assert(state.cpu0.switching_from == first);
+  host.cpu = 1;
+  (void)scheduler_on_tick(&state, &frame);
+  assert(first->run_cpu == 0);
+  assert(state.cpu0.switching_from == first);
+  host.cpu = 0;
+  (void)scheduler_on_tick(&state, &frame);
+  assert(state.cpu0.switching_from != first);
+}
+
+static void test_retired_stack_waits_for_switch_completion(void) {
+  host_context host = {0};
+  scheduler state;
+  scheduler_operations operations = {
+      &host, allocate, deallocate, irq_save, irq_restore, reschedule,
+      fatal, context_switch, host_cpu_id, 0};
+  assert(scheduler_init_smp(&state, &operations, idle, 2) == SCHED_OK);
+  assert(scheduler_begin(&state) == SCHED_OK);
+  host.cpu = 1;
+  assert(scheduler_cpu_online(&state, 1, UINT64_C(0xffff800000010000)) ==
+         SCHED_OK);
+  host.cpu = 0;
+  scheduler_thread *victim = 0, *next = 0;
+  assert(scheduler_create(&state, worker, 0, 1, &victim) == SCHED_OK);
+  assert(scheduler_create(&state, worker, 0, 1, &next) == SCHED_OK);
+  assert(scheduler_set_affinity(victim, UINT64_C(1)) == SCHED_OK);
+  assert(scheduler_set_affinity(next, UINT64_C(1)) == SCHED_OK);
+  scheduler_frame frame = {0};
+  (void)scheduler_on_tick(&state, &frame);
+  assert(scheduler_current(&state) == victim);
+  uint64_t live = state.live_threads;
+  (void)scheduler_terminate_interrupt(&state, &frame);
+  assert(scheduler_current(&state) == next);
+  assert(state.cpu0.switching_from == victim);
+  host.cpu = 1;
+  (void)scheduler_on_tick(&state, &frame);
+  assert(state.live_threads == live && victim->stack != 0);
+  host.cpu = 0;
+  (void)scheduler_on_tick(&state, &frame);
+  assert(state.live_threads + 1 == live);
+}
+
+int main(void) {
+  test_madt_cpu_inventory();
+  test_process_teardown_waits_for_active_cpu();
+  test_switching_stack_cannot_be_stolen();
+  test_retired_stack_waits_for_switch_completion();
+  host_context host = {0};
+  scheduler state;
+  scheduler_operations operations = {
+      &host, allocate, deallocate, irq_save, irq_restore, reschedule,
+      fatal, context_switch, host_cpu_id, 0};
   assert(scheduler_init_smp(&state, &operations, idle, 4) == SCHED_OK);
   assert(scheduler_begin(&state) == SCHED_OK);
   for (uint32_t cpu = 1; cpu < 4; ++cpu) {
