@@ -664,8 +664,15 @@ static int64_t m21_debug_write(void *context, uint64_t pointer,
   uint8_t copy[LAMIX_SYSCALL_MAX_WRITE];
   if (!m21_copy_user(instance, pointer, copy, length))
     return -LAMIX_EFAULT;
+#if defined(LAMIX_M24_SMP)
+  /* Keep concurrent process writes contiguous in the serial stream. */
+  int serial_token = m24_serial_enter();
+#endif
   for (uint64_t i = 0; i < length; ++i)
     serial_char((char)copy[i]);
+#if defined(LAMIX_M24_SMP)
+  m24_serial_leave(serial_token);
+#endif
   return (int64_t)length;
 }
 static int m21_user_return_valid(process *instance, scheduler_frame *frame) {
