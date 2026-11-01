@@ -5,8 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void *alloc(void *c,size_t n){(void)c;return calloc(1,n);}
-static void dealloc(void *c,void *p){(void)c;free(p);}
+static long tracked_allocations;
+static void *alloc(void *c,size_t n){(void)c;void *p=calloc(1,n);if(p)++tracked_allocations;return p;}
+static void dealloc(void *c,void *p){(void)c;if(p)--tracked_allocations;free(p);}
 static void destroy(lamix_object *o){free(o->context);free(o);}
 static lamix_object *object(void){lamix_object *o=calloc(1,sizeof(*o));int *v=calloc(1,sizeof(*v));assert(o&&v);lamix_object_init(o,LAMIX_OBJECT_SHM,v,destroy);return o;}
 typedef struct page_fixture {uint8_t pages[16][4096];uint8_t allocated[16],mapped[16];} page_fixture;
@@ -69,6 +70,10 @@ int main(void){
  for(unsigned i=0;i<LAMIX_CHANNEL_DEPTH;i++)assert(lamix_channel_send(&rollback,&ops,send_end,message,sizeof(message),0,0)==LI_OK);
  move.handle=source;assert(lamix_channel_send(&rollback,&ops,send_end,message,sizeof(message),&move,1)==LI_AGAIN);assert(lamix_handle_lookup(&rollback,source,0,LAMIX_RIGHT_SHM_READ,0)==LH_OK);
  lamix_handle_table_destroy(&rollback);
+ /* A channel endpoint cannot be queued into its own core. */
+ long before_cycle=tracked_allocations;lamix_handle_table self;assert(lamix_handle_table_init(&self,0,alloc,dealloc,0,0)==LH_OK);uint64_t self_a,self_b;assert(lamix_channel_create(&self,&ops,&self_a,&self_b)==LI_OK);lamix_attachment self_move={.handle=self_a,.rights=LAMIX_RIGHT_CHANNEL_SEND|LAMIX_RIGHT_CHANNEL_RECEIVE,.disposition=LAMIX_ATTACHMENT_MOVE};assert(lamix_channel_send(&self,&ops,self_a,message,sizeof(message),&self_move,1)==LI_INVALID);assert(lamix_handle_lookup(&self,self_a,LAMIX_OBJECT_CHANNEL,LAMIX_RIGHT_CHANNEL_SEND,0)==LH_OK);lamix_handle_table_destroy(&self);assert(tracked_allocations==before_cycle);
+ /* A->B followed by B->A is rejected, so queued capabilities stay acyclic. */
+ before_cycle=tracked_allocations;lamix_handle_table graph;assert(lamix_handle_table_init(&graph,0,alloc,dealloc,0,0)==LH_OK);uint64_t a0,a1,b0,b1;assert(lamix_channel_create(&graph,&ops,&a0,&a1)==LI_OK);assert(lamix_channel_create(&graph,&ops,&b0,&b1)==LI_OK);lamix_attachment edge={.handle=b1,.rights=LAMIX_RIGHT_CHANNEL_SEND|LAMIX_RIGHT_CHANNEL_RECEIVE,.disposition=LAMIX_ATTACHMENT_MOVE};assert(lamix_channel_send(&graph,&ops,a0,message,sizeof(message),&edge,1)==LI_OK);assert(lamix_handle_lookup(&graph,b1,0,0,0)==LH_BADF);edge.handle=a1;assert(lamix_channel_send(&graph,&ops,b0,message,sizeof(message),&edge,1)==LI_INVALID);assert(lamix_handle_lookup(&graph,a1,LAMIX_OBJECT_CHANNEL,LAMIX_RIGHT_CHANNEL_SEND,0)==LH_OK);lamix_handle_table_destroy(&graph);assert(tracked_allocations==before_cycle);
  page_fixture pages={0};lamix_handle_table sh;assert(lamix_handle_table_init(&sh,0,alloc,dealloc,0,0)==LH_OK);
  lamix_shm_ops so={.memory={.context=0,.allocate=alloc,.deallocate=dealloc},.allocate_page=page_alloc,.release_page=page_free,.access_page=page_access,.map_page=map_page,.unmap_page=unmap_page};
  /* Page callbacks share the backing fixture while metadata uses host allocation. */

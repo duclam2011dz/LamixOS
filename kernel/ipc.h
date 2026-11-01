@@ -12,7 +12,7 @@ typedef enum lamix_attachment_disposition { LAMIX_ATTACHMENT_MOVE=1, LAMIX_ATTAC
 typedef struct lamix_attachment { uint64_t handle; uint32_t rights; uint8_t disposition; uint8_t reserved[3]; } lamix_attachment;
 _Static_assert(sizeof(lamix_attachment)==16,"M22 attachment ABI");
 typedef struct lamix_message { uint16_t length, count; uint8_t payload[LAMIX_CHANNEL_MAX_PAYLOAD]; struct {lamix_object *object;uint32_t rights;} attachments[LAMIX_CHANNEL_MAX_ATTACHMENTS]; } lamix_message;
-typedef struct lamix_channel_core { volatile uint32_t references; volatile uint8_t closed[2]; uint8_t head[2],count[2]; lamix_message queue[2][LAMIX_CHANNEL_DEPTH]; } lamix_channel_core;
+typedef struct lamix_channel_core { volatile uint32_t references; volatile uint8_t closed[2]; uint8_t head[2],count[2]; uint64_t graph_mark; struct lamix_channel_core *registry_next; lamix_message queue[2][LAMIX_CHANNEL_DEPTH]; } lamix_channel_core;
 typedef struct lamix_channel_endpoint {lamix_object object;lamix_channel_core *core;uint8_t side;} lamix_channel_endpoint;
 typedef struct lamix_ipc_ops {void *context;void *(*allocate)(void *,size_t);void (*deallocate)(void *,void *);uintptr_t (*lock)(void *);void (*unlock)(void *,uintptr_t);} lamix_ipc_ops;
 typedef struct lamix_shm_mapping {struct lamix_shm_mapping *next;lamix_object *object;uint64_t address;uint32_t pages;} lamix_shm_mapping;

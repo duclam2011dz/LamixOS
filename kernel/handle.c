@@ -67,3 +67,30 @@ lamix_handle_status lamix_handle_duplicate(lamix_handle_table *t,uint64_t h,uint
   if(rights&~e->rights){leave(t,f);lamix_object_release(o);return LH_ACCESS;}leave(t,f);
   s=lamix_handle_install(t,o,rights,out);lamix_object_release(o);return s;
 }
+lamix_handle_status lamix_handle_transfer_batch(lamix_handle_table *t,
+  const uint64_t *handles,const uint32_t *rights,const uint8_t *move,
+  lamix_object *const *expected,size_t count,lamix_object **objects) {
+  if(!t||!t->entries||(!handles&&count)||(!rights&&count)||(!move&&count)||
+     (!expected&&count)||(!objects&&count))return LH_INVALID;
+  uintptr_t f=enter(t);
+  for(size_t i=0;i<count;i++) {
+    lamix_handle_entry *e=find(t,handles[i]);
+    if(!e){leave(t,f);return LH_BADF;}
+    if(e->object!=expected[i]){leave(t,f);return LH_BADF;}
+    if(!(e->rights&LAMIX_RIGHT_TRANSFER)||(rights[i]&~e->rights)){
+      leave(t,f);return LH_ACCESS;
+    }
+    if(!rights[i]||(rights[i]&~LAMIX_RIGHT_ALL)||move[i]>1){leave(t,f);return LH_INVALID;}
+    for(size_t j=0;j<i;j++)if(handles[i]==handles[j]){leave(t,f);return LH_INVALID;}
+  }
+  for(size_t i=0;i<count;i++) {
+    lamix_handle_entry *e=find(t,handles[i]);
+    objects[i]=e->object;
+    if(move[i]) {
+      e->object=0;e->rights=0;
+      if(e->generation==UINT32_MAX)e->retired=1;else ++e->generation;
+    } else lamix_object_retain(e->object);
+  }
+  leave(t,f);
+  return LH_OK;
+}

@@ -53,4 +53,9 @@ lamix_handle_status lamix_handle_rights(lamix_handle_table *, uint64_t, uint32_t
 lamix_handle_status lamix_handle_close(lamix_handle_table *, uint64_t);
 lamix_handle_status lamix_handle_duplicate(lamix_handle_table *, uint64_t, uint32_t, uint64_t *);
 lamix_handle_status lamix_handle_remove(lamix_handle_table *, uint64_t, lamix_object **);
+/* Atomically validates and transfers a batch of unique source handles. MOVE
+ * returns the table-owned reference; DUP returns a newly retained reference. */
+lamix_handle_status lamix_handle_transfer_batch(lamix_handle_table *,
+  const uint64_t *, const uint32_t *, const uint8_t *, lamix_object *const *,
+  size_t, lamix_object **);
 #endif
