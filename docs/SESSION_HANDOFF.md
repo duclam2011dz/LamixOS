@@ -1,7 +1,15 @@
-# Bàn giao hiện hành — M20 DONE — 2026-11-01
+# Bàn giao hiện hành — M21 IN_PROGRESS — 2026-11-01
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: IN_PROGRESS; M22–M44: PLANNED
+
+## M21 — Lamix-specific syscall ABI v1 — IN_PROGRESS
+
+- Profile M21 thêm syscall entry riêng, ABI wrapper freestanding và surface version/yield/exit/debug_write. IDs 0–3, version 1.0, lỗi signed negative, debug write tối đa 256 byte. Handle chưa có syscall; M18, M22, M23 và M24 không đổi trạng thái/phạm vi.
+- Kernel kiểm feature `SYSCALL`, cấu hình `IA32_EFER`, `STAR`, `LSTAR`, `FMASK`; giữ CR3, đổi sang stack thread theo `TSS.rsp0`; NMI/#DB/#MC đi qua IST. User copy dùng query quyền mapping theo trang; RIP/RSP và `RFLAGS` được kiểm/lọc trước `SYSRETQ`, fallback `IRETQ`; invalid return state cô lập process.
+- Profile cross-build/build-only **PASS**; native ASan/UBSan **PASS**; host provenance pytest **1/1 PASS**; guest QEMU **6/6 PASS** (SeaBIOS `pc` 3/3, OVMF `q35` 3/3). M17 regression **4/4**, M19 **6/6**, M20 **6/6** guest PASS; native M19/M20 ASan/UBSan PASS. Docs validator **PASS**, unittest tài liệu **41/41 PASS**.
+- M21 CMake build **PASS**; CTest **3/3 PASS** qua `.venv/bin/cmake`/`.venv/bin/ctest`. GitHub CI **NOT RUN** trên acceptance SHA vì chưa push/PR. PC thật/firmware ngoài profile QEMU **NOT RUN**. Chưa có acceptance SHA, PR hoặc tag; M21 chưa DONE.
+- Workspace ban đầu ở `main` HEAD `8b468a6a354372d394deff91108c987b5da7e860`; file chưa theo dõi `PROMPT_NEXT_SESSION_M21.md` được giữ nguyên. Thay đổi hiện tại chưa commit.
 
 ## M20 — nghiệm thu
 

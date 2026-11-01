@@ -4,6 +4,11 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M21 — IN_PROGRESS
+
+- Thêm profile syscall riêng với entry `SYSCALL/SYSRETQ`, safe `IRETQ` return, kiểm tra CPU feature, per-thread kernel stack, IST cho NMI/#DB/#MC, dispatcher ABI v1 và user C wrappers freestanding. IDs 0–3 cung cấp version, yield, exit và debug-only write tối đa 256 byte; không có handle syscall.
+- Thêm ASan/UBSan native argument-copy/dispatch tests, user payload ring 3, fault injection và guest BIOS/UEFI tests ba lượt mỗi firmware; Toolchain CI được cấu hình cho M21. M21 CMake/CTest **3/3 PASS** và regressions M17/M19/M20 PASS; GitHub Actions trên acceptance SHA chưa chạy. M21 chưa DONE.
+
 ### M20 — DONE (2026-11-01)
 
 - Thêm profile BSP M20 với ring 3, process address spaces tách biệt, user/supervisor page permissions, TSS stack transition và lifecycle kill/wait nội bộ. Không đổi syscall ABI, ELF loader, LBP v1 hoặc profile cũ.

@@ -15,7 +15,9 @@ def sha(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def build(output, fault="none", m09_pmm=False, m10_vmm=False,
           m11_heap=False, m12_buddy=False, m13_devices=False, m14_apic=False,
           m15_input=False, m16_graphics=False, m17_virtio_gpu=False,
-          m19_scheduler=False, m20_process=False):
+          m19_scheduler=False, m20_process=False, m21_syscall=False):
+    if m21_syscall:
+        m20_process = True
     if m20_process:
         m19_scheduler = True
     if m19_scheduler:
@@ -81,9 +83,53 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
     if m20_process:
         sources.extend(("kernel/process.c", "kernel/process.h",
                         "tests/m20/build_kernel.py"))
+    if m21_syscall:
+        sources.extend(("kernel/syscall.c", "kernel/syscall.h",
+                        "kernel/syscall_entry.asm", "user/syscall.c",
+                        "user/include/lamix/syscall.h", "tests/m21/build_kernel.py",
+                        "tests/m21/user.ld", "tests/m21/user_payload.c",
+                        "tests/m21/loop_payload.c",
+                        "tests/m21/invalid_return.asm"))
     common=[x["gcc"],"-std=c11","-m64","-mcmodel=kernel","-mno-red-zone","-mgeneral-regs-only","-ffreestanding","-fno-builtin","-fno-pie","-fno-pic","-fno-stack-protector","-fno-asynchronous-unwind-tables","-fno-unwind-tables","-fno-exceptions","-Wall","-Wextra","-Werror","-I",ROOT/"include","-I",ROOT/"kernel","-O2"]
     run("nasm","--reproducible","-f","elf64",*( ["-D", "LAMIX_M14_APIC=1"] if m14_apic else []),"-o",output/"entry.o",ROOT/"kernel/entry.asm")
     run("nasm","--reproducible","-f","elf64",*( ["-D", "LAMIX_M19_SCHEDULER=1"] if m19_scheduler else []),"-o",output/"interrupts.o",ROOT/"kernel/interrupts.asm")
+    if m21_syscall:
+        run("nasm", "--reproducible", "-f", "elf64", "-o",
+            output/"syscall_entry.o", ROOT/"kernel/syscall_entry.asm")
+        user_flags = [x["gcc"], "-std=c11", "-m64", "-mcmodel=large",
+            "-mno-red-zone", "-mgeneral-regs-only", "-ffreestanding",
+            "-fno-builtin", "-fno-pie", "-fno-pic", "-fno-stack-protector",
+            "-fno-asynchronous-unwind-tables", "-fno-unwind-tables", "-O2",
+            "-Wall", "-Wextra", "-Werror", "-I", ROOT/"user/include"]
+        wrapper_obj = output/"user_syscall.o"
+        run(*user_flags, "-c", ROOT/"user/syscall.c", "-o", wrapper_obj)
+        user_apps = []
+        for name, source in (("test", "tests/m21/user_payload.c"),
+                             ("loop", "tests/m21/loop_payload.c")):
+            app_obj = output/f"user_{name}.o"
+            app_elf = output/f"user_{name}.elf"
+            app_bin = output/f"user_{name}.bin"
+            run(*user_flags, "-c", ROOT/source, "-o", app_obj)
+            run(x["ld"], "--fatal-warnings", "--build-id=none", "-z",
+                "noexecstack", "-T", ROOT/"tests/m21/user.ld", "-o", app_elf,
+                wrapper_obj, app_obj)
+            run(x["objcopy"], "-O", "binary", app_elf, app_bin)
+            if app_bin.stat().st_size > 4096:
+                raise ValueError(f"payload user {name} vượt một trang code")
+            user_apps.append((name, app_bin.read_bytes()))
+        bad_return = output/"user_invalid_return.bin"
+        run("nasm", "--reproducible", "-f", "bin", "-o", bad_return,
+            ROOT/"tests/m21/invalid_return.asm")
+        user_apps.append(("invalid_return", bad_return.read_bytes()))
+        header = ["/* Generated in build/: embedded M21 ring 3 payloads. */",
+                  "#ifndef LAMIX_M21_PAYLOADS_H", "#define LAMIX_M21_PAYLOADS_H",
+                  "#include <stddef.h>", "#include <stdint.h>"]
+        for name, data in user_apps:
+            values = ",".join(f"0x{byte:02x}" for byte in data)
+            header.extend((f"static const uint8_t m21_{name}_payload[] = {{{values}}};",
+                           f"static const size_t m21_{name}_payload_size = sizeof(m21_{name}_payload);"))
+        header.append("#endif")
+        (output/"m21_payloads.h").write_text("\n".join(header) + "\n")
     objects=[]
     compile_sources=["kernel/kernel.c","lib/boot/contract.c","lib/boot/memory.c"]
     if m09_pmm:
@@ -107,6 +153,8 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
         compile_sources.append("kernel/scheduler.c")
     if m20_process:
         compile_sources.append("kernel/process.c")
+    if m21_syscall:
+        compile_sources.append("kernel/syscall.c")
     for source in compile_sources:
         obj=output/(Path(source).stem+".o"); args=common.copy()
         if source=="kernel/kernel.c" and not m10_vmm and variants[fault]: args += ["-D"+variants[fault]+"=1"]
@@ -132,6 +180,8 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
             args += ["-DLAMIX_M19_SCHEDULER=1"]
         if source=="kernel/kernel.c" and m20_process:
             args += ["-DLAMIX_M20_PROCESS=1"]
+        if source=="kernel/kernel.c" and m21_syscall:
+            args += ["-DLAMIX_M21_SYSCALL=1", "-I", output]
         if source=="kernel/pci.c" and m13_devices:
             args += ["-DLAMIX_KERNEL=1"]
         run(*args,"-c",ROOT/source,"-o",obj);objects.append(obj)
@@ -145,7 +195,7 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
             "-o", cpp_object)
         objects.append(cpp_object)
     elf=output/"kernel.elf"
-    run(x["ld"],"--fatal-warnings","--build-id=none","-z","noexecstack","-z","max-page-size=0x1000","-T",ROOT/"kernel/linker.ld","-Map",output/(elf.stem+".map"),"-o",elf,output/"entry.o",output/"interrupts.o",*objects)
+    run(x["ld"],"--fatal-warnings","--build-id=none","-z","noexecstack","-z","max-page-size=0x1000","-T",ROOT/"kernel/linker.ld","-Map",output/(elf.stem+".map"),"-o",elf,output/"entry.o",output/"interrupts.o",*( [output/"syscall_entry.o"] if m21_syscall else []),*objects)
     raw=bytearray(elf.read_bytes())
     if raw[:6]!=b"\x7fELF\x02\x01" or struct.unpack_from("<HH",raw,16)!=(2,62): raise ValueError("ELF64 ET_EXEC x86_64 little-endian không hợp lệ")
     if struct.unpack_from("<Q",raw,24)[0] < 0xffffffff80000000: raise ValueError("entry không nằm higher-half")
@@ -175,7 +225,7 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
         if ".init_array" in sections or ".ctors" in sections:
             raise ValueError("kernel M11 không được có static constructors")
     if b"INTERP" in subprocess.check_output([str(x["readelf"]),"-l",str(elf)]): raise ValueError("PT_INTERP không freestanding")
-    report={"status":"PASS","mode":"m20-kernel" if m20_process else "m19-kernel" if m19_scheduler else "m17-kernel" if m17_virtio_gpu else "m16-kernel" if m16_graphics else "m15-kernel" if m15_input else "m14-kernel" if m14_apic else "m13-kernel" if m13_devices else "m12-kernel" if m12_buddy else "m11-kernel" if m11_heap else "m10-kernel" if m10_vmm else "m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"commands":commands,
+    report={"status":"PASS","mode":"m21-kernel" if m21_syscall else "m20-kernel" if m20_process else "m19-kernel" if m19_scheduler else "m17-kernel" if m17_virtio_gpu else "m16-kernel" if m16_graphics else "m15-kernel" if m15_input else "m14-kernel" if m14_apic else "m13-kernel" if m13_devices else "m12-kernel" if m12_buddy else "m11-kernel" if m11_heap else "m10-kernel" if m10_vmm else "m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"commands":commands,
             "tool_versions":{"gcc":subprocess.check_output([str(x["gcc"]),"--version"],text=True).splitlines()[0],"g++":subprocess.check_output([str(x["g++"]),"--version"],text=True).splitlines()[0] if m11_heap else None,"ld":subprocess.check_output([str(x["ld"]),"--version"],text=True).splitlines()[0],"nasm":subprocess.check_output(["nasm","-v"],text=True).strip()},
             "source_hashes":{s:sha(ROOT/s) for s in sources},"hashes":{elf.name:sha(elf)},"elf_inspection":elf.stem+".inspection.txt","load_segments":loads}
     (output/"build.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n")

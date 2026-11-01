@@ -122,6 +122,14 @@ void process_note_fault(process *instance, uint64_t address, uint64_t code) {
   instance->state = PROCESS_FAULTED;
 }
 
+void process_note_exit(process *instance, uint64_t code) {
+  if (!instance || instance->state == PROCESS_FAULTED ||
+      instance->state == PROCESS_KILLED || instance->state == PROCESS_EXITED)
+    return;
+  instance->exit_code = code;
+  instance->state = PROCESS_EXITED;
+}
+
 process_status process_request_kill(process *instance) {
   if (!instance || instance->state == PROCESS_EMPTY)
     return PROCESS_INVALID;

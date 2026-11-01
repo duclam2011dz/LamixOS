@@ -1,7 +1,16 @@
-# Kế hoạch và kết quả — M20 (M18 PLANNED, M19 DONE)
+# Kế hoạch và kết quả — M21 (M21 IN_PROGRESS; M18 PLANNED, M19/M20 DONE)
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: IN_PROGRESS; M22–M44: PLANNED
+
+## M21 — Lamix-specific syscall ABI v1 (IN_PROGRESS, 2026-11-01)
+
+- Profile riêng `m21-kernel`; `scripts/lamix_qemu.py --profile m21` build image dưới `out/m21/`, trong khi `latest` vẫn M20. Thêm `kernel/syscall.c/.h`, `kernel/syscall_entry.asm` và freestanding wrapper `user/include/lamix/syscall.h`, `user/syscall.c`. IDs triển khai: version=0, yield=1, exit=2, debug_write=3; version 1.0, lỗi signed negative, giới hạn write 256 byte. Không có syscall nhận handle; không đổi LBP v1/entry ABI, không bắt đầu M22/M23/M24/M18.
+- Entry kiểm tra CPUID syscall, cấu hình EFER/STAR/LSTAR/FMASK theo GDT selector hiện có; dùng kernel stack thread và IST riêng cho NMI/#DB/#MC. RFLAGS được lọc; RIP/RSP user được query qua address space trước return; dùng `SYSRETQ` cho đường thường, `IRETQ` cho fallback. Copy debug buffer xác minh quyền U/S + read theo trang, kiểm tra overflow/unmapped mà không dereference user pointer trực tiếp. Kernel lỗi user return kết thúc process.
+- M21 native ASan/UBSan **PASS**; provenance/host pytest **1/1 PASS**; guest BIOS/UEFI **3/3 mỗi firmware PASS**. Guest kiểm version, wrapper, `debug_write`, null/unmapped/cross-page/overflow/oversize, syscall lạ, yield, DF masking, exit, fallback IRETQ, user return RSP lỗi, process isolation và kill/wait. M20 regression guest **6/6 PASS**, M19 guest **6/6 PASS**, M17 guest **4/4 PASS**; M19/M20 native sanitizer **PASS**. Profile build M21 **PASS**.
+- M21 CMake build **PASS**; CTest **3/3 PASS** (`m21-native-sanitize`, host provenance, guest BIOS/UEFI) qua `.venv/bin/cmake`/`.venv/bin/ctest`. GitHub Actions **NOT RUN** trên thay đổi chưa có acceptance SHA; M21 chưa nghiệm thu, chưa tạo commit/tag. PC thật và firmware ngoài profile QEMU **NOT RUN**.
+- Number/error/limit/wrapper là baseline code M21 nhưng được giữ IN_PROGRESS đến khi CI/review nghiệm thu. Xem [API](docs/API.md), [TESTING](docs/TESTING.md#lamix-syscall-abi-v1-m21), [handoff](docs/SESSION_HANDOFF.md).
+- Rollback: đảo ngược riêng các thay đổi M21 bằng revert sau khi đã commit; giữ `LATEST_PROFILE=m20`, không di chuyển tag `milestone/M20`. Build/image/report M21 chỉ nằm dưới `build/` và `out/`.
 
 ## M20 — Processes, ring 3 và cô lập address space (DONE, 2026-11-01)
 
