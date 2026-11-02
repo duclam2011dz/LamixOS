@@ -8,6 +8,8 @@ M23 đã triển khai parser newc/ELF trong profile riêng: kiểm tra kích th�
 
 M24 đã nghiệm thu trong profile riêng `m24-kernel`: AP chỉ được đánh dấu online sau khi cài per-CPU GDT/TSS/IST/syscall stack; AP startup có timeout; TLB shootdown dùng IPI và acknowledgement giới hạn thời gian. Review phát hiện bốn lỗi P1 về lifetime kernel stack, đồng bộ GS/SWAPGS, chờ shootdown khi CPU đích đang giữ lock, và timer race lúc clear `lock_waiting`; các sửa đổi có CTest M24 **4/4 PASS**, guest BIOS/UEFI × 1/2/4/8 vCPU × 3 lượt cùng fault cases, regression và bốn workflow CI PASS. Bốn review thread đã resolve theo chấp thuận người dùng; không có review receipt mới gắn với acceptance head cuối. Rủi ro còn lại: chưa mô phỏng race teardown/address-space switch đồng thời và chưa audit bảo mật độc lập; PC thật và firmware ngoài profile QEMU **NOT RUN**. M24 không tạo bảo đảm bảo mật tổng thể.
 
+M25 đang phát triển VirtIO-Blk modern với DMA buffers, split used ring và thiết bị PCI. Driver kiểm tra descriptor/completion và chỉ giải phóng request buffers sau reset được xác nhận; nếu reset timeout thì fail closed, giữ vùng DMA còn có thể được thiết bị truy cập. Hệ thống chưa có IOMMU bảo vệ DMA, vì vậy phạm vi tin cậy gồm QEMU VirtIO device và host test disk được tạo thành regular file trong `out/m25/runs/`; chưa có kiểm toán bảo mật độc lập hay nghiệm thu M25.
+
 Disk/image phải bảo vệ GPT metadata và User Data. LamFS cần bounds checks, metadata consistency và kiểm thử dữ liệu hỏng; A/B updates cần recovery có bằng chứng. Chính sách cụ thể chưa đặc tả, không tuyên bố đã an toàn.
 
 Lỗi hoặc nguy cơ mới được ghi ở [handoff](SESSION_HANDOFF.md), cùng tác động và bước xác minh; thay đổi baseline phải qua approval gate.
