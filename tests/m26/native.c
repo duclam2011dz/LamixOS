@@ -147,6 +147,17 @@ static void test_fat32(test_memory *tm, vfs_memory *mem) {
   assert(vfs_close(&f) == VFS_OK);
   assert(vfs_remove(&fs, "/data/Docs/Nested long file.txt") == VFS_OK);
   assert(vfs_remove(&fs, "/data/Docs") == VFS_OK);
+  assert(vfs_create(&fs, "/data/FRAG", VFS_DIRECTORY) == VFS_OK);
+  assert(vfs_create(&fs, "/data/FRAG/A.TXT", VFS_FILE) == VFS_OK);
+  assert(vfs_create(&fs, "/data/FRAG/B.TXT", VFS_FILE) == VFS_OK);
+  assert(vfs_remove(&fs, "/data/FRAG/A.TXT") == VFS_OK);
+  assert(vfs_create(&fs, "/data/FRAG/Long fragment name.txt", VFS_FILE) ==
+         VFS_OK);
+  assert(vfs_lookup(&fs, "/data/FRAG/Long fragment name.txt", &node) ==
+         VFS_OK);
+  assert(vfs_remove(&fs, "/data/FRAG/Long fragment name.txt") == VFS_OK);
+  assert(vfs_remove(&fs, "/data/FRAG/B.TXT") == VFS_OK);
+  assert(vfs_remove(&fs, "/data/FRAG") == VFS_OK);
   assert(vfs_create(&fs, "/data/ROLLBACK.BIN", VFS_FILE) == VFS_OK);
   assert(vfs_open(&fs, "/data/ROLLBACK.BIN", 1, &f) == VFS_OK);
   uint8_t rollback_payload[1024] = {0x5c};
@@ -157,6 +168,15 @@ static void test_fat32(test_memory *tm, vfs_memory *mem) {
   assert(vfs_lookup(&fs, "/data/ROLLBACK.BIN", &node) == VFS_OK &&
          node.size == 0);
   assert(vfs_remove(&fs, "/data/ROLLBACK.BIN") == VFS_OK);
+  assert(vfs_create(&fs, "/data/REMOVE.BIN", VFS_FILE) == VFS_OK);
+  assert(vfs_open(&fs, "/data/REMOVE.BIN", 1, &f) == VFS_OK);
+  const uint8_t removal_byte = 0x3a;
+  assert(vfs_write(&f, &removal_byte, 1, &n) == VFS_OK && n == 1);
+  assert(vfs_close(&f) == VFS_OK);
+  disk.fail_write_at = disk.write_count + 2;
+  assert(vfs_remove(&fs, "/data/REMOVE.BIN") == VFS_IO_ERROR);
+  assert(vfs_lookup(&fs, "/data/REMOVE.BIN", &node) == VFS_NOT_FOUND);
+  disk.fail_write_at = 0;
   assert(vfs_create(&fs, "/data/Checksummed long.txt", VFS_FILE) == VFS_OK);
   assert(vfs_create(&fs, "/data/Checksummed other.txt", VFS_FILE) == VFS_OK);
   uint8_t *root_entries = disk.bytes + (32 + 2 * 512) * 512ull;
@@ -238,6 +258,14 @@ int main(void) {
   assert(vfs_close(&f) == VFS_OK);
   assert(vfs_rename(&fs, "/data/file.txt", "/data/renamed long name.txt") ==
          VFS_OK);
+  assert(vfs_create(&fs, "/data/dir", VFS_DIRECTORY) == VFS_OK);
+  assert(vfs_create(&fs, "/data/dir/child", VFS_FILE) == VFS_OK);
+  assert(vfs_rename(&fs, "/data/dir", "/data/moved") == VFS_UNSUPPORTED);
+  assert(vfs_lookup(&fs, "/data/dir/child", &(vfs_node){0}) == VFS_OK);
+  assert(vfs_lookup(&fs, "/data/moved/child", &(vfs_node){0}) ==
+         VFS_NOT_FOUND);
+  assert(vfs_remove(&fs, "/data/dir/child") == VFS_OK);
+  assert(vfs_remove(&fs, "/data/dir") == VFS_OK);
   assert(vfs_open(&fs, "/data/renamed long name.txt", 0, &f) == VFS_OK);
   char output[sizeof(payload)] = {0};
   assert(vfs_read(&f, output, sizeof(output), &done) == VFS_OK &&

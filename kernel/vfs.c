@@ -393,6 +393,8 @@ static vfs_status trename(void *c, const char *a, const char *b) {
     return VFS_EXISTS;
   if (!parent_exists(t, b))
     return VFS_NOT_DIRECTORY;
+  if (e->kind == VFS_DIRECTORY)
+    return VFS_UNSUPPORTED;
   size_t n = path_len(b);
   if (n >= sizeof(e->path))
     return VFS_TOO_LARGE;

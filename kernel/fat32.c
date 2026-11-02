@@ -39,6 +39,11 @@ static vfs_status validate_file_chain(fat32 *f, uint32_t first_cluster,
                                       uint64_t size);
 static vfs_status free_chain(fat32 *f, uint32_t first_cluster);
 static uint32_t lfn_checksum(const uint8_t *n);
+typedef struct fat_dir_slot {
+  uint32_t sector;
+  uint16_t slot;
+  uint8_t prior_first;
+} fat_dir_slot;
 static vfs_status read_sector(fat32 *f, uint32_t rel, uint8_t *out) {
   if (rel >= f->sectors)
     return VFS_CORRUPT;
@@ -144,6 +149,51 @@ static vfs_status find_free_entry(fat32 *f, uint32_t directory_cluster,
       *rel = f->data_start + (next - 2) * f->spc;
       *slot = 0;
       return VFS_OK;
+    }
+    cluster = next;
+  }
+  return VFS_CORRUPT;
+}
+static vfs_status find_free_run(fat32 *f, uint32_t directory_cluster,
+                                size_t needed, fat_dir_slot *slots) {
+  if (directory_cluster < 2 || directory_cluster >= f->clusters + 2 ||
+      !needed || needed > 21 || !slots)
+    return VFS_INVALID;
+  uint32_t cluster = directory_cluster;
+  size_t run = 0;
+  int past_end = 0;
+  for (uint32_t walked = 0; walked < f->clusters; ++walked) {
+    for (uint32_t s = 0; s < f->spc; ++s) {
+      uint32_t rel = f->data_start + (cluster - 2) * f->spc + s;
+      vfs_status st = read_sector(f, rel, f->sector);
+      if (st != VFS_OK)
+        return st;
+      for (uint16_t i = 0; i < 16; ++i) {
+        uint8_t first = f->sector[i * 32];
+        if (!first)
+          past_end = 1;
+        if (past_end || !first || first == 0xe5) {
+          slots[run++] = (fat_dir_slot){rel, i, first};
+          if (run == needed)
+            return VFS_OK;
+        } else {
+          run = 0;
+        }
+      }
+    }
+    uint32_t next;
+    vfs_status st = next_cluster(f, cluster, &next);
+    if (st != VFS_OK)
+      return st;
+    if (!next) {
+      st = allocate_cluster(f, &next);
+      if (st != VFS_OK)
+        return st;
+      st = set_cluster(f, cluster, next);
+      if (st != VFS_OK) {
+        (void)set_cluster(f, next, 0);
+        return st;
+      }
     }
     cluster = next;
   }
@@ -285,28 +335,24 @@ static vfs_status write_lfn(fat32 *f, uint32_t directory_cluster,
   size_t count = (len + 12) / 13;
   if (!count || count > 20)
     return VFS_TOO_LARGE;
-  uint32_t first_rel = 0;
-  uint16_t first_slot = 0;
+  fat_dir_slot locations[21];
+  vfs_status s = find_free_run(f, directory_cluster, count + 1, locations);
+  if (s != VFS_OK)
+    return s;
+  size_t written = 0;
   for (size_t i = 0; i < count + 1; ++i) {
-    uint32_t r;
-    uint16_t sl;
-    vfs_status s = find_free_entry(f, directory_cluster, &r, &sl);
-    if (s != VFS_OK)
-      return s;
-    if (!i) {
-      first_rel = r;
-      first_slot = sl;
-    }
     uint8_t e[32] = {0};
     if (i == count) {
       bytes_copy(e, shortn, 11);
       e[11] = 0x20;
-      s = entry_write(f, r, sl, e);
-      if (s != VFS_OK)
-        return s;
-      *rel = r;
-      *slot = sl;
-      break;
+      s = entry_write(f, locations[i].sector, locations[i].slot, e);
+      if (s == VFS_OK) {
+        *rel = locations[i].sector;
+        *slot = locations[i].slot;
+        return VFS_OK;
+      }
+      written = i + 1;
+      goto rollback;
     }
     size_t ordinal = count - i;
     e[0] = (uint8_t)ordinal | (i == 0 ? 0x40 : 0);
@@ -320,13 +366,21 @@ static vfs_status write_lfn(fat32 *f, uint32_t directory_cluster,
       uint16_t ch = at < len ? (uint8_t)name[at] : (at == len ? 0 : 0xffff);
       p16(e + offsets[j], ch);
     }
-    s = entry_write(f, r, sl, e);
-    if (s != VFS_OK)
-      return s;
+    s = entry_write(f, locations[i].sector, locations[i].slot, e);
+    if (s != VFS_OK) {
+      written = i + 1;
+      goto rollback;
+    }
+    written = i + 1;
   }
-  (void)first_rel;
-  (void)first_slot;
-  return VFS_OK;
+  return VFS_CORRUPT;
+rollback:
+  for (size_t i = 0; i < written; ++i) {
+    uint8_t old[32] = {0};
+    old[0] = locations[i].prior_first;
+    (void)entry_write(f, locations[i].sector, locations[i].slot, old);
+  }
+  return s;
 }
 static vfs_status next_cluster(fat32 *f, uint32_t c, uint32_t *out) {
   if (c < 2 || c >= f->clusters + 2)
@@ -864,8 +918,8 @@ static vfs_status f_create(void *c, const char *p, vfs_kind k) {
     if (s != VFS_OK)
       return s;
   }
-  uint32_t rel;
-  uint16_t slot;
+  uint32_t rel = 0;
+  uint16_t slot = 0;
   uint32_t child = 0;
   if (k == VFS_DIRECTORY) {
     s = allocate_cluster(f, &child);
@@ -1020,7 +1074,7 @@ static vfs_status f_remove(void *c, const char *p) {
       return s;
   }
   if (cl) {
-    s = free_chain(f, cl);
+    s = validate_file_chain(f, cl, (e[11] & 0x10) ? 0 : u32(e + 28));
     if (s != VFS_OK)
       return s;
   }
@@ -1028,7 +1082,10 @@ static vfs_status f_remove(void *c, const char *p) {
   if (s != VFS_OK)
     return s;
   e[0] = 0xe5;
-  return entry_write(f, rel, slot, e);
+  s = entry_write(f, rel, slot, e);
+  if (s != VFS_OK || !cl)
+    return s;
+  return free_chain(f, cl);
 }
 static vfs_status f_rename(void *c, const char *a, const char *b) {
   fat32 *f = c;
