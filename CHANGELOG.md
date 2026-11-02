@@ -7,7 +7,7 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 ### M25 — DONE (2026-11-02)
 
 - Thêm profile `m25-kernel` với block abstraction, VirtIO-Blk modern PCI split queue, async/sync request, callback/poll, FLUSH, reset bounded và test disk raw riêng. Không thêm filesystem/syscall; `LATEST_PROFILE=m25` sau nghiệm thu.
-- Native ASan/UBSan, TSan, cross-build và guest SeaBIOS/OVMF 3/3 mỗi firmware **PASS**. M25 pytest host + guest **10/10 PASS**; docs validator và unittest **41/41 PASS**. CTest local **NOT RUN** do thiếu `cmake`; hồi quy M17/M19–M24 local **NOT RUN**. Bốn workflow CI trên implementation head **SUCCESS**; chi tiết/run IDs ở [PLANS](PLANS.md) và handoff.
+- Native ASan/UBSan, TSan, cross-build và guest SeaBIOS/OVMF 3/3 mỗi firmware **PASS**. M25 pytest host + guest **10/10 PASS**; docs validator và unittest **41/41 PASS**. CTest local **NOT RUN** do thiếu `cmake`; Toolchain CI chạy CTest M25 và regressions M17/M19–M24 **PASS**. Bốn workflow CI trên acceptance SHA `1f6241935d776c64f578af2fc60f55f05ad5f061` **SUCCESS**; PR #31 merged và tag `milestone/M25` trỏ acceptance SHA. Chi tiết/run IDs ở [PLANS](PLANS.md) và handoff.
 
 ### M24 — DONE (2026-11-01)
 
