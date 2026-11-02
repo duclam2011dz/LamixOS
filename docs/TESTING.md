@@ -19,7 +19,7 @@ Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc đ
 
 ```text
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24 DONE; M25 DONE; M26–M44 PLANNED
+Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24 DONE; M25 DONE; M26 IN_PROGRESS; M27–M44 PLANNED
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M15 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -417,7 +417,7 @@ VirtIO-GPU là VGA adapter duy nhất (`-vga none` trước `virtio-vga`). Giữ
 
 ## Scheduler BSP M19
 
-Script chạy thử tổng quát: `./scripts/lamix_qemu.py` mặc định build profile mới nhất đã nghiệm thu (M25), tạo image BIOS/UEFI dưới `out/m25/`, rồi mở firmware đã chọn. Dùng `--profile m17` và `--profile m19`–`m25` để chọn profile milestone tường minh; `--firmware bios|uefi|both` chọn firmware; `--build-only` chỉ build. `LATEST_PROFILE=m25`; profile cũ tiếp tục chọn được. Script dùng toolchain/QEMU/SeaBIOS/OVMF đã cài, không cài dependencies. Script M17 cũ vẫn có thể dùng để tái hiện riêng M17.
+Script chạy thử tổng quát: `./scripts/lamix_qemu.py` trên main hiện build profile mới nhất đã nghiệm thu (M25), tạo image BIOS/UEFI dưới `out/m25/`; candidate M26 đặt `LATEST_PROFILE=m26` và tạo output dưới `out/m26/`, rồi mở firmware đã chọn. Dùng `--profile m17` và `--profile m19`–`m26` để chọn profile milestone tường minh; `--firmware bios|uefi|both` chọn firmware; `--build-only` chỉ build. `LATEST_PROFILE=m25` trên main cho tới khi PR M26 được merge; trên candidate acceptance branch, `LATEST_PROFILE=m26` và profile M25 vẫn chọn tường minh được. Script dùng toolchain/QEMU/SeaBIOS/OVMF đã cài, không cài dependencies. Script M17 cũ vẫn có thể dùng để tái hiện riêng M17.
 
 ```sh
 ./scripts/lamix_qemu.py
@@ -553,3 +553,15 @@ ctest --test-dir build/m22-tests --no-tests=error --output-on-failure --output-j
 CTest defines ASan/UBSan native object/handle/channel/SHM tests, a separate TSAN handle/channel concurrency test, host provenance and six actual guest runs (SeaBIOS `pc`/OVMF `q35`, three each). Guest marker `M22:PASS` is required; build-only, host simulation and launch-only are not guest boot PASS. Reports/logs stay under `out/m22/`; CI artifacts exclude image and firmware. Guest kiểm MOVE SHM transfer và fault trên mapping chỉ đọc. Native suite thêm self/cross-channel cycle rejection với allocation count không rò và hai sender cạnh tranh MOVE, chỉ một sender thành công. Các test không chứng minh toàn bộ tổ hợp lỗi mọi syscall; audit bảo mật độc lập **NOT RUN**. Xem [M22 plan/evidence](../PLANS.md).
 
 Nghiệm thu M22 trên acceptance SHA `0d2c4b62e860ba336da439abf03c8cd6b421157c`: cross-build M22 **PASS**; CTest **4/4 PASS** gồm ASan/UBSan (CTest đặt `ASAN_OPTIONS=detect_leaks=0` do runner ptrace), TSAN, host provenance và guest BIOS/UEFI **6/6 PASS**. Guest regressions M17/M19/M20/M21 BIOS/UEFI **1/1 mỗi profile PASS**; Toolchain CI chạy đủ regression. Docs validator **PASS**, unittest tài liệu **41/41 PASS** trước closure. Bốn workflow **SUCCESS**: Toolchain [41277685047](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685047) (attempt 2; attempt 1 fail tại M08 UEFI PF do thiếu `cr2` trong log), Harness [41277685300](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685300), Documentation [41277685046](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685046), Boot Contract [41277685160](https://github.com/duclam2011dz/LamixOS/actions/runs/41277685160). PR [#24](https://github.com/duclam2011dz/LamixOS/pull/24) merge commit `d2c3be428f69d439caad901e82c738102fede05e`; annotated tag `milestone/M22` object `580ffdf3824102ed2bdb89ddf7e825364a8a00b7` trỏ acceptance SHA. PC thật, firmware ngoài profile QEMU và audit bảo mật độc lập **NOT RUN**.
+
+## VFS, tmpfs và FAT32 M26 (IN_PROGRESS)
+
+Build M26 và tạo test GPT disk: `python3 tests/m26/build_kernel.py --build build/m26-kernel` và `tests/m26/test_m26.py` tạo regular-file image riêng dưới `out/m26/runs/`, định dạng duy nhất GPT User Data, rồi khởi chạy hai guest boot trên cùng image để kiểm tra persistence.
+
+```sh
+cmake -S tests/m26 -B build/m26-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+cmake --build build/m26-tests
+ctest --test-dir build/m26-tests --no-tests=error --output-on-failure
+```
+
+CTest bao gồm native ASan/UBSan, VFS TSan, host image/harness checks và sáu guest cases (SeaBIOS `pc`/OVMF `q35`, ba lần mỗi firmware; hai boot mỗi case). Thành công yêu cầu marker `M26:PASS`, marker persistence/tmpfs, hash boot image/firmware không đổi và vùng GPT/ESP/guard không đổi. Cross-build **PASS**, CTest đầy đủ **4/4 PASS**, guest SeaBIOS/OVMF **6/6 PASS**. Một lần CTest trước bị ngắt trong guest target; lượt retry đầy đủ PASS. Native/host regressions M17, M19–M25 **PASS**; guest regressions M17–M23/M25 **PASS**; M24 guest matrix/fault regression **27 passed, 1 deselected**. Docs validator **PASS**, unittest tài liệu **41/41 PASS**. Native FAT32 fixtures kiểm LFN checksum hỏng, FAT bad-cluster, BPB hỏng, alias collision, nested directory, dải LFN không liền, rollback extension write, free-chain ordering khi xóa bị lỗi I/O và tmpfs từ chối rename directory không cập nhật descendants. Codex review phát hiện 2 finding P1 và 1 finding P2, đã sửa; native regression, cross-build và CTest sau sửa PASS (4/4). Bốn workflow trên head review-fix `e5293e0` đều SUCCESS; candidate sau đó chuyển `LATEST_PROFILE=m26`, CI trên selector head mới còn chờ. M26 vẫn IN_PROGRESS; main giữ M25 tới khi PR được merge.

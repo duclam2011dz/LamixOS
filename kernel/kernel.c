@@ -31,6 +31,11 @@
 #include "block.h"
 #include "virtio_blk.h"
 #endif
+#if defined(LAMIX_M26_FS)
+#include "fat32.h"
+#include "m26_gpt.h"
+#include "vfs.h"
+#endif
 #if defined(LAMIX_M19_SCHEDULER)
 #include "scheduler.h"
 #endif
@@ -263,11 +268,17 @@ static device_record *m25_device_record;
 static uint32_t m25_dma_generation;
 static volatile uint32_t m25_lock_word;
 static uintptr_t m25_lock_flags[LAMIX_M24_MAX_CPUS];
+#if defined(LAMIX_M26_FS)
+static volatile uint32_t m26_fs_lock_word;
+static uintptr_t m26_fs_lock_flags[LAMIX_M24_MAX_CPUS];
+static uint8_t m26_persist_data[32];
+#endif
 static uint8_t m25_descriptors[4096] __attribute__((aligned(4096)));
 static uint8_t m25_available[4096] __attribute__((aligned(4096)));
 static uint8_t m25_used[4096] __attribute__((aligned(4096)));
 static uint8_t m25_headers[4096] __attribute__((aligned(4096)));
 static uint8_t m25_statuses[4096] __attribute__((aligned(4096)));
+#if !defined(LAMIX_M26_FS)
 static uint8_t m25_write_a[512] __attribute__((aligned(16)));
 static uint8_t m25_write_b[512] __attribute__((aligned(16)));
 static uint8_t m25_boundary[512] __attribute__((aligned(16)));
@@ -276,6 +287,9 @@ static block_request m25_async_a, m25_async_b;
 static volatile uint32_t m25_async_completions;
 static volatile uint32_t m25_async_failures;
 static int m25_block_test(void);
+#else
+static int m26_filesystem_test(void);
+#endif
 #endif
 #if defined(LAMIX_M19_SCHEDULER)
 static scheduler m19_scheduler;
@@ -884,7 +898,11 @@ static void m20_run(void) {
     serial("M23:CLEANUP:FAIL\nM23:FAIL\n");halt();
   }
 #if defined(LAMIX_M25_BLOCK)
+#if defined(LAMIX_M26_FS)
+  if (!m26_filesystem_test()) halt();
+#else
   if (!m25_block_test()) halt();
+#endif
 #endif
 #if defined(LAMIX_M24_SMP)
   uint64_t cpu_mask = scheduler_observed_cpu_mask(&m19_scheduler);
@@ -2675,12 +2693,14 @@ static block_status m25_block_init(void) {
   return virtio_blk_initialize(&m25_driver, &operations, &m25_memory);
 }
 
+#if !defined(LAMIX_M26_FS)
 static void m25_async_done(block_request *request, void *context) {
   (void)context;
   if (request->status != BLOCK_OK)
     __atomic_add_fetch(&m25_async_failures, 1u, __ATOMIC_RELAXED);
   __atomic_add_fetch(&m25_async_completions, 1u, __ATOMIC_RELEASE);
 }
+#endif
 
 static int m25_bytes_equal(const uint8_t *left, const uint8_t *right,
                            size_t length) {
@@ -2689,6 +2709,7 @@ static int m25_bytes_equal(const uint8_t *left, const uint8_t *right,
   return 1;
 }
 
+#if !defined(LAMIX_M26_FS)
 static int m25_block_test(void) {
   block_status status = m25_block_init();
   if (status != BLOCK_OK) {
@@ -2753,6 +2774,119 @@ fail:
   serial("M25:IO:FAIL\nM25:FAIL\n");
   return 0;
 }
+#endif
+#if defined(LAMIX_M26_FS)
+static uintptr_t m26_fs_lock(void *context) {
+  (void)context;
+  uint32_t cpu = m24_current_cpu_id();
+  if (cpu >= LAMIX_M24_MAX_CPUS) halt();
+  uintptr_t flags = m24_lock_acquire(&m26_fs_lock_word);
+  m26_fs_lock_flags[cpu] = flags;
+  return flags;
+}
+static void m26_fs_unlock(void *context, uintptr_t flags) {
+  (void)context;
+  uint32_t cpu = m24_current_cpu_id();
+  if (cpu >= LAMIX_M24_MAX_CPUS || m26_fs_lock_flags[cpu] != flags) halt();
+  m26_fs_lock_flags[cpu] = 0;
+  m24_lock_release(&m26_fs_lock_word, flags);
+}
+static int m26_filesystem_test(void) {
+  if (m25_block_init() != BLOCK_OK ||
+      m25_driver.device.logical_block_size != 512) {
+    serial("M26:DEVICE:FAIL\nM26:FAIL\n");
+    return 0;
+  }
+  uint64_t first;
+  uint32_t sectors;
+  if (m26_gpt_user_extent(&m25_driver.device, &first, &sectors) != VFS_OK) {
+    serial("M26:PARTITION:FAIL\nM26:FAIL\n");
+    return 0;
+  }
+  serial("M26:PARTITION:PASS\n");
+  vfs_memory memory = {0, m19_allocate, m19_deallocate, m26_fs_lock,
+                       m26_fs_unlock};
+  fat32 fat = {0};
+  tmpfs root = {0};
+  vfs fs = {0};
+  vfs_mount root_mount = {0}, data_mount = {0};
+  vfs_status status = fat32_mount(&fat, &m25_driver.device, first, sectors,
+                                  &memory);
+  if (status != VFS_OK || tmpfs_init(&root, &memory, 64) != VFS_OK ||
+      vfs_init(&fs, &memory) != VFS_OK ||
+      vfs_mount_fs(&fs, "/", &tmpfs_operations, &root, &root_mount) != VFS_OK ||
+      vfs_mount_fs(&fs, "/data", &fat32_operations, &fat, &data_mount) !=
+          VFS_OK) {
+    serial("M26:MOUNT:FAIL status="); hex(status); serial("\nM26:FAIL\n");
+    if (fat.mounted) fat32_operations.destroy(&fat);
+    return 0;
+  }
+  size_t count = 0;
+  uint32_t stage = 1;
+  vfs_node node;
+  status = vfs_lookup(&fs, "/data/M26-PERSIST.TXT", &node);
+  if (status == VFS_NOT_FOUND) {
+    static const char marker[] = "LAMIX-M26-PERSIST-v1\n";
+    stage = 2;
+    if (vfs_create(&fs, "/data/M26-PERSIST.TXT", VFS_FILE) != VFS_OK)
+      goto fail;
+    vfs_file file;
+    if (vfs_open(&fs, "/data/M26-PERSIST.TXT", 1, &file) != VFS_OK ||
+        vfs_write(&file, marker, sizeof(marker), &count) != VFS_OK ||
+        count != sizeof(marker) || vfs_close(&file) != VFS_OK)
+      goto fail;
+    serial("M26:PERSIST:ARMED\n");
+  } else {
+    stage = 3;
+    if (status != VFS_OK || vfs_lookup(&fs, "/tmp.txt", &node) != VFS_NOT_FOUND)
+      goto fail;
+    vfs_file file;
+    if (vfs_open(&fs, "/data/M26-PERSIST.TXT", 0, &file) != VFS_OK ||
+        vfs_read(&file, m26_persist_data, sizeof(m26_persist_data), &count) !=
+            VFS_OK || vfs_close(&file) != VFS_OK || count != 22 ||
+        !m25_bytes_equal(m26_persist_data,
+                         (const uint8_t *)"LAMIX-M26-PERSIST-v1\n", 22))
+      goto fail;
+    serial("M26:PERSIST:PASS\n");
+    if (vfs_sync(&fs) != VFS_OK || vfs_unmount(&fs, "/data") != VFS_OK)
+      goto fail;
+    vfs_destroy(&fs);
+    serial("M26:TMPFS:PASS\nM26:FILESYSTEM:PASS\nM26:PASS\n");
+    return 1;
+  }
+  stage = 4;
+  if (vfs_create(&fs, "/data/Long filename.txt", VFS_FILE) != VFS_OK) {
+    stage = 40; goto fail;
+  }
+  vfs_file file;
+  static const char payload[] = "FAT32 create read write rename delete";
+  stage = 5;
+  status = vfs_open(&fs, "/data/Long filename.txt", 1, &file);
+  if (status != VFS_OK) { stage = 51; goto fail; }
+  if (vfs_write(&file, payload, sizeof(payload), &count) != VFS_OK || count != sizeof(payload)) { stage = 52; goto fail; }
+  if (vfs_close(&file) != VFS_OK) { stage = 53; goto fail; }
+  if (vfs_rename(&fs, "/data/Long filename.txt", "/data/Renamed file.txt") != VFS_OK) { stage = 54; goto fail; }
+  if (vfs_open(&fs, "/data/Renamed file.txt", 0, &file) != VFS_OK) { stage = 55; goto fail; }
+  uint8_t readback[sizeof(payload)];
+  stage = 6;
+  if (vfs_read(&file, readback, sizeof(readback), &count) != VFS_OK || count != sizeof(readback) || !m25_bytes_equal(readback, (const uint8_t *)payload, count)) { stage = 61; goto fail; }
+  if (vfs_close(&file) != VFS_OK) { stage = 62; goto fail; }
+  if (vfs_remove(&fs, "/data/Renamed file.txt") != VFS_OK) { stage = 63; goto fail; }
+  if (vfs_create(&fs, "/tmp.txt", VFS_FILE) != VFS_OK) { stage = 64; goto fail; }
+  if (vfs_open(&fs, "/tmp.txt", 1, &file) != VFS_OK) { stage = 65; goto fail; }
+  if (vfs_write(&file, payload, sizeof(payload), &count) != VFS_OK || count != sizeof(payload)) { stage = 66; goto fail; }
+  if (vfs_close(&file) != VFS_OK || vfs_sync(&fs) != VFS_OK) { stage = 67; goto fail; }
+  if (vfs_unmount(&fs, "/data") != VFS_OK) goto fail;
+  vfs_destroy(&fs);
+  serial("M26:TMPFS:PASS\nM26:FILESYSTEM:PASS\nM26:PASS\n");
+  return 1;
+fail:
+  serial("M26:FILESYSTEM:FAIL stage="); hex(stage); serial(" status=");
+  hex(status); serial("\nM26:FAIL\n");
+  vfs_destroy(&fs);
+  return 0;
+}
+#endif
 #endif
 #if defined(LAMIX_M16_GRAPHICS)
 #if defined(LAMIX_M17_VIRTIO_GPU)
