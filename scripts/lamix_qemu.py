@@ -253,6 +253,38 @@ def build_m25_image(build_root):
     return image
 
 
+def build_m26_image(build_root):
+    build_root = build_root.resolve()
+    if not build_root.is_relative_to(ROOT / "build"):
+        raise ValueError("--build-dir phải nằm trong build/")
+    kernel_build, bios_build, uefi_build = (build_root / "kernel",
+                                             build_root / "bios",
+                                             build_root / "uefi")
+    report = build_if_needed("kernel M26", kernel_build, ("kernel.elf",),
+        [sys.executable, "tests/m26/build_kernel.py", "--build", kernel_build],
+        lambda item: item.get("mode") == "m26-kernel" and item.get("m26_fs") is True)
+    bios_report = build_if_needed("BIOS Stage2 M16", bios_build,
+        ("stage1.bin", "stage2.bin", "kernel.elf"),
+        [sys.executable, "tests/bios_stage2/build_stage2.py", "--build",
+         bios_build, "--profile", "Release", "--m16-video"],
+        lambda item: item.get("m16_video") is True and item.get("profile") == "Release")
+    uefi_report = build_if_needed("UEFI loader", uefi_build, ("BOOTX64.EFI",),
+        [sys.executable, "tests/uefi/build_uefi.py", "--build", uefi_build])
+    output = ROOT / "out/m26"
+    output.mkdir(parents=True, exist_ok=True)
+    image = output / (f"lamix-m26-{report['hashes']['kernel.elf'][:12]}-"
+                      f"{bios_report['hashes']['stage2.bin'][:8]}-"
+                      f"{uefi_report['hashes']['BOOTX64.EFI'][:8]}.img")
+    action = "check" if image.exists() else "create"
+    run_step([sys.executable, "scripts/m07_image.py", action, "--image", image,
+              "--bios-build", bios_build, "--uefi-build", uefi_build,
+              "--kernel-build", kernel_build,
+              *( ["--seed", "lamix-m26-vfs-fat32"] if action == "create" else [] )],
+             capture=True)
+    print(f"PASS: image {action} {image}")
+    return image
+
+
 def build_image(profile, build_root):
     if profile == "m17":
         return build_m17_image(build_root)
@@ -270,12 +302,14 @@ def build_image(profile, build_root):
         return build_m24_image(build_root)
     if profile == "m25":
         return build_m25_image(build_root)
+    if profile == "m26":
+        return build_m26_image(build_root)
     raise ValueError(f"profile không được hỗ trợ: {profile}")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", choices=("latest", "m17", "m19", "m20", "m21", "m22", "m23", "m24", "m25"),
+    parser.add_argument("--profile", choices=("latest", "m17", "m19", "m20", "m21", "m22", "m23", "m24", "m25", "m26"),
                         default="latest", help=f"latest hiện trỏ tới {LATEST_PROFILE.upper()}")
     parser.add_argument("--firmware", choices=("bios", "uefi", "both"),
                         default="both", help="mặc định chạy BIOS rồi UEFI")
@@ -287,6 +321,8 @@ def main():
                         help="build kernel/loaders/image nhưng không mở QEMU")
     parser.add_argument("--block-test-image", type=Path,
                         help="raw test disk riêng dưới out/m25/runs/ (profile m25)")
+    parser.add_argument("--filesystem-test-image", type=Path,
+                        help="GPT test disk FAT32 riêng dưới out/m26/runs/ (profile m26)")
     parser.add_argument("--qemu", default=os.environ.get("LAMIX_QEMU", "qemu-system-x86_64"))
     parser.add_argument("--seabios", type=Path,
         default=Path(os.environ.get("LAMIX_SEABIOS", "/usr/share/seabios/bios.bin")))
@@ -296,10 +332,10 @@ def main():
         default=Path(os.environ.get("LAMIX_OVMF_VARS", "/usr/share/OVMF/OVMF_VARS.fd")))
     args = parser.parse_args()
     profile = resolve_profile(args.profile)
-    if args.cpus is not None and profile not in ("m24", "m25"):
-        parser.error("--cpus chỉ áp dụng cho profile m24 hoặc m25")
+    if args.cpus is not None and profile not in ("m24", "m25", "m26"):
+        parser.error("--cpus chỉ áp dụng cho profile m24, m25 hoặc m26")
     cpus = (args.cpus if args.cpus is not None else
-            (2 if profile in ("m24", "m25") else 1))
+            (2 if profile in ("m24", "m25", "m26") else 1))
     if not 1 <= cpus <= 16:
         parser.error("--cpus phải nằm trong khoảng 1..16")
     build_dir = args.build_dir or Path(f"build/lamix-qemu-{profile}")
@@ -318,6 +354,15 @@ def main():
         if (not disk.is_relative_to(run_area) or not disk.is_file() or
                 disk.stat().st_size != 128 * 512):
             parser.error("--block-test-image phải là regular file 128-sector dưới out/m25/runs/")
+    if profile == "m26":
+        if args.filesystem_test_image is None:
+            parser.error("profile m26 cần --filesystem-test-image trong out/m26/runs/")
+        disk = args.filesystem_test_image
+        if disk.is_symlink(): parser.error("--filesystem-test-image không được là symlink")
+        disk = project_path(disk).resolve(strict=True)
+        area = (ROOT / "out/m26/runs").resolve()
+        if not disk.is_relative_to(area) or not disk.is_file() or disk.stat().st_size != 8 * 1024**3:
+            parser.error("--filesystem-test-image phải là regular file GPT 8 GiB dưới out/m26/runs/")
     args.seabios = project_path(args.seabios).resolve()
     args.ovmf_code = project_path(args.ovmf_code).resolve()
     args.ovmf_vars = project_path(args.ovmf_vars).resolve()
@@ -341,12 +386,17 @@ def main():
             from scripts.qemu_harness import qemu_value
             command += ["-drive", f"if=none,id=m25test,file={qemu_value(disk)},format=raw,cache=writeback",
                         "-device", "virtio-blk-pci,drive=m25test"]
+        if profile == "m26":
+            from scripts.qemu_harness import qemu_value
+            command += ["-drive", f"if=none,id=m26data,file={qemu_value(disk)},format=raw,cache=writeback",
+                        "-device", "virtio-blk-pci,drive=m26data"]
         env = os.environ.copy()
         env["TMPDIR"] = str(run_dir)
         marker = {"m17": "M17:PASS", "m19": "M19:PASS",
                   "m20": "M20:PASS", "m21": "M21:PASS",
                   "m22": "M22:PASS", "m23": "M23:PASS",
-                  "m24": "M24:PASS", "m25": "M25:PASS"}[profile]
+                  "m24": "M24:PASS", "m25": "M25:PASS",
+                  "m26": "M26:PASS"}[profile]
         print(f"\nKhởi chạy {firmware.upper()} ({profile.upper()}) từ {image}")
         print(f"Serial sẽ hiện trong terminal; chờ marker {marker}.")
         print("$ " + " ".join(command), flush=True)

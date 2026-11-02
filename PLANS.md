@@ -1,7 +1,15 @@
-# Kế hoạch và kết quả — M25 (M25 DONE; M24/M23/M22/M21/M20 DONE; M18 PLANNED)
+# Kế hoạch và kết quả — M26 (M26 IN_PROGRESS; M25/M24/M23/M22/M21/M20 DONE; M18 PLANNED)
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: DONE; M23: DONE; M24: DONE; M25: DONE; M26–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: DONE; M23: DONE; M24: DONE; M25: DONE; M26: IN_PROGRESS; M27–M44: PLANNED
+
+## M26 — VFS, tmpfs và FAT32 (IN_PROGRESS, 2026-11-02)
+
+- Thêm `kernel/vfs.c/.h`, `kernel/fat32.c/.h`, GPT User Data selector, profile/build `m26-kernel`, isolated GPT test disk, kernel test manager, và Toolchain CI CTest/artifact step. `LATEST_PROFILE="m25"` giữ nguyên trong lúc M26 triển khai; M25 profile vẫn chọn được. API file chỉ kernel/test manager; không thêm syscall, shell, service hoặc thay LBP v1.
+- VFS mount/path dispatch, file handles, tmpfs CRUD/rename và FAT32 8.3/LFN create/read/write/delete/rename với directory lồng nhau đã được thêm. FAT32 mount kiểm tra BPB/backup BPB/FSInfo, extent, FAT copies và root chain; file/cluster walking có giới hạn và phát hiện cycle. Native fixtures bao phủ checksum LFN sai, FAT bad-cluster marker, BPB lỗi, alias collision và lỗi ghi khi mở rộng file; kiểm thử xác nhận file size/entry không commit dở. Ảnh guest dùng regular file riêng dưới `out/m26/runs/`, GPT layout hiện hành, chỉ format `User Data`; test đối chiếu boot image/firmware và vùng GPT/ESP/guard.
+- M26 cross-build **PASS**. CTest đầy đủ **4/4 PASS** (ASan/UBSan native, TSan concurrency, host script, guest BIOS/UEFI); guest SeaBIOS `pc` và OVMF `q35`, 2 vCPU, 3 lượt mỗi firmware **6/6 PASS**; mỗi lượt chạy hai boot trên cùng raw image. Boot đầu xác nhận create/read/write/LFN rename/delete; boot sau xác nhận marker FAT còn nguyên và `/tmp.txt` trong tmpfs biến mất. Native/host regressions M17, M19–M25 **PASS**; guest regressions M17–M23, M25 **PASS**; M24 guest matrix/fault regression **27 passed, 1 deselected** (24 topology runs + 3 fault cases). Docs validator **PASS**, unittest tài liệu **41/41 PASS**. GitHub CI trên acceptance SHA chưa chạy; chưa ghi `DONE` và chưa chuyển `LATEST_PROFILE`.
+- Còn điều kiện đóng: tạo acceptance commit/PR để chạy và xác nhận bốn workflow CI trên đúng SHA; sau đó merge và tạo annotated tag `milestone/M26` chỉ khi toàn bộ acceptance xanh. Review bảo mật độc lập, PC thật và firmware ngoài profile QEMU **NOT RUN**.
+- Rollback bằng revert PR M26, không di chuyển tag cũ; nếu đã chuyển selector ở acceptance follow-up thì đưa `LATEST_PROFILE` về `m25`.
 
 ## M25 — Block I/O + VirtIO-Blk (DONE, 2026-11-02)
 

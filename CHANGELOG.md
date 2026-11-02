@@ -4,6 +4,11 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M26 — IN_PROGRESS (2026-11-02)
+
+- Bắt đầu profile `m26-kernel` với VFS nội bộ, tmpfs root, FAT32 tại `/data`, GPT User Data test image riêng và Toolchain CI CTest/artifact collection. Không thêm syscall hoặc user storage API; `LATEST_PROFILE=m25` giữ nguyên.
+- Cross-build, CTest 4/4, guest SeaBIOS/OVMF 6/6 (ba lượt mỗi firmware, hai boot mỗi lượt), native/host regressions M17/M19–M25, docs validator và unittest 41/41 **PASS**. FAT32 hỗ trợ 8.3/LFN, thư mục lồng nhau, phát hiện FAT chain lỗi; native tests kiểm LFN checksum, bad-cluster marker, alias collision, BPB lỗi và rollback khi ghi mở rộng gặp device error. Guest regressions M17–M23/M25 **PASS**; M24 guest matrix/fault regression **27 passed, 1 deselected**. GitHub CI chưa chạy trên SHA nghiệm thu; M26 vẫn IN_PROGRESS và `LATEST_PROFILE=m25`.
+
 ### M25 — DONE (2026-11-02)
 
 - Thêm profile `m25-kernel` với block abstraction, VirtIO-Blk modern PCI split queue, async/sync request, callback/poll, FLUSH, reset bounded và test disk raw riêng. Không thêm filesystem/syscall; `LATEST_PROFILE=m25` sau nghiệm thu.

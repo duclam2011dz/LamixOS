@@ -17,8 +17,11 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
           m15_input=False, m16_graphics=False, m17_virtio_gpu=False,
           m19_scheduler=False, m20_process=False, m21_syscall=False,
           m22_ipc=False, m23_elf=False, m24_smp=False, m25_block=False,
+          m26_fs=False,
           max_cpus=16,
           m24_fault="none"):
+    if m26_fs:
+        m25_block = True
     if m25_block:
         m24_smp = True
     if m24_smp:
@@ -136,6 +139,15 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
                         "tests/m25/concurrency.c", "tests/m25/CMakeLists.txt",
                         "tests/m25/test_m25.py", "tests/m25/test_m25_script.py",
                         "scripts/lamix_qemu.py", "scripts/qemu_harness.py"))
+    if m26_fs:
+        sources.extend(("kernel/vfs.c", "kernel/vfs.h", "kernel/fat32.c",
+                        "kernel/fat32.h", "kernel/m26_gpt.c", "kernel/m26_gpt.h",
+                        "tests/m26/build_kernel.py", "tests/m26/native.c",
+                        "tests/m26/concurrency.c", "tests/m26/CMakeLists.txt",
+                        "tests/m26/test_m26.py", "tests/m26/test_m26_script.py",
+                        "scripts/lamix_qemu.py", "scripts/qemu_harness.py",
+                        "lib/boot/loader.c", "include/lamix/boot/loader.h",
+                        "include/lamix/boot/gpt.h"))
     common=[x["gcc"],"-std=c11","-m64","-mcmodel=kernel","-mno-red-zone","-mgeneral-regs-only","-ffreestanding","-fno-builtin","-fno-pie","-fno-pic","-fno-stack-protector","-fno-asynchronous-unwind-tables","-fno-unwind-tables","-fno-exceptions","-Wall","-Wextra","-Werror","-I",ROOT/"include","-I",ROOT/"kernel","-O2"]
     run("nasm","--reproducible","-f","elf64",*( ["-D", "LAMIX_M14_APIC=1"] if m14_apic else []),"-o",output/"entry.o",ROOT/"kernel/entry.asm")
     run("nasm","--reproducible","-f","elf64",*( ["-D", "LAMIX_M19_SCHEDULER=1"] if m19_scheduler else []), *( ["-D", "LAMIX_M24_SMP=1"] if m24_smp else []),"-o",output/"interrupts.o",ROOT/"kernel/interrupts.asm")
@@ -274,6 +286,9 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
         compile_sources.extend(("kernel/elf_loader.c", "kernel/initramfs.c"))
     if m25_block:
         compile_sources.extend(("kernel/block.c", "kernel/virtio_blk.c"))
+    if m26_fs:
+        compile_sources.extend(("kernel/vfs.c", "kernel/fat32.c",
+                                "kernel/m26_gpt.c", "lib/boot/loader.c"))
     for source in compile_sources:
         obj=output/(Path(source).stem+".o"); args=common.copy()
         if source=="kernel/kernel.c" and not m10_vmm and variants[fault]: args += ["-D"+variants[fault]+"=1"]
@@ -313,6 +328,8 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
                 args += ["-DLAMIX_M24_FAULT_TLB_ACK_TIMEOUT=1"]
         if source=="kernel/kernel.c" and m25_block:
             args += ["-DLAMIX_M25_BLOCK=1"]
+        if source=="kernel/kernel.c" and m26_fs:
+            args += ["-DLAMIX_M26_FS=1"]
         if source=="kernel/process.c" and m22_ipc:
             args += ["-DLAMIX_M22_IPC=1"]
         if source=="kernel/process.c" and m23_elf:
@@ -362,7 +379,7 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
         if ".init_array" in sections or ".ctors" in sections:
             raise ValueError("kernel M11 không được có static constructors")
     if b"INTERP" in subprocess.check_output([str(x["readelf"]),"-l",str(elf)]): raise ValueError("PT_INTERP không freestanding")
-    report={"status":"PASS","mode":"m25-kernel" if m25_block else "m24-kernel" if m24_smp else "m23-kernel" if m23_elf else "m22-kernel" if m22_ipc else "m21-kernel" if m21_syscall else "m20-kernel" if m20_process else "m19-kernel" if m19_scheduler else "m17-kernel" if m17_virtio_gpu else "m16-kernel" if m16_graphics else "m15-kernel" if m15_input else "m14-kernel" if m14_apic else "m13-kernel" if m13_devices else "m12-kernel" if m12_buddy else "m11-kernel" if m11_heap else "m10-kernel" if m10_vmm else "m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"commands":commands,
+    report={"status":"PASS","mode":"m26-kernel" if m26_fs else "m25-kernel" if m25_block else "m24-kernel" if m24_smp else "m23-kernel" if m23_elf else "m22-kernel" if m22_ipc else "m21-kernel" if m21_syscall else "m20-kernel" if m20_process else "m19-kernel" if m19_scheduler else "m17-kernel" if m17_virtio_gpu else "m16-kernel" if m16_graphics else "m15-kernel" if m15_input else "m14-kernel" if m14_apic else "m13-kernel" if m13_devices else "m12-kernel" if m12_buddy else "m11-kernel" if m11_heap else "m10-kernel" if m10_vmm else "m09-kernel" if m09_pmm else "m08-kernel","fault":fault,"artifact":elf.name,"commands":commands,
             "tool_versions":{"gcc":subprocess.check_output([str(x["gcc"]),"--version"],text=True).splitlines()[0],"g++":subprocess.check_output([str(x["g++"]),"--version"],text=True).splitlines()[0] if m11_heap else None,"ld":subprocess.check_output([str(x["ld"]),"--version"],text=True).splitlines()[0],"nasm":subprocess.check_output(["nasm","-v"],text=True).strip()},
             "source_hashes":{s:sha(ROOT/s) for s in sources},"hashes":{elf.name:sha(elf), **({"initramfs.cpio":sha(output/"initramfs.cpio"),"alpha.elf":sha(output/"alpha.elf"),"beta.elf":sha(output/"beta.elf")} if m23_elf else {})},"elf_inspection":elf.stem+".inspection.txt","load_segments":loads}
     if m24_smp:
@@ -370,6 +387,8 @@ def build(output, fault="none", m09_pmm=False, m10_vmm=False,
         report["m24_fault"] = m24_fault
     if m25_block:
         report["m25_block"] = True
+    if m26_fs:
+        report["m26_fs"] = True
     (output/"build.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n")
     print(json.dumps(report,ensure_ascii=False,indent=2))
 def main():

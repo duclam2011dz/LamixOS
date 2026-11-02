@@ -8,4 +8,6 @@ User-space gồm services, compositor/window manager, SDK và games native. Stor
 
 BSP-only trước SMP; PIC bootstrap → APIC/IOAPIC → MSI/MSI-X. M19 scheduler BSP đã nghiệm thu preemptive priority round-robin qua LAPIC timer. M20 thêm process một thread/address space riêng và user-mode test payload. M21 bổ sung syscall ABI x86-64; M22 đã mở rộng ABI lên 1.1 trong profile khác. M23 thử nghiệm ET_DYN Static PIE, fixed load bias, `R_X86_64_RELATIVE`, newc initramfs và runtime tối thiểu trong profile riêng. M24 đã nghiệm thu xAPIC AP startup, per-CPU scheduler, GS entry/return handling và TLB shootdown trong `m24-kernel`. M25 thêm block I/O VirtIO-Blk trong `m25-kernel`; `latest` trỏ M25, profile BSP-only và các profile cũ vẫn chọn tường minh. Không đổi LBP v1/entry ABI. M18 GPU 3D PoC vẫn PLANNED/để dành, không phải dependency.
 
+M26 đang triển khai VFS kernel nội bộ với tmpfs root và FAT32 trên GPT User Data tại `/data`, dùng block device M25. FAT32 hỗ trợ 8.3/LFN và directory lồng nhau; filesystem chưa được expose qua syscall. `LATEST_PROFILE=m25` giữ nguyên cho tới nghiệm thu M26.
+
 Xem [boot](BOOT_PROTOCOL.md), [bộ nhớ](MEMORY_MANAGEMENT.md), [đồ họa](GRAPHICS.md), [API](API.md) và [bảo mật](SECURITY.md).

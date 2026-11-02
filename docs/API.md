@@ -52,6 +52,10 @@ M24 đã mở rộng scheduler nội bộ `kernel/scheduler.h` với per-CPU que
 
 Entry dùng `IA32_EFER.SCE`, `STAR`, `LSTAR`, `FMASK`, chuyển sang kernel stack của thread rồi kiểm tra RIP/RSP user và lọc `RFLAGS`; đường thường `SYSRETQ`, nhánh kiểm thử/fallback dùng `IRETQ`. Kernel copy user memory theo trang sau khi kiểm quyền `VMM_USER`/read, không dereference con trỏ user trực tiếp. Chi tiết lệnh/provenance ở [TESTING M21](TESTING.md#lamix-syscall-abi-v1-m21); nghiệm thu và giới hạn ở [handoff](SESSION_HANDOFF.md).
 
+## VFS nội bộ M26 (đang triển khai)
+
+`kernel/vfs.h` cung cấp API nội bộ `vfs_lookup/create/open/read/write/close/remove/rename/sync` cùng mount/unmount; `kernel/fat32.h` nối FAT32 với `block_device` M25 và `kernel/vfs.h`. Profile `m26-kernel` khởi tạo tmpfs root và FAT32 8.3/LFN tại `/data`, có directory lồng nhau. Đây chưa phải syscall, user storage API hay SDK; `LATEST_PROFILE` tiếp tục trỏ M25 cho tới nghiệm thu M26.
+
 ## Software renderer M16 (nội bộ kernel, DONE)
 
 `kernel/graphics.h` khai báo `graphics_surface`, `graphics_rect` và các thao tác `graphics_init`, `graphics_clear`, `graphics_pixel`, `graphics_fill_rect`, `graphics_rect_outline`, `graphics_line`, `graphics_text`, `graphics_present`, `graphics_verify_present`, `graphics_checksum`. Backbuffer XRGB8888 do caller cấp; renderer chỉ biết pointer/frontbuffer metadata, không tự cấp frame hoặc thay đổi LBP. API không phải public ABI và chưa ổn định ngoài M16.

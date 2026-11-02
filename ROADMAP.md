@@ -143,7 +143,7 @@ Trạng thái hợp lệ: `PLANNED` → `IN_PLAN` → `APPROVED` → `IN_PROGRES
 
 **M25 — Block I/O + VirtIO-Blk. Trạng thái: DONE (2026-11-02).** Profile riêng thêm storage abstraction và VirtIO-Blk; async/sync I/O, FLUSH và kiểm thử trên raw test image cô lập. Bốn workflow CI PASS trên acceptance SHA; xem [kế hoạch và handoff M25](PLANS.md) cùng [bằng chứng kiểm thử](docs/TESTING.md#block-io--virtio-blk-m25-done). `latest` trỏ M25. Không thêm filesystem hoặc syscall.
 
-**M26 — VFS + tmpfs + FAT32.** Path resolution, vnode/file handles, mount semantics, caching ban đầu, FAT32 reader rồi writer, kiểm tra FAT chain và lỗi metadata. Nghiệm thu: create/read/write/delete/rename/mount tests, persistence qua reboot, không nhầm ESP với user data.
+**M26 — VFS + tmpfs + FAT32. Trạng thái: IN_PROGRESS (2026-11-02).** Profile riêng triển khai VFS nội bộ, tmpfs root và FAT32 8.3/LFN tại `/data` từ GPT User Data của ảnh test; có nested directories, không thêm syscall hay user storage API. Cross-build, CTest 4/4, guest BIOS/UEFI 3 lượt mỗi firmware và docs validator PASS; native/host regressions M17/M19–M25 PASS; guest regressions M17–M23/M25 PASS. M24 guest matrix/fault regression 27 passed, 1 deselected; GitHub CI trên acceptance SHA chưa chạy. M26 chưa đủ điều kiện DONE; `LATEST_PROFILE=m25`, M25 và layout LBP v1 không đổi.
 
 **M27 — System services và shell/terminal native.** Init/service lifecycle, console, filesystem utilities, log viewer, command shell căn bản; IPC/service permissions. Nghiệm thu: chạy lệnh, thao tác file, xử lý lỗi và reboot sạch trong QEMU.
 

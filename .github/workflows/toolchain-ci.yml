@@ -175,6 +175,12 @@ jobs:
           cmake -S tests/m25 -B build/m25-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m25-tests
           ctest --test-dir build/m25-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m25/ctest.xml"
+      - name: M26 VFS, tmpfs, FAT32 và persistence guest BIOS/UEFI
+        timeout-minutes: 120
+        run: |
+          cmake -S tests/m26 -B build/m26-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m26-tests
+          ctest --test-dir build/m26-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m26/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -488,4 +494,18 @@ jobs:
             out/m25/runs/**/qmp.log
             build/m25-*/build.json
             build/m25-*/kernel.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M26 filesystem reports và guest serial, không upload test disk/image/firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8b65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m26-filesystem-reports
+          path: |
+            out/m26/*.xml
+            out/m26/results/*.json
+            out/m26/runs/**/serial.log
+            out/m26/runs/**/stderr.log
+            out/m26/runs/**/qmp.log
+            build/m26-*/build.json
+            build/m26-*/kernel.inspection.txt
           if-no-files-found: warn

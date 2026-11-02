@@ -1,7 +1,15 @@
-# Bàn giao hiện hành — M25 DONE — 2026-11-02
+# Bàn giao hiện hành — M26 IN_PROGRESS — 2026-11-02
 
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: DONE; M23: DONE; M24: DONE; M25: DONE; M26–M44: PLANNED
+Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DONE; M22: DONE; M23: DONE; M24: DONE; M25: DONE; M26: IN_PROGRESS; M27–M44: PLANNED
+
+## M26 — VFS, tmpfs và FAT32 (đang triển khai)
+
+- Profile `m26-kernel` thêm VFS nội bộ, tmpfs root, FAT32 trên phân vùng GPT User Data tại `/data`; không thêm syscall/storage API cho user, không đổi LBP v1 hay profile M25. `LATEST_PROFILE=m25` vẫn giữ nguyên cho tới khi M26 nghiệm thu và được xác nhận DONE.
+- Cross-build **PASS**; CTest đầy đủ **4/4 PASS** (ASan/UBSan, TSan, host script và guest BIOS/UEFI). Guest SeaBIOS `pc` và OVMF `q35`, 2 vCPU, ba lượt mỗi firmware **6/6 PASS**, hai boot cùng raw image mỗi lượt: boot đầu CRUD/LFN/rename/delete, boot sau marker FAT còn nguyên và tmpfs `/tmp.txt` không còn. Native/host regressions M17, M19–M25 **PASS**; docs validator **PASS**, unittest tài liệu **41/41 PASS**. Lần CTest đầu bị ngắt khi guest target đang chạy; lần retry hoàn tất **4/4 PASS**. Guest regressions M17/M19–M25 và GitHub CI trên acceptance SHA **PENDING**.
+- FAT32 hỗ trợ 8.3/LFN, nested directories, VFS CRUD/rename, clean reboot persistence và tmpfs volatile behavior. Native sanitizer fixtures cho bad LFN checksum, FAT bad-cluster marker, BPB lỗi, alias collision và extension-write rollback đều PASS. M26 CTest 4/4 và guest BIOS/UEFI 6/6 PASS; guest regressions M17–M23/M25 PASS; M24 guest matrix/fault regression 27 passed, 1 deselected. Docs validator và unittest 41/41 PASS.
+- Còn chờ: GitHub CI trên acceptance SHA, rồi mới có thể merge/annotated tag và đặt Roadmap `DONE`/`LATEST_PROFILE=m26`. Trước khi CI/merge/tag, M26 vẫn `IN_PROGRESS`; M27 không thuộc lượt này. Review bảo mật độc lập, PC thật và firmware ngoài QEMU **NOT RUN**.
+- Handoff artifacts: `build/m26-kernel/build.json`; guest logs/provenance dưới `out/m26/runs/` và `out/m26/results/`; test image là regular file cô lập. Giữ nguyên file untracked người dùng `PROMPT_NEXT_SESSION_M21.md`.
 
 ## M25 — Block I/O + VirtIO-Blk (DONE)
 
@@ -9,7 +17,7 @@ Trạng thái M16: DONE; M17: DONE; M18: PLANNED; M19: DONE; M20: DONE; M21: DON
 - Test manager M25 ghi/đọc hai pattern async, boundary LBA và FLUSH trên raw-file disk riêng; harness giới hạn disk test ở `out/m25/runs/`, kiểm tra guard sectors và fingerprints boot image/firmware. Chưa thêm filesystem hoặc syscall.
 - Bằng chứng: native ASan/UBSan, native TSan, cross-build M25 và tạo image **PASS**. Guest SeaBIOS `pc` và OVMF `q35` × 2 vCPU × 3 lượt **PASS**; mỗi lượt xác minh markers, raw disk sectors/guard, build provenance và fingerprints image/firmware trước/sau. pytest M25 **10/10 PASS** qua `.venv/bin/pytest`; CTest local **NOT RUN** (`cmake` chưa có trên PATH). Docs validator và unittest **PASS** (41/41). Hồi quy M17/M19–M24 local **NOT RUN**, Toolchain CI chạy CTest M25 và regressions **PASS**. Trên acceptance SHA `1f6241935d776c64f578af2fc60f55f05ad5f061`, bốn workflow **SUCCESS**: Toolchain [41364355647](https://github.com/duclam2011dz/LamixOS/actions/runs/41364355647), Documentation [41364355590](https://github.com/duclam2011dz/LamixOS/actions/runs/41364355590), Boot Contract [41364355597](https://github.com/duclam2011dz/LamixOS/actions/runs/41364355597), Harness [41364355666](https://github.com/duclam2011dz/LamixOS/actions/runs/41364355666). Implementation head `245ad3e` cũng có đủ bốn workflow SUCCESS.
 - Review đã tìm sáu lỗi về queue sizing, request/callback lifetime, deadline/poll, PCI common offset và used length của read error; các lỗi được sửa, regression thêm và sáu thread resolve. Không có finding mới trên implementation head.
-- PR [#31](https://github.com/duclam2011dz/LamixOS/pull/31) merge commit `53b3556dd91ae96f2eca5dcc5635be513d90e66e`; acceptance commit `1f6241935d776c64f578af2fc60f55f05ad5f061`. Annotated tag `milestone/M25` object `04b34ba058c95f464a0e98704fca98f28c7b2045`, peeled tới acceptance commit. `LATEST_PROFILE=m25`; `--profile latest --build-only` build M25 và `--profile m24 --build-only` tiếp tục build M24. Prompt handoff phiên Plan Mode M26 nằm ở [PROMPT_NEXT_SESSION_M26.md](../PROMPT_NEXT_SESSION_M26.md); M26 chưa bắt đầu.
+- PR [#31](https://github.com/duclam2011dz/LamixOS/pull/31) merge commit `53b3556dd91ae96f2eca5dcc5635be513d90e66e`; acceptance commit `1f6241935d776c64f578af2fc60f55f05ad5f061`. Annotated tag `milestone/M25` object `04b34ba058c95f464a0e98704fca98f28c7b2045`, peeled tới acceptance commit. `LATEST_PROFILE=m25`; `--profile latest --build-only` build M25 và `--profile m24 --build-only` tiếp tục build M24. M26 đã được duyệt và đang triển khai trong lượt hiện tại; không bắt đầu M27.
 
 ## M24 — nghiệm thu SMP (DONE)
 
