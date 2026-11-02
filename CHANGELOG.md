@@ -4,10 +4,9 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
-### M26 — IN_PROGRESS (2026-11-02)
+### M26 — DONE (2026-11-02)
 
-- Bắt đầu profile `m26-kernel` với VFS nội bộ, tmpfs root, FAT32 tại `/data`, GPT User Data test image riêng và Toolchain CI CTest/artifact collection. Không thêm syscall hoặc user storage API; `LATEST_PROFILE=m25` giữ nguyên trên main trong lúc triển khai; candidate PR sau local acceptance chuyển `LATEST_PROFILE=m26`.
-- Cross-build, CTest 4/4, guest SeaBIOS/OVMF 6/6 (ba lượt mỗi firmware, hai boot mỗi lượt), native/host regressions M17/M19–M25, docs validator và unittest 41/41 **PASS**. FAT32 hỗ trợ 8.3/LFN, thư mục lồng nhau, phát hiện FAT chain lỗi; native tests kiểm LFN checksum, bad-cluster marker, alias collision, BPB lỗi, dải LFN phân mảnh, extension-write rollback và lỗi I/O khi xóa. Review PR tìm 2 lỗi P1 về LFN contiguity/free-chain ordering và 1 lỗi P2 về tmpfs directory rename; đã sửa; regression native PASS. Rename directory hiện trả `VFS_UNSUPPORTED` an toàn. Guest regressions M17–M23/M25 **PASS**; M24 guest matrix/fault regression **27 passed, 1 deselected**. Cross-build và CTest 4/4 sau review fixes PASS; bốn workflow trên head review-fix `e5293e0` SUCCESS. Candidate PR đặt `LATEST_PROFILE=m26`; CI trên head selector mới PENDING, M26 vẫn IN_PROGRESS tới khi CI/merge/tag.
+- Hoàn tất profile `m26-kernel`: VFS nội bộ, tmpfs root, FAT32 8.3/LFN tại `/data` trên GPT User Data riêng; không thêm syscall hoặc user storage API. Cross-build, CTest 4/4, guest SeaBIOS/OVMF 6/6, regressions M17/M19–M25, docs validator và unittest 41/41 **PASS**. Review phát hiện 2 P1 (LFN slot contiguity và free-chain ordering) cùng 1 P2 (tmpfs directory rename stale descendants); đã sửa và thêm regression. Rename directory trả `VFS_UNSUPPORTED`. `LATEST_PROFILE=m26`, M25 vẫn chọn tường minh, LBP v1 giữ nguyên. PR #33 merge commit `2809e2155c930a061bb6d96ca4df151d085e0481`; acceptance SHA `758f2c9998b8d0ffc85e42f8225835b05d784755`; annotated tag `milestone/M26` object `6a5550fe7473e701f4744625f72a2c1b908291b7`. Bốn workflow trên acceptance SHA đều SUCCESS; chi tiết trong `PLANS.md` và `docs/SESSION_HANDOFF.md`.
 
 ### M25 — DONE (2026-11-02)
 

@@ -10,7 +10,7 @@ Hệ điều hành Gaming native x86_64 phát triển dài hạn, dùng NASM, C 
 
 ## Trạng thái
 
-M00–M17, M19–M25 đã nghiệm thu; M18 vẫn PLANNED. M22 giữ profile handles/capabilities, channel IPC và SHM riêng; M23 bổ sung Static PIE ELF64 loader/runtime; M24 bổ sung SMP; M25 bổ sung block I/O với VirtIO-Blk. `latest` hiện trỏ profile M25, các profile cũ vẫn chọn tường minh. Xem [handoff](docs/SESSION_HANDOFF.md) để biết provenance và giới hạn. Đây chưa phải kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh; chưa có bản phát hành và chưa đạt Playable.
+M00–M17, M19–M26 đã nghiệm thu; M18 vẫn PLANNED. M22 giữ profile handles/capabilities, channel IPC và SHM riêng; M23 bổ sung Static PIE ELF64 loader/runtime; M24 bổ sung SMP; M25 bổ sung block I/O với VirtIO-Blk; M26 thêm VFS nội bộ, tmpfs root và FAT32 tại `/data`. `latest` hiện trỏ profile M26, các profile cũ vẫn chọn tường minh. Xem [handoff](docs/SESSION_HANDOFF.md) để biết provenance và giới hạn. Đây chưa phải kernel sản phẩm hoàn chỉnh hoặc OS hoàn chỉnh; chưa có bản phát hành và chưa đạt Playable.
 
 ## Bắt đầu
 

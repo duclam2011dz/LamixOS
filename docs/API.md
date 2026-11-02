@@ -52,9 +52,9 @@ M24 đã mở rộng scheduler nội bộ `kernel/scheduler.h` với per-CPU que
 
 Entry dùng `IA32_EFER.SCE`, `STAR`, `LSTAR`, `FMASK`, chuyển sang kernel stack của thread rồi kiểm tra RIP/RSP user và lọc `RFLAGS`; đường thường `SYSRETQ`, nhánh kiểm thử/fallback dùng `IRETQ`. Kernel copy user memory theo trang sau khi kiểm quyền `VMM_USER`/read, không dereference con trỏ user trực tiếp. Chi tiết lệnh/provenance ở [TESTING M21](TESTING.md#lamix-syscall-abi-v1-m21); nghiệm thu và giới hạn ở [handoff](SESSION_HANDOFF.md).
 
-## VFS nội bộ M26 (đang triển khai)
+## VFS nội bộ M26 (đã nghiệm thu)
 
-`kernel/vfs.h` cung cấp API nội bộ `vfs_lookup/create/open/read/write/close/remove/rename/sync` cùng mount/unmount; `kernel/fat32.h` nối FAT32 với `block_device` M25 và `kernel/vfs.h`. Profile `m26-kernel` khởi tạo tmpfs root và FAT32 8.3/LFN tại `/data`, có directory lồng nhau; rename file được hỗ trợ, rename directory trả `VFS_UNSUPPORTED`. Đây chưa phải syscall, user storage API hay SDK; Candidate M26 chuyển `LATEST_PROFILE=m26` sau local acceptance; main tiếp tục M25 tới khi PR acceptance được merge.
+`kernel/vfs.h` cung cấp API nội bộ `vfs_lookup/create/open/read/write/close/remove/rename/sync` cùng mount/unmount; `kernel/fat32.h` nối FAT32 với `block_device` M25 và VFS. Profile `m26-kernel` khởi tạo tmpfs root và FAT32 8.3/LFN tại `/data`, có directory lồng nhau. Rename file được hỗ trợ; rename directory trả `VFS_UNSUPPORTED`. Đây là API kernel/test manager, không phải syscall, user storage API hay SDK. `LATEST_PROFILE=m26`; profile M25 vẫn chọn tường minh được. Chi tiết nghiệm thu tại [M26 plan](../PLANS.md) và [testing evidence](TESTING.md#vfs-tmpfs-và-fat32-m26-done).
 
 ## Software renderer M16 (nội bộ kernel, DONE)
 
