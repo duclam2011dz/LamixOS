@@ -13,9 +13,9 @@ Nếu giao diện chưa ở Plan Mode thật, chỉ nhắc tôi chủ động ch
 ## Baseline bàn giao — cần xác minh lại
 
 - Workspace: `/home/lam/projects/LamixOS`; repository chính thức: `https://github.com/duclam2011dz/LamixOS`; nhánh chính `main`; remote `origin`.
-- Kiểm tra lại branch, `git status`, HEAD, remote, PR M25, tag `milestone/M25` và CI trên SHA nghiệm thu. Không suy diễn từ prompt nếu dịch vụ không truy cập được; ghi `NOT RUN`/`chưa xác minh`.
+- M25 acceptance commit `1f6241935d776c64f578af2fc60f55f05ad5f061`; PR #31 merge commit `53b3556dd91ae96f2eca5dcc5635be513d90e66e`; annotated tag `milestone/M25` object `04b34ba058c95f464a0e98704fca98f28c7b2045` peel về acceptance commit. Xác minh lại branch, `git status`, HEAD, remote, PR/tag và CI trên SHA nghiệm thu. Không suy diễn nếu dịch vụ không truy cập được; ghi `NOT RUN`/`chưa xác minh`.
 - M25 bổ sung block abstraction và VirtIO-Blk trong profile `m25-kernel`, giữ filesystem, syscall lưu trữ và user storage API ngoài phạm vi. `scripts/lamix_qemu.py` đặt `LATEST_PROFILE="m25"`; `--profile m24` vẫn chọn được.
-- Bằng chứng M25 được ghi trong `PLANS.md`, `docs/TESTING.md` và `docs/SESSION_HANDOFF.md`: native ASan/UBSan + TSan, cross-build, guest SeaBIOS `pc`/OVMF `q35` × 2 vCPU × 3 lượt, kiểm chứng raw test image; bốn workflow CI trên implementation SHA `245ad3edc43dc599b3ba6a64b11c1641c6ee5092` SUCCESS. Xác minh lại acceptance SHA, tag/PR/merge và workflow cuối trước khi dùng làm baseline.
+- Bằng chứng M25 được ghi trong `PLANS.md`, `docs/TESTING.md` và `docs/SESSION_HANDOFF.md`: native ASan/UBSan + TSan, cross-build, guest SeaBIOS `pc`/OVMF `q35` × 2 vCPU × 3 lượt, kiểm chứng raw test image; bốn workflow CI SUCCESS trên acceptance SHA và implementation SHA. Xác minh lại acceptance SHA, tag/PR/merge và workflow cuối trước khi dùng làm baseline.
 - M18 vẫn `PLANNED`; không được kích hoạt hoặc đổi thứ tự. M27 trở đi ngoài phạm vi lượt plan này.
 
 ## Quy tắc khảo sát
