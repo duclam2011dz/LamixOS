@@ -13,9 +13,8 @@ sys.path.insert(0, str(ROOT / "tests/m25"))
 from test_m25 import create_test_disk, verify_test_disk
 
 
-def test_latest_tracks_m25_acceptance():
-    assert LATEST_PROFILE == "m25"
-    assert resolve_profile("latest") == "m25"
+def test_m25_profile_remains_selectable_after_acceptance():
+    assert resolve_profile("latest") == LATEST_PROFILE
     assert resolve_profile("m25") == "m25"
 
 
