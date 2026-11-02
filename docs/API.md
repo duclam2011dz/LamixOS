@@ -54,7 +54,7 @@ Entry dùng `IA32_EFER.SCE`, `STAR`, `LSTAR`, `FMASK`, chuyển sang kernel stac
 
 ## VFS nội bộ M26 (đang triển khai)
 
-`kernel/vfs.h` cung cấp API nội bộ `vfs_lookup/create/open/read/write/close/remove/rename/sync` cùng mount/unmount; `kernel/fat32.h` nối FAT32 với `block_device` M25 và `kernel/vfs.h`. Profile `m26-kernel` khởi tạo tmpfs root và FAT32 8.3/LFN tại `/data`, có directory lồng nhau; rename file được hỗ trợ, rename directory trả `VFS_UNSUPPORTED`. Đây chưa phải syscall, user storage API hay SDK; `LATEST_PROFILE` tiếp tục trỏ M25 cho tới nghiệm thu M26.
+`kernel/vfs.h` cung cấp API nội bộ `vfs_lookup/create/open/read/write/close/remove/rename/sync` cùng mount/unmount; `kernel/fat32.h` nối FAT32 với `block_device` M25 và `kernel/vfs.h`. Profile `m26-kernel` khởi tạo tmpfs root và FAT32 8.3/LFN tại `/data`, có directory lồng nhau; rename file được hỗ trợ, rename directory trả `VFS_UNSUPPORTED`. Đây chưa phải syscall, user storage API hay SDK; Candidate M26 chuyển `LATEST_PROFILE=m26` sau local acceptance; main tiếp tục M25 tới khi PR acceptance được merge.
 
 ## Software renderer M16 (nội bộ kernel, DONE)
 
