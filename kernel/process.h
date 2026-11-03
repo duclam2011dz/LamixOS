@@ -37,6 +37,9 @@ typedef struct process_operations {
   int (*release_frame)(void *context, uint64_t physical);
   volatile uint8_t *(*access_frame)(void *context, uint64_t physical);
   vmm_operations vmm;
+#if defined(LAMIX_M27_PROFILE)
+  uint32_t initial_m27_permissions;
+#endif
 } process_operations;
 
 typedef struct process {
@@ -57,6 +60,10 @@ typedef struct process {
   size_t user_page_count;
 #endif
   uint32_t creation_stage, creation_vm_status;
+#if defined(LAMIX_M27_PROFILE)
+  uint32_t m27_permissions;
+  uint64_t m27_capability_handle;
+#endif
   volatile uint8_t kill_requested;
   volatile process_state state;
   volatile uint32_t state_lock;

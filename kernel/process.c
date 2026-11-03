@@ -22,8 +22,6 @@ static int allocate_user_frame(process *instance, uint64_t *frame) {
   return 1;
 }
 
-static void process_entry_unused(void *argument) { (void)argument; }
-
 #if defined(LAMIX_M22_IPC)
 static void *process_alloc(void *context, size_t size) {
   process *p = context;
@@ -45,6 +43,13 @@ static void process_unlock(void *context, uintptr_t flags) {
   p->scheduler_state->operations.irq_restore(
       p->scheduler_state->operations.context, flags);
 }
+#if defined(LAMIX_M27_PROFILE)
+typedef struct process_capability_object { lamix_object object; } process_capability_object;
+static void process_capability_destroy(lamix_object *object) {
+  process_capability_object *cap = (process_capability_object *)object;
+  process_dealloc(object->context, cap);
+}
+#endif
 #endif
 
 static uintptr_t process_state_lock(process *instance) {
@@ -271,11 +276,33 @@ static process_status process_create_common(
 #endif
   *instance = (process){.operations = *operations,
                         .scheduler_state = scheduler_state, .id = id};
+#if defined(LAMIX_M27_PROFILE)
+  instance->m27_permissions = operations->initial_m27_permissions;
+#endif
 #if defined(LAMIX_M22_IPC)
   if (lamix_handle_table_init(&instance->handles, instance, process_alloc,
                               process_dealloc, process_lock,
                               process_unlock) != LH_OK)
     return PROCESS_OUT_OF_MEMORY;
+#if defined(LAMIX_M27_PROFILE)
+  if (instance->m27_permissions) {
+    process_capability_object *cap = process_alloc(instance, sizeof(*cap));
+    if (!cap) {
+      lamix_handle_table_destroy(&instance->handles);
+      return PROCESS_OUT_OF_MEMORY;
+    }
+    lamix_object_init(&cap->object, LAMIX_OBJECT_CAPABILITY, instance,
+                      process_capability_destroy);
+    lamix_handle_status installed = lamix_handle_install(&instance->handles,
+        &cap->object, instance->m27_permissions,
+        &instance->m27_capability_handle);
+    lamix_object_release(&cap->object);
+    if (installed != LH_OK) {
+      lamix_handle_table_destroy(&instance->handles);
+      return PROCESS_OUT_OF_MEMORY;
+    }
+  }
+#endif
 #endif
   vmm_operations process_vmm = operations->vmm;
 #if defined(LAMIX_M24_SMP)
@@ -338,16 +365,14 @@ static process_status process_create_common(
       goto vm_failure;
   }
   instance->creation_stage = 5;
-  if (scheduler_create(scheduler_state, process_entry_unused, instance,
-                       priority, &instance->thread) != SCHED_OK)
-    goto memory_failure;
-  if (scheduler_configure_user(instance->thread, user_entry, user_stack) !=
-      SCHED_OK) {
-    /* Thread storage is scheduler-owned; make creation failure fatal to caller. */
-    return PROCESS_SCHEDULER_ERROR;
-  }
-  instance->thread->private_context = instance;
   instance->state = PROCESS_READY;
+  /* Both byte payloads and ELF images run as user threads. Publish the fully
+     initialized ring-3 frame atomically so an AP cannot dispatch a half-built
+     thread, and preserve the M20 user-mode path for non-ELF payloads. */
+  scheduler_status thread_status = scheduler_create_user(
+      scheduler_state, user_entry, user_stack, priority, instance,
+      &instance->thread);
+  if (thread_status != SCHED_OK) goto memory_failure;
   return PROCESS_OK;
 
 memory_failure:

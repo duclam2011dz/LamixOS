@@ -30,6 +30,23 @@ int64_t lamix_syscall_dispatch(const lamix_syscall_ops *ops, uint64_t number,
   case LAMIX_SYS_SHM_CREATE:
   case LAMIX_SYS_SHM_MAP:
   case LAMIX_SYS_SHM_UNMAP:
+#if defined(LAMIX_M27_PROFILE)
+  case LAMIX_SYS_FILE_OPEN:
+  case LAMIX_SYS_FILE_READ:
+  case LAMIX_SYS_FILE_WRITE:
+  case LAMIX_SYS_FILE_CREATE:
+  case LAMIX_SYS_FILE_REMOVE:
+  case LAMIX_SYS_FILE_RENAME:
+  case LAMIX_SYS_FILE_LIST:
+  case LAMIX_SYS_FILE_SYNC:
+  case LAMIX_SYS_PROCESS_SPAWN:
+  case LAMIX_SYS_PROCESS_WAIT:
+  case LAMIX_SYS_PROCESS_KILL:
+  case LAMIX_SYS_SERVICE_CONTROL:
+  case LAMIX_SYS_LOG_READ:
+  case LAMIX_SYS_SYSTEM_REBOOT:
+  case LAMIX_SYS_CONSOLE_READ:
+#endif
     return ops && ops->m22_call
                ? ops->m22_call(ops->context, number, a0, a1, a2, a3, a4, a5)
                : -LAMIX_ESTATE;

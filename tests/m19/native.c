@@ -71,6 +71,23 @@ static void test_priority_rr(void) {
   assert(low->state == SCHED_THREAD_READY);
 }
 
+static void test_user_thread_is_configured_before_publish(void) {
+  host_context host;
+  scheduler state;
+  scheduler_thread *user = 0;
+  int context = 27;
+  setup(&host, &state);
+  assert(scheduler_begin(&state) == SCHED_OK);
+  assert(scheduler_create_user(&state, UINT64_C(0x80000000),
+      UINT64_C(0x80003000), 2, &context, &user) == SCHED_OK);
+  assert(user && user->user_mode && user->private_context == &context);
+  assert(user->state == SCHED_THREAD_READY);
+  assert(user->frame->rip == UINT64_C(0x80000000));
+  assert(user->frame->rsp == UINT64_C(0x80003000));
+  assert(user->frame->cs == 0x23 && user->frame->ss == 0x1b);
+  assert(state.cpu0.ready_head[2] == user);
+}
+
 static void test_aging(void) {
   host_context host;
   scheduler state;
@@ -229,6 +246,7 @@ static void test_mutex_fifo_for_equal_priority_waiters(void) {
 
 int main(void) {
   test_priority_rr();
+  test_user_thread_is_configured_before_publish();
   test_aging();
   test_mutex_handoff_and_donation();
   test_deadlock_and_oom();

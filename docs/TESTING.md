@@ -19,7 +19,7 @@ Ba file ROADMAP, PLANS và SESSION_HANDOFF có đúng một dòng máy đọc đ
 
 ```text
 Trạng thái milestone: M00=DONE; M01=DONE; M02=DONE; M03=DONE; M04=DONE; M05=DONE; M06=DONE; M07=DONE; M08=DONE; M09=DONE; M10=DONE; M11=DONE; M12=DONE; M13=DONE; M14=DONE; M15=DONE
-Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24 DONE; M25 DONE; M26 DONE; M27–M44 PLANNED
+Trạng thái hiện hành: M16 DONE; M17 DONE; M18 PLANNED; M19 DONE; M20 DONE; M21 DONE; M22 DONE; M23 DONE; M24 DONE; M25 DONE; M26 DONE; M27 IN_PROGRESS; M28–M44 PLANNED
 ```
 
 Giá trị dùng tập trạng thái trong roadmap. Mục milestone không ghi trạng thái riêng mặc định PLANNED; dòng chuẩn phải khớp M00–M15 và giữa ba file. Validator kiểm tra M00–M44 đủ, đúng thứ tự, không trùng; các quy tắc kiến trúc, changelog thật và chất lượng handoff vẫn cần review theo [skill](../.agents/skills/docs-consistency/SKILL.md).
@@ -565,3 +565,19 @@ ctest --test-dir build/m26-tests --no-tests=error --output-on-failure
 ```
 
 CTest gồm native ASan/UBSan, VFS TSan, host image/harness checks và sáu guest cases (SeaBIOS `pc`/OVMF `q35`, ba lần mỗi firmware; hai boot mỗi case). Thành công yêu cầu marker `M26:PASS`, marker persistence/tmpfs, hash boot image/firmware không đổi và vùng GPT/ESP/guard không đổi. Cross-build **PASS**, CTest **4/4 PASS**, guest BIOS/UEFI **6/6 PASS**. Native/host regressions M17, M19–M25 **PASS**; guest regressions M17–M23/M25 **PASS**; M24 guest matrix/fault regression **27 passed, 1 deselected**. Docs validator **PASS**, unittest tài liệu **41/41 PASS**. Native FAT32 fixtures kiểm LFN checksum hỏng, FAT bad-cluster, BPB hỏng, alias collision, nested directory, dải LFN không liền, rollback extension write, free-chain ordering khi xóa bị lỗi I/O và tmpfs từ chối rename directory. Review 2 P1 và 1 P2 đã sửa, regression đã thêm, ba thread đã resolve. Toolchain CI phát hiện assertion lịch sử M19/M25 khóa `latest` ở M25; đã cập nhật, `scripts/smoke.py --reproducible` local PASS. Acceptance SHA `758f2c9998b8d0ffc85e42f8225835b05d784755`; bốn workflow SUCCESS: Toolchain [41436276928](https://github.com/duclam2011dz/LamixOS/actions/runs/41436276928), Harness [41436276918](https://github.com/duclam2011dz/LamixOS/actions/runs/41436276918), Documentation [41436276993](https://github.com/duclam2011dz/LamixOS/actions/runs/41436276993), Boot Contract [41436276953](https://github.com/duclam2011dz/LamixOS/actions/runs/41436276953). PR #33 merge commit `2809e2155c930a061bb6d96ca4df151d085e0481`; annotated tag `milestone/M26` object `6a5550fe7473e701f4744625f72a2c1b908291b7` trỏ acceptance SHA. `LATEST_PROFILE=m26`, M25 vẫn selectable. Audit bảo mật độc lập, PC thật, firmware ngoài QEMU **NOT RUN**.
+
+
+## System services và shell M27 (IN_PROGRESS)
+
+Trong `.venv`, build và kiểm tra:
+
+```bash
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/python tests/m27/build_kernel.py --build build/m27-kernel
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake -S tests/m27 -B build/m27-tests -G Ninja -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/cmake --build build/m27-tests
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/ctest --test-dir build/m27-tests --no-tests=error --output-on-failure --output-junit out/m27/ctest.xml
+```
+
+Guest test dùng QEMU SeaBIOS `pc`/OVMF `q35`, 2 vCPU, regular-file GPT User Data disk riêng dưới `out/m27/runs/`, QMP PS/2 input, UART FIFO input/output, framebuffer PPM screendump và hash/guard checks. Reboot test gọi user command `reboot`, flush VFS, reset qua `0xCF9`, rồi kiểm sentinel FAT32 sau lần boot kế tiếp trong cùng QEMU process. Init xác thực static dependency graph, spawn/reap shell, bounded restart, start/stop/restart; quyền subset trong `lamix_service_spec` truyền qua `lamix_process_spawn_with_rights()`. `M27:CAPABILITY:DENY:PASS` và `M27:CAPABILITY:GRANT:DENY:PASS` xác nhận quyền bị từ chối; `M27:SHELL:FILES:PASS` và screenshot kiểm terminal; `M27:REBOOT:PERSIST:PASS` phát sau reboot và đọc lại dữ liệu FAT32.
+
+Trên source cuối hiện tại: cross-build **PASS**; CTest **4/4 PASS**, guest pytest **12/12 PASS** (shell/service 6 lượt và reboot persistence 6 lượt trên BIOS/UEFI, 3 lượt mỗi firmware); native ASan/UBSan, docs validator và host suite đều PASS. QEMU harness host **36/36 PASS**. CTest regressions M17 **3/3**, M19 **3/3**, M20 **3/3**, M21 **3/3**, M22 **4/4**, M23 **3/3**, M24 **4/4**, M25 **4/4**, M26 **4/4 PASS**; docs unittest **41/41 PASS**. Kernel ELF SHA-256 `d40434b5c54984c6a6195fcbd9444f969ca584d714e0c768e29a418acbbf3b11`; initramfs SHA-256 `ba8925f5e478769a2994b01ef7c2d4ca84a5ea454746ee9d25b5eab18ee1079a`; reports trong `build/m27-guest/kernel/build.json`, `out/m27/results/`, `out/m27/guest.xml` và `build/m27-tests/out/m27/ctest-final.xml`. CI trên SHA nghiệm thu **NOT RUN**, do đó `LATEST_PROFILE=m26` và M27 vẫn IN_PROGRESS.

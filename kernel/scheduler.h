@@ -136,6 +136,15 @@ void scheduler_critical_leave(scheduler *state, uintptr_t flags);
 scheduler_status scheduler_create(scheduler *state, scheduler_entry entry,
                                   void *argument, uint8_t priority,
                                   scheduler_thread **thread_out);
+/* Publish a fully configured user thread atomically, including private_context.
+   Required when the scheduler is already active and another CPU may dispatch
+   the new thread as soon as it enters the ready queue. */
+scheduler_status scheduler_create_user(scheduler *state,
+                                       uintptr_t user_entry,
+                                       uintptr_t user_stack,
+                                       uint8_t priority,
+                                       void *private_context,
+                                       scheduler_thread **thread_out);
 scheduler_status scheduler_configure_user(scheduler_thread *thread,
                                           uintptr_t entry,
                                           uintptr_t user_stack);
