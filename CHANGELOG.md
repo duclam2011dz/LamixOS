@@ -4,6 +4,12 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
+### M27 — IN_PROGRESS (2026-11-03)
+
+- Thêm init/service lifecycle shell với bounded restart/backoff, static manifest rights subset và wrapper `lamix_process_spawn_with_rights`; spawn mặc định cấp 0 rights. Thêm shell builtins file/log/service/reboot, external ELF launch, serial/UART và framebuffer path. Reboot flush VFS rồi reset qua port `0xCF9`. `LATEST_PROFILE=m26` giữ trong giai đoạn nghiệm thu.
+- Cross-build **PASS**; CTest M27 **4/4 PASS**, guest **12/12 PASS** trên SeaBIOS `pc`/OVMF `q35` × 3; gồm service lifecycle, PS/2/serial, QMP framebuffer screenshot, negative rights/grant escalation, và reboot thật với FAT32 persistence. QEMU harness host **36/36 PASS**.
+- Regressions CTest M17 **3/3**, M19 **3/3**, M20 **3/3**, M21 **3/3**, M22 **4/4**, M23 **3/3**, M24 **4/4**, M25 **4/4**, M26 **4/4** (**31/31 PASS**); docs validator và unittest tài liệu **41/41 PASS**. CI/review/merge trên SHA nghiệm thu chưa chạy nên M27 vẫn IN_PROGRESS; `LATEST_PROFILE=m26`.
+
 ### M26 — DONE (2026-11-02)
 
 - Hoàn tất profile `m26-kernel`: VFS nội bộ, tmpfs root, FAT32 8.3/LFN tại `/data` trên GPT User Data riêng; không thêm syscall hoặc user storage API. Cross-build, CTest 4/4, guest SeaBIOS/OVMF 6/6, regressions M17/M19–M25, docs validator và unittest 41/41 **PASS**. Review phát hiện 2 P1 (LFN slot contiguity và free-chain ordering) cùng 1 P2 (tmpfs directory rename stale descendants); đã sửa và thêm regression. Rename directory trả `VFS_UNSUPPORTED`. `LATEST_PROFILE=m26`, M25 vẫn chọn tường minh, LBP v1 giữ nguyên. PR #33 merge commit `2809e2155c930a061bb6d96ca4df151d085e0481`; acceptance SHA `758f2c9998b8d0ffc85e42f8225835b05d784755`; annotated tag `milestone/M26` object `6a5550fe7473e701f4744625f72a2c1b908291b7`. Bốn workflow trên acceptance SHA đều SUCCESS; chi tiết trong `PLANS.md` và `docs/SESSION_HANDOFF.md`.

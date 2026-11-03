@@ -687,6 +687,114 @@ static vfs_status flookup(void *c, const char *p, vfs_node *out) {
   *out = (vfs_node){VFS_FILE, u32(e + 28), 0};
   return VFS_OK;
 }
+static vfs_status f_list(void *c, const char *p, size_t index,
+                        vfs_dirent *out) {
+  fat32 *f = c;
+  if (!f || !f->mounted || !p || p[0] != '/' || !out)
+    return VFS_INVALID;
+  uint32_t directory = f->root_cluster;
+  if (!bytes_equal(p, "/", 2)) {
+    uint32_t parent, sector;
+    uint16_t slot;
+    uint8_t entry[32];
+    const char *leaf;
+    vfs_status status = resolve_parent(f, p, &parent, &leaf);
+    if (status != VFS_OK)
+      return status;
+    status = find_entry(f, parent, leaf, &sector, &slot, entry);
+    if (status != VFS_OK)
+      return status;
+    if (!(entry[11] & 0x10))
+      return VFS_NOT_DIRECTORY;
+    directory = entry_cluster(entry);
+    if (directory < 2 || directory >= f->clusters + 2)
+      return VFS_CORRUPT;
+  }
+  uint32_t cluster = directory;
+  uint16_t lfn[260];
+  for (size_t i = 0; i < 260; ++i)
+    lfn[i] = 0xffff;
+  uint8_t checksum = 0;
+  unsigned expected = 0;
+  size_t seen = 0;
+  for (uint32_t walked = 0; walked < f->clusters; ++walked) {
+    for (uint32_t s = 0; s < f->spc; ++s) {
+      uint32_t rel = f->data_start + (cluster - 2) * f->spc + s;
+      vfs_status status = read_sector(f, rel, f->sector);
+      if (status != VFS_OK)
+        return status;
+      for (uint16_t i = 0; i < 16; ++i) {
+        const uint8_t *entry = f->sector + i * 32;
+        if (!entry[0])
+          return VFS_NOT_FOUND;
+        if (entry[0] == 0xe5) {
+          expected = 0;
+          continue;
+        }
+        if (entry[11] == 0x0f) {
+          unsigned ordinal = entry[0] & 0x1f;
+          if (entry[0] & 0x40) {
+            for (size_t j = 0; j < 260; ++j)
+              lfn[j] = 0xffff;
+            expected = ordinal;
+            checksum = entry[13];
+          }
+          if (!ordinal || ordinal > 20 || ordinal != expected ||
+              entry[12] || entry[13] != checksum) {
+            expected = 0;
+            continue;
+          }
+          static const uint8_t offsets[] = {1, 3, 5, 7, 9, 14, 16,
+                                            18, 20, 22, 24, 28, 30};
+          for (unsigned j = 0; j < 13; ++j)
+            lfn[(ordinal - 1) * 13 + j] = u16(entry + offsets[j]);
+          --expected;
+          continue;
+        }
+        if (entry[11] & 0x08) {
+          expected = 0;
+          continue;
+        }
+        char name[256];
+        size_t length = 0;
+        if (!expected && checksum == lfn_checksum(entry)) {
+          while (length < 255 && lfn[length] && lfn[length] != 0xffff) {
+            uint16_t ch = lfn[length];
+            name[length] = ch < 0x80 ? (char)ch : '?';
+            ++length;
+          }
+        }
+        if (!length) {
+          char shortbuf[13];
+          short_name(entry, shortbuf);
+          while (shortbuf[length] && length < sizeof(name) - 1) {
+            name[length] = shortbuf[length];
+            ++length;
+          }
+        }
+        name[length] = 0;
+        expected = 0;
+        if (!length || bytes_equal(name, ".", 2) ||
+            bytes_equal(name, "..", 3))
+          continue;
+        if (seen++ != index)
+          continue;
+        bytes_copy(out->name, name, length + 1);
+        out->kind = (entry[11] & 0x10) ? VFS_DIRECTORY : VFS_FILE;
+        out->size = u32(entry + 28);
+        return VFS_OK;
+      }
+    }
+    uint32_t next;
+    vfs_status status = next_cluster(f, cluster, &next);
+    if (status != VFS_OK)
+      return status;
+    if (!next)
+      return VFS_NOT_FOUND;
+    cluster = next;
+  }
+  return VFS_CORRUPT;
+}
 static vfs_status f_read(void *c, const char *p, uint64_t off, void *b,
                          size_t n, size_t *done) {
   fat32 *f = c;
@@ -1141,7 +1249,8 @@ static void f_destroy(void *c) {
   f->mounted = 0;
 }
 const vfs_ops fat32_operations = {flookup,  f_create, f_read, f_write,
-                                  f_remove, f_rename, f_sync, f_destroy};
+                                  f_remove, f_rename, f_sync, f_destroy,
+                                  f_list};
 vfs_status fat32_mount(fat32 *f, block_device *d, uint64_t start,
                        uint32_t sectors, const vfs_memory *m) {
   if (!f || !d || !m || !m->allocate || !m->deallocate ||

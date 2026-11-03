@@ -181,6 +181,12 @@ jobs:
           cmake -S tests/m26 -B build/m26-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
           cmake --build build/m26-tests
           ctest --test-dir build/m26-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m26/ctest.xml"
+      - name: M27 services, shell, capabilities và reboot BIOS/UEFI
+        timeout-minutes: 120
+        run: |
+          cmake -S tests/m27 -B build/m27-tests -G Ninja -DPython3_EXECUTABLE="$GITHUB_WORKSPACE/.venv/bin/python"
+          cmake --build build/m27-tests
+          ctest --test-dir build/m27-tests --no-tests=error --output-on-failure --output-junit "$GITHUB_WORKSPACE/out/m27/ctest.xml"
       - name: Kiểm tra tài liệu
         run: python3 scripts/validate_docs.py
       - name: Lưu M03 cross evidence
@@ -508,4 +514,20 @@ jobs:
             out/m26/runs/**/qmp.log
             build/m26-*/build.json
             build/m26-*/kernel.inspection.txt
+          if-no-files-found: warn
+      - name: Lưu M27 service reports và guest serial, không upload test disk/image/firmware
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m27-services-reports
+          path: |
+            out/m27/*.xml
+            out/m27/results/*.json
+            out/m27/runs/**/serial.log
+            out/m27/runs/**/stderr.log
+            out/m27/runs/**/qmp.log
+            build/m27-*/build.json
+            build/m27-*/kernel.inspection.txt
+            build/m27-*/init.inspection.txt
+            build/m27-*/shell.inspection.txt
           if-no-files-found: warn

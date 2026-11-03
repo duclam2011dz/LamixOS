@@ -568,6 +568,47 @@ scheduler_status scheduler_create(scheduler *state, scheduler_entry entry,
   return SCHED_OK;
 }
 
+scheduler_status scheduler_create_user(scheduler *state,
+                                       uintptr_t user_entry,
+                                       uintptr_t user_stack,
+                                       uint8_t priority,
+                                       void *private_context,
+                                       scheduler_thread **thread_out) {
+  if (!state || !user_entry || !user_stack ||
+      priority > SCHED_PRIORITY_MAX || !thread_out)
+    return SCHED_INVALID;
+  *thread_out = 0;
+  uintptr_t flags = lock_scheduler(state);
+  scheduler_thread *thread = new_thread(state, thread_trampoline, 0,
+                                        priority, 0);
+  if (!thread) {
+    unlock_scheduler(state, flags);
+    return SCHED_OUT_OF_MEMORY;
+  }
+  thread->frame->rip = user_entry;
+  thread->frame->cs = (uintptr_t)0x23u;
+  thread->frame->rflags = INITIAL_RFLAGS & ~(uintptr_t)(3u << 12);
+  thread->frame->rsp = user_stack;
+  thread->frame->ss = (uintptr_t)0x1bu;
+  thread->user_mode = 1;
+  thread->private_context = private_context;
+  thread->affinity_mask = (UINT64_C(1) << state->cpu_limit) - 1u;
+  uint32_t target_id = 0;
+  scheduler_cpu *target = least_loaded_cpu(state, thread->affinity_mask,
+                                           &target_id);
+  if (!target) {
+    state->operations.deallocate(state->operations.context, thread->stack);
+    state->operations.deallocate(state->operations.context, thread);
+    --state->live_threads;
+    unlock_scheduler(state, flags);
+    return SCHED_BAD_STATE;
+  }
+  queue_append(state, target, target_id, thread);
+  *thread_out = thread;
+  unlock_scheduler(state, flags);
+  return SCHED_OK;
+}
+
 scheduler_status scheduler_begin(scheduler *state) {
   if (!state || !state->cpu0.current || state->active)
     return SCHED_BAD_STATE;

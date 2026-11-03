@@ -242,6 +242,12 @@ typedef struct m17_gpu_pci_context {
 static m17_gpu_pci_context m17_pci_context;
 static virtio_gpu m17_gpu;
 static virtio_gpu_memory m17_memory;
+#if defined(LAMIX_M27_PROFILE)
+static graphics_surface m27_surface;
+static uint8_t m27_surface_ready, m27_gpu_ready;
+static uint32_t m27_cursor_x, m27_cursor_y;
+static void m27_console_char(char character);
+#endif
 static uint8_t m17_descriptors[4096] __attribute__((aligned(4096)));
 static uint8_t m17_available[4096] __attribute__((aligned(4096)));
 static uint8_t m17_used[4096] __attribute__((aligned(4096)));
@@ -273,6 +279,20 @@ static volatile uint32_t m26_fs_lock_word;
 static uintptr_t m26_fs_lock_flags[LAMIX_M24_MAX_CPUS];
 static uint8_t m26_persist_data[32];
 #endif
+#if defined(LAMIX_M27_PROFILE)
+static vfs m27_filesystem;
+static tmpfs m27_root;
+static fat32 m27_data;
+static vfs_mount m27_root_mount, m27_data_mount;
+static uint8_t m27_filesystem_ready;
+static uint8_t m27_log_bytes[4096];
+static uint64_t m27_log_total;
+static process_operations m27_process_operations;
+static uint64_t m27_next_process_id = 100;
+static process *m27_shell_service;
+/* 1=stopped, 2=restart pending, 3=start pending. */
+static volatile uint32_t m27_shell_request = 3;
+#endif
 static uint8_t m25_descriptors[4096] __attribute__((aligned(4096)));
 static uint8_t m25_available[4096] __attribute__((aligned(4096)));
 static uint8_t m25_used[4096] __attribute__((aligned(4096)));
@@ -289,6 +309,10 @@ static volatile uint32_t m25_async_failures;
 static int m25_block_test(void);
 #else
 static int m26_filesystem_test(void);
+#if defined(LAMIX_M27_PROFILE)
+static int m27_filesystem_init(void);
+static int m27_reboot_marker_check(void);
+#endif
 #endif
 #endif
 #if defined(LAMIX_M19_SCHEDULER)
@@ -389,6 +413,52 @@ m24_serial_leave(token);
 #endif
 }
 static void serial_init(void){out8(COM1+1,0);out8(COM1+3,0x80);out8(COM1,1);out8(COM1+1,0);out8(COM1+3,3);out8(COM1+2,0xc7);out8(COM1+4,0x0b);serial_ready=1;}
+#if defined(LAMIX_M27_PROFILE) && defined(LAMIX_M16_GRAPHICS)
+static void m27_console_present(void) {
+  if (!m27_surface_ready || !graphics_present(&m27_surface)) return;
+  if (m27_gpu_ready)
+    (void)virtio_gpu_present(&m17_gpu, m27_surface.pixels,
+        (size_t)m27_surface.width * m27_surface.height);
+}
+static void m27_console_char(char character) {
+  if (!m27_surface_ready) return;
+  uint32_t top = 136;
+  if (character == '\r') return;
+  if (character == '\n') {
+    m27_cursor_x = 8;
+    m27_cursor_y += 16;
+  } else if (character == '\b') {
+    if (m27_cursor_x >= 16) m27_cursor_x -= 8;
+    graphics_fill_rect(&m27_surface, (int32_t)m27_cursor_x,
+        (int32_t)m27_cursor_y, 8, 16, UINT32_C(0x00101828));
+  } else {
+    char text[2] = {character, 0};
+    graphics_text(&m27_surface, (int32_t)m27_cursor_x,
+        (int32_t)m27_cursor_y, text, UINT32_C(0x00ffffff));
+    m27_cursor_x += 8;
+  }
+  if (m27_cursor_x + 8 >= m27_surface.width) {
+    m27_cursor_x = 8;
+    m27_cursor_y += 16;
+  }
+  if (m27_cursor_y + 16 >= m27_surface.height) {
+    graphics_fill_rect(&m27_surface, 0, (int32_t)top, m27_surface.width,
+        m27_surface.height - top, UINT32_C(0x00101828));
+    m27_cursor_x = 8;
+    m27_cursor_y = top;
+  }
+  m27_console_present();
+}
+#endif
+#if defined(LAMIX_M27_PROFILE)
+static void m27_log_append(const uint8_t *bytes, size_t length) {
+  for (size_t i = 0; i < length; ++i) {
+    uint64_t at = __atomic_load_n(&m27_log_total, __ATOMIC_RELAXED);
+    m27_log_bytes[at % sizeof(m27_log_bytes)] = bytes[i];
+    __atomic_store_n(&m27_log_total, at + 1, __ATOMIC_RELEASE);
+  }
+}
+#endif
 __attribute__((noreturn)) static void halt(void){__asm__ volatile("cli");for(;;)__asm__ volatile("hlt");}
 __attribute__((noreturn)) static void panic_frame(const interrupt_frame*f){
   serial("M08:PANIC\nvector=");hex(f->vector);serial(" error=");hex(f->error);serial(" rip=");hex(f->rip);serial(" cs=");hex(f->cs);serial(" rflags=");hex(f->rflags);serial(" rsp=");hex(f->rsp);
@@ -406,8 +476,16 @@ static uintptr_t m24_lock_acquire(volatile uint32_t *word) {
   uintptr_t flags;
   __asm__ volatile("pushfq; pop %0; cli" : "=r"(flags) :: "memory");
   uint32_t id = m24_current_cpu_id();
-  while (__atomic_exchange_n(word, 1u, __ATOMIC_ACQUIRE)) {
+  for (;;) {
+    if (!__atomic_exchange_n(word, 1u, __ATOMIC_ACQUIRE)) {
+      if (id < LAMIX_M24_MAX_CPUS)
+        __atomic_store_n(&m24_cpu_locals[id].lock_waiting, 0u,
+                         __ATOMIC_RELEASE);
+      return flags;
+    }
     if (id < LAMIX_M24_MAX_CPUS) {
+      /* The wait marker lets a shootdown IPI bypass scheduler-lock paths
+         during this interruptible pause. */
       __atomic_store_n(&m24_cpu_locals[id].lock_waiting, 1u, __ATOMIC_RELEASE);
       __asm__ volatile("sti; pause; cli" ::: "memory");
       __atomic_store_n(&m24_cpu_locals[id].lock_waiting, 0u, __ATOMIC_RELEASE);
@@ -415,7 +493,6 @@ static uintptr_t m24_lock_acquire(volatile uint32_t *word) {
       __asm__ volatile("pause" ::: "memory");
     }
   }
-  return flags;
 }
 static void m24_irq_wait(void *context) {
   (void)context;
@@ -684,6 +761,405 @@ static volatile uint8_t *m22_access_page(void *ctx,uint64_t frame){process *p=ct
 static int m22_map_page(void *ctx,uint64_t va,uint64_t frame,uint32_t rights){process *p=ctx;uint32_t permissions=VMM_USER;if(rights&LAMIX_RIGHT_SHM_READ)permissions|=VMM_READ;if(rights&LAMIX_RIGHT_SHM_WRITE)permissions|=VMM_WRITE;return vmm_map_range(&p->address_space,va,frame,VMM_PAGE_SIZE,permissions,0)==VMM_OK;}
 static int m22_unmap_page(void *ctx,uint64_t va){process *p=ctx;return vmm_unmap_range(&p->address_space,va,VMM_PAGE_SIZE)==VMM_OK;}
 static int64_t m22_error(lamix_ipc_status s){switch(s){case LI_OK:return 0;case LI_BADF:return -LAMIX_EBADF;case LI_ACCESS:return -LAMIX_EACCES;case LI_AGAIN:return -LAMIX_EAGAIN;case LI_MSGSIZE:return -LAMIX_EMSGSIZE;case LI_NOMEM:return -LAMIX_ENOMEM;case LI_CLOSED:return -LAMIX_ECLOSED;case LI_EXISTS:return -LAMIX_EEXIST;case LI_FAULT:return -LAMIX_EFAULT;case LI_TOO_MANY:return -LAMIX_EMFILE;default:return -LAMIX_EINVAL;}}
+#if defined(LAMIX_M27_PROFILE)
+static int m27_user_string(process *, uint64_t, char *, size_t);
+static int m27_string_equal(const char *left, const char *right) {
+  if (!left || !right) return 0;
+  while (*left && *right && *left == *right) { ++left; ++right; }
+  return *left == *right;
+}
+static int m27_has_capability(process *p, uint32_t rights) {
+  if (!p || !p->m27_capability_handle) return 0;
+  lamix_object *object = 0;
+  lamix_handle_status status = lamix_handle_lookup(&p->handles,
+      p->m27_capability_handle, LAMIX_OBJECT_CAPABILITY, rights, &object);
+  if (status == LH_OK) lamix_object_release(object);
+  return status == LH_OK;
+}
+static uint32_t m27_capability_rights(process *p) {
+  uint32_t rights = 0;
+  if (!p || !p->m27_capability_handle ||
+      lamix_handle_rights(&p->handles, p->m27_capability_handle, &rights) != LH_OK)
+    return 0;
+  lamix_object *object = 0;
+  if (lamix_handle_lookup(&p->handles, p->m27_capability_handle,
+      LAMIX_OBJECT_CAPABILITY, 0, &object) != LH_OK) return 0;
+  lamix_object_release(object);
+  return rights;
+}
+typedef struct m27_process_object {
+  lamix_object object;
+  process *child;
+} m27_process_object;
+static void m27_process_destroy(lamix_object *object) {
+  m27_process_object *handle = (m27_process_object *)object;
+  process *child = handle->child;
+  if (child) {
+    process *expected = child;
+    (void)__atomic_compare_exchange_n(&m27_shell_service, &expected, 0, 0,
+                                      __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+    process_state state = __atomic_load_n(&child->state, __ATOMIC_ACQUIRE);
+    if (state == PROCESS_READY || state == PROCESS_RUNNING) {
+      (void)process_request_kill(child);
+      (void)process_wait(child, 0, 0);
+    }
+    scheduler_collect_retired(&m19_scheduler);
+    if (child->state != PROCESS_EMPTY) (void)process_destroy(child);
+    m19_deallocate(0, child);
+  }
+  m19_deallocate(0, handle);
+}
+static int64_t m27_process_call(process *parent, uint64_t number,
+                                uint64_t a0, uint64_t a1, uint64_t a2,
+                                uint64_t a3, uint64_t a4) {
+  if (number == LAMIX_SYS_PROCESS_SPAWN) {
+    if (!m27_has_capability(parent, LAMIX_RIGHT_PROCESS_SPAWN))
+      return -LAMIX_EACCES;
+    char path[128], args_storage[8][128];
+    const char *args[8];
+    if (!m27_user_string(parent, a0, path, sizeof(path)) ||
+        a2 > 8 || (a2 && !a1)) return -LAMIX_EINVAL;
+    if (path[0] != '/' || !m22_validate_write(parent, a3, sizeof(uint64_t)))
+      return -LAMIX_EFAULT;
+    for (size_t i = 0; path[i]; ++i)
+      if (path[i] == '.' && path[i + 1] == '.' &&
+          (path[i + 2] == '/' || path[i + 2] == 0)) return -LAMIX_EINVAL;
+    for (size_t i = 0; i < (size_t)a2; ++i) {
+      uint64_t user_arg = 0;
+      if (a1 > UINT64_MAX - i * sizeof(user_arg) ||
+          !m21_copy_user(parent, a1 + i * sizeof(user_arg),
+                         (uint8_t *)&user_arg, sizeof(user_arg)) ||
+          !m27_user_string(parent, user_arg, args_storage[i],
+                           sizeof(args_storage[i]))) return -LAMIX_EFAULT;
+      args[i] = args_storage[i];
+    }
+    const char *environment[] = {"MODE=m27"};
+    extern const uint8_t m23_initramfs_start[], m23_initramfs_end[];
+    size_t archive_size = (size_t)(m23_initramfs_end - m23_initramfs_start);
+    const char *name = path;
+    while (*name == '/') ++name;
+    if (name[0] == 'b' && name[1] == 'i' && name[2] == 'n' && name[3] == '/')
+      name += 4;
+    const char *slash = name;
+    while (*slash && *slash != '/') ++slash;
+    if (*slash) return -LAMIX_EINVAL;
+    lamix_initramfs_file image;
+    if (lamix_initramfs_find(m23_initramfs_start, archive_size, name,
+                             &image) != LAMIX_INITRAMFS_OK) {
+      serial("M27:SPAWN:IMAGE_FAIL\n");
+      return -LAMIX_ENOENT;
+    }
+    m27_process_object *handle = m19_allocate(0, sizeof(*handle));
+    process *child = m19_allocate(0, sizeof(*child));
+    if (!handle || !child) {
+      if (handle) m19_deallocate(0, handle);
+      if (child) m19_deallocate(0, child);
+      return -LAMIX_ENOMEM;
+    }
+    uint32_t parent_rights = m27_capability_rights(parent);
+    const uint32_t all_rights = LAMIX_RIGHT_FILE_READ |
+        LAMIX_RIGHT_FILE_WRITE | LAMIX_RIGHT_FILE_ENUM |
+        LAMIX_RIGHT_SERVICE_CONTROL | LAMIX_RIGHT_SYSTEM_REBOOT |
+        LAMIX_RIGHT_LOG_READ | LAMIX_RIGHT_PROCESS_WAIT |
+        LAMIX_RIGHT_PROCESS_KILL | LAMIX_RIGHT_PROCESS_SPAWN;
+    if (a4 > UINT32_MAX || (a4 & ~all_rights) ||
+        ((uint32_t)a4 & ~parent_rights)) return -LAMIX_EACCES;
+    process_operations child_operations = m27_process_operations;
+    child_operations.initial_m27_permissions = (uint32_t)a4;
+    process_status created = process_create_elf(child, &child_operations,
+        &kernel_space, &m19_scheduler, ++m27_next_process_id,
+        image.data, image.size, args, (size_t)a2, environment, 1, 2);
+    int is_shell = m27_string_equal(name, "shell.elf") ||
+                   m27_string_equal(name, "shell");
+    if (created == PROCESS_OK && is_shell) {
+      /* PS/2 and UART IRQ ownership remains on BSP. Keep the interactive
+         service there until console input has per-CPU routing. */
+      if (scheduler_set_affinity(child->thread, UINT64_C(1)) != SCHED_OK) {
+        (void)process_request_kill(child);
+        (void)process_wait(child, 0, 0);
+        scheduler_collect_retired(&m19_scheduler);
+        (void)process_destroy(child);
+        m19_deallocate(0, child); m19_deallocate(0, handle);
+        return -LAMIX_ESTATE;
+      }
+    }
+    if (created != PROCESS_OK) {
+      serial("M27:SPAWN:CREATE_FAIL status="); hex(created); serial("\n");
+      m19_deallocate(0, child); m19_deallocate(0, handle);
+      return -LAMIX_EINVAL;
+    }
+    handle->child = child;
+    lamix_object_init(&handle->object, LAMIX_OBJECT_PROCESS, child,
+                      m27_process_destroy);
+    uint64_t value = 0;
+    lamix_handle_status installed = lamix_handle_install(&parent->handles,
+        &handle->object, LAMIX_RIGHT_PROCESS_WAIT | LAMIX_RIGHT_PROCESS_KILL,
+        &value);
+    lamix_object_release(&handle->object);
+    if (installed != LH_OK)
+      return installed == LH_TOO_MANY ? -LAMIX_EMFILE : -LAMIX_ENOMEM;
+    if (is_shell) {
+      __atomic_store_n(&m27_shell_service, child, __ATOMIC_RELEASE);
+      __atomic_store_n(&m27_shell_request, 0, __ATOMIC_RELEASE);
+    }
+    if (!m22_write_user(parent, a3, (const uint8_t *)&value, sizeof(value))) {
+      (void)lamix_handle_close(&parent->handles, value);
+      return -LAMIX_EFAULT;
+    }
+    return 0;
+  }
+  if (number == LAMIX_SYS_PROCESS_WAIT || number == LAMIX_SYS_PROCESS_KILL) {
+    uint32_t needed = number == LAMIX_SYS_PROCESS_WAIT
+        ? LAMIX_RIGHT_PROCESS_WAIT : LAMIX_RIGHT_PROCESS_KILL;
+    lamix_object *object = 0;
+    lamix_handle_status status = lamix_handle_lookup(&parent->handles, a0,
+        LAMIX_OBJECT_PROCESS, needed, &object);
+    if (status != LH_OK) return status == LH_ACCESS
+        ? -LAMIX_EACCES : -LAMIX_EBADF;
+    m27_process_object *handle = (m27_process_object *)object;
+    if (number == LAMIX_SYS_PROCESS_KILL) {
+      process_status killed = process_request_kill(handle->child);
+      lamix_object_release(object);
+      return killed == PROCESS_OK ? 0 : -LAMIX_ESTATE;
+    }
+    if (!m22_validate_write(parent, a1, sizeof(uint64_t))) {
+      lamix_object_release(object); return -LAMIX_EFAULT;
+    }
+    process_state state = process_wait(handle->child, 0, 0);
+    uint64_t exit_code = handle->child->exit_code;
+    lamix_object_release(object);
+    if (!m22_write_user(parent, a1, (const uint8_t *)&exit_code,
+                        sizeof(exit_code))) return -LAMIX_EFAULT;
+    return state == PROCESS_EXITED && !exit_code ? 0 : -LAMIX_ECHILD;
+  }
+  return -LAMIX_ENOSYS;
+}
+typedef struct m27_file_object { lamix_object object; vfs_file file; } m27_file_object;
+static void m27_file_destroy(lamix_object *object) {
+  m27_file_object *file = (m27_file_object *)object;
+  (void)vfs_close(&file->file);
+  m19_deallocate(0, file);
+}
+static int m27_user_string(process *p, uint64_t address, char *out,
+                           size_t capacity) {
+  if (!address || !out || capacity < 2) return 0;
+  for (size_t i = 0; i < capacity; ++i) {
+    if (address > UINT64_MAX - i) return 0;
+    if (!m21_copy_user(p, address + i, (uint8_t *)&out[i], 1)) return 0;
+    if (!out[i]) return i != 0;
+  }
+  return 0;
+}
+static int64_t m27_vfs_error(vfs_status status) {
+  switch (status) {
+  case VFS_OK: return 0;
+  case VFS_NOT_FOUND: return -LAMIX_ENOENT;
+  case VFS_EXISTS: return -LAMIX_EEXIST;
+  case VFS_NOT_DIRECTORY: return -LAMIX_ENOTDIR;
+  case VFS_IS_DIRECTORY: return -LAMIX_EISDIR;
+  case VFS_READ_ONLY: return -LAMIX_EROFS;
+  case VFS_NO_MEMORY: return -LAMIX_ENOMEM;
+  case VFS_IO_ERROR: return -LAMIX_EIO;
+  case VFS_CORRUPT: return -LAMIX_ECORRUPT;
+  case VFS_BUSY: return -LAMIX_EBUSY;
+  case VFS_TOO_LARGE: return -LAMIX_E2BIG;
+  default: return -LAMIX_EINVAL;
+  }
+}
+static int64_t m27_file_call(process *p, uint64_t number, uint64_t a0,
+                             uint64_t a1, uint64_t a2, uint64_t a3) {
+  uint8_t bytes[256];
+  char path[256], second[256];
+  uint64_t length = 0;
+  if (number == LAMIX_SYS_FILE_OPEN) {
+    if (a1 & ~3u || !a1) return -LAMIX_EINVAL;
+    uint32_t rights = 0;
+    if (a1 & 1u) rights |= LAMIX_RIGHT_FILE_READ;
+    if (a1 & 2u) rights |= LAMIX_RIGHT_FILE_WRITE;
+    if (!m27_has_capability(p, rights)) return -LAMIX_EACCES;
+    if (!m27_user_string(p, a0, path, sizeof(path)) ||
+        !m22_validate_write(p, a2, sizeof(uint64_t))) return -LAMIX_EFAULT;
+    m27_file_object *file = m19_allocate(0, sizeof(*file));
+    if (!file) return -LAMIX_ENOMEM;
+    vfs_status status = vfs_open(&m27_filesystem, path, !!(a1 & 2u),
+                                 &file->file);
+    if (status != VFS_OK) { m19_deallocate(0, file); return m27_vfs_error(status); }
+    lamix_object_init(&file->object, LAMIX_OBJECT_FILE, file, m27_file_destroy);
+    uint64_t handle;
+    lamix_handle_status hs = lamix_handle_install(&p->handles, &file->object,
+                                                   rights, &handle);
+    lamix_object_release(&file->object);
+    if (hs != LH_OK) return hs == LH_TOO_MANY ? -LAMIX_EMFILE : -LAMIX_ENOMEM;
+    return m22_write_user(p, a2, (const uint8_t *)&handle, sizeof(handle))
+               ? 0 : -LAMIX_EFAULT;
+  }
+  if (number == LAMIX_SYS_FILE_READ || number == LAMIX_SYS_FILE_WRITE) {
+    uint32_t needed = number == LAMIX_SYS_FILE_READ ? LAMIX_RIGHT_FILE_READ
+                                                    : LAMIX_RIGHT_FILE_WRITE;
+    lamix_object *object = 0;
+    lamix_handle_status hs = lamix_handle_lookup(&p->handles, a0,
+        LAMIX_OBJECT_FILE, needed, &object);
+    if (hs != LH_OK) return hs == LH_ACCESS ? -LAMIX_EACCES : -LAMIX_EBADF;
+    m27_file_object *file = (m27_file_object *)object;
+    if (a2 > sizeof(bytes)) { lamix_object_release(object); return -LAMIX_E2BIG; }
+    vfs_status status;
+    if (number == LAMIX_SYS_FILE_READ) {
+      if (!m22_validate_write(p, a1, (size_t)a2) ||
+          !m22_validate_write(p, a3, sizeof(length))) {
+        lamix_object_release(object); return -LAMIX_EFAULT;
+      }
+      size_t done = 0;
+      status = vfs_read(&file->file, bytes, (size_t)a2, &done);
+      length = done;
+      if (status == VFS_OK &&
+          (!m22_write_user(p, a1, bytes, done) ||
+           !m22_write_user(p, a3, (const uint8_t *)&length, sizeof(length))))
+        status = VFS_INVALID;
+    } else {
+      if (!m21_copy_user(p, a1, bytes, a2) ||
+          !m22_validate_write(p, a3, sizeof(length))) {
+        lamix_object_release(object); return -LAMIX_EFAULT;
+      }
+      size_t done = 0;
+      status = vfs_write(&file->file, bytes, (size_t)a2, &done);
+      length = done;
+      if (status == VFS_OK &&
+          !m22_write_user(p, a3, (const uint8_t *)&length, sizeof(length)))
+        status = VFS_INVALID;
+    }
+    lamix_object_release(object);
+    return status == VFS_INVALID ? -LAMIX_EFAULT : m27_vfs_error(status);
+  }
+  if (number == LAMIX_SYS_FILE_CREATE || number == LAMIX_SYS_FILE_REMOVE ||
+      number == LAMIX_SYS_FILE_LIST) {
+    if (!m27_user_string(p, a0, path, sizeof(path))) return -LAMIX_EFAULT;
+    vfs_status status;
+    if (number == LAMIX_SYS_FILE_CREATE) {
+      if (!m27_has_capability(p, LAMIX_RIGHT_FILE_WRITE)) return -LAMIX_EACCES;
+      if (a1 > VFS_DIRECTORY) return -LAMIX_EINVAL;
+      status = vfs_create(&m27_filesystem, path, (vfs_kind)a1);
+    } else if (number == LAMIX_SYS_FILE_REMOVE) {
+      if (!m27_has_capability(p, LAMIX_RIGHT_FILE_WRITE)) return -LAMIX_EACCES;
+      status = vfs_remove(&m27_filesystem, path);
+    } else {
+      if (!m27_has_capability(p, LAMIX_RIGHT_FILE_ENUM)) return -LAMIX_EACCES;
+      vfs_dirent entry;
+      status = vfs_list(&m27_filesystem, path, (size_t)a1, &entry);
+      if (status == VFS_OK) {
+        struct { char name[256]; uint32_t kind, reserved; uint64_t size; } user_entry;
+        for (size_t i = 0; i < sizeof(entry.name); ++i) user_entry.name[i] = entry.name[i];
+        user_entry.kind = entry.kind; user_entry.reserved = 0; user_entry.size = entry.size;
+        if (!m22_validate_write(p, a2, sizeof(user_entry)) ||
+            !m22_write_user(p, a2, (const uint8_t *)&user_entry, sizeof(user_entry)))
+          status = VFS_INVALID;
+      }
+    }
+    return status == VFS_INVALID ? -LAMIX_EFAULT : m27_vfs_error(status);
+  }
+  if (number == LAMIX_SYS_FILE_RENAME) {
+    if (!m27_has_capability(p, LAMIX_RIGHT_FILE_WRITE)) return -LAMIX_EACCES;
+    if (!m27_user_string(p, a0, path, sizeof(path)) ||
+        !m27_user_string(p, a1, second, sizeof(second))) return -LAMIX_EFAULT;
+    return m27_vfs_error(vfs_rename(&m27_filesystem, path, second));
+  }
+  if (number == LAMIX_SYS_FILE_SYNC)
+    return m27_vfs_error(vfs_sync(&m27_filesystem));
+  if (number == LAMIX_SYS_CONSOLE_READ) {
+    if (!m22_validate_write(p, a0, 1)) return -LAMIX_EFAULT;
+    char character = 0;
+    int available = 0;
+    if (in8(COM1 + 5) & 1u) {
+      character = (char)in8(COM1);
+      available = 1;
+    }
+#if defined(LAMIX_M15_INPUT)
+    if (!available) {
+      input_event event;
+      while (input_poll(&m15_input, &event)) {
+        if (event.type == INPUT_EVENT_KEY && event.data.key.pressed &&
+            event.data.key.ascii) {
+          character = (char)event.data.key.ascii;
+          available = 1;
+          break;
+        }
+      }
+    }
+#endif
+    if (!available) return -LAMIX_EAGAIN;
+    return m22_write_user(p, a0, (const uint8_t *)&character, 1)
+               ? 1 : -LAMIX_EFAULT;
+  }
+  if (number == LAMIX_SYS_LOG_READ) {
+    if (!m27_has_capability(p, LAMIX_RIGHT_LOG_READ)) return -LAMIX_EACCES;
+    if (a2 > sizeof(bytes) || !m22_validate_write(p, a1, (size_t)a2) ||
+        !m22_validate_write(p, a3, sizeof(length))) return -LAMIX_EFAULT;
+    uint64_t total = __atomic_load_n(&m27_log_total, __ATOMIC_ACQUIRE);
+    uint64_t oldest = total > sizeof(m27_log_bytes)
+        ? total - sizeof(m27_log_bytes) : 0;
+    if (a0 < oldest || a0 > total) return -LAMIX_EINVAL;
+    length = total - a0;
+    if (length > a2) length = a2;
+    for (uint64_t i = 0; i < length; ++i)
+      bytes[i] = m27_log_bytes[(a0 + i) % sizeof(m27_log_bytes)];
+    if (!m22_write_user(p, a1, bytes, (size_t)length) ||
+        !m22_write_user(p, a3, (const uint8_t *)&length, sizeof(length)))
+      return -LAMIX_EFAULT;
+    return 0;
+  }
+  if (number == LAMIX_SYS_SERVICE_CONTROL) {
+    if (!m27_has_capability(p, LAMIX_RIGHT_SERVICE_CONTROL))
+      return -LAMIX_EACCES;
+    if (a0 > 3 || a1 >= 2) return -LAMIX_EINVAL;
+    if (a1 == 0) {
+      if (a0 != 0) return -LAMIX_EACCES;
+      process_state state = __atomic_load_n(&m20_process_a.state,
+                                             __ATOMIC_ACQUIRE);
+      return state == PROCESS_READY || state == PROCESS_RUNNING ? 0 :
+             state == PROCESS_FAULTED ? 2 : 1;
+    }
+    process *service = __atomic_load_n(&m27_shell_service,
+                                        __ATOMIC_ACQUIRE);
+    if (a0 == 0) {
+      if (service) {
+        process_state state = __atomic_load_n(&service->state,
+                                               __ATOMIC_ACQUIRE);
+        if (state == PROCESS_READY || state == PROCESS_RUNNING) return 0;
+        if (state == PROCESS_FAULTED) return 2;
+      }
+      return (int64_t)__atomic_load_n(&m27_shell_request, __ATOMIC_ACQUIRE);
+    }
+    if (a0 == 1) {
+      if (service) {
+        process_state state = __atomic_load_n(&service->state,
+                                               __ATOMIC_ACQUIRE);
+        if (state == PROCESS_READY || state == PROCESS_RUNNING) return 0;
+      }
+      __atomic_store_n(&m27_shell_request, 3, __ATOMIC_RELEASE);
+      return 0;
+    }
+    if (a0 == 2 || a0 == 3) {
+      __atomic_store_n(&m27_shell_request, a0 == 2 ? 1u : 2u,
+                       __ATOMIC_RELEASE);
+      if (service) {
+        process_status killed = process_request_kill(service);
+        return killed == PROCESS_OK ? 0 : -LAMIX_ESTATE;
+      }
+      return 0;
+    }
+    return -LAMIX_EINVAL;
+  }
+  if (number == LAMIX_SYS_SYSTEM_REBOOT) {
+    if (!m27_has_capability(p, LAMIX_RIGHT_SYSTEM_REBOOT))
+      return -LAMIX_EACCES;
+    if (vfs_sync(&m27_filesystem) != VFS_OK) return -LAMIX_EIO;
+    /* QEMU's i440fx/q35 reset control port: INIT + system reset. */
+    out8(0x0cf9, 0x06);
+    out8(0x0cf9, 0x0e);
+    for (;;) __asm__ volatile("cli; hlt" ::: "memory");
+  }
+  return -LAMIX_ENOSYS;
+}
+#endif
 static int64_t m22_call(void *context,uint64_t number,uint64_t a0,uint64_t a1,uint64_t a2,uint64_t a3,uint64_t a4,uint64_t a5){
   process *p=context;lamix_ipc_ops io={p,m22_alloc,m22_free,m22_lock,m22_unlock};uint64_t value=0;lamix_handle_status hs;
   if(number==LAMIX_SYS_HANDLE_CLOSE)return (lamix_handle_close(&p->handles,a0)==LH_OK)?0:-LAMIX_EBADF;
@@ -695,6 +1171,13 @@ static int64_t m22_call(void *context,uint64_t number,uint64_t a0,uint64_t a1,ui
   if(number==LAMIX_SYS_SHM_CREATE){if(a0>UINT32_MAX)return -LAMIX_EINVAL;if(!m22_validate_write(p,a1,sizeof(value)))return -LAMIX_EFAULT;lamix_ipc_status s=lamix_shm_create(&p->handles,&so,(uint32_t)a0,&value);if(s!=LI_OK)return m22_error(s);if(!m22_write_user(p,a1,(const uint8_t *)&value,sizeof(value))){(void)lamix_handle_close(&p->handles,value);return -LAMIX_EFAULT;}return 0;}
   if(number==LAMIX_SYS_SHM_MAP){if(a2>UINT32_MAX)return -LAMIX_EINVAL;return m22_error(lamix_shm_map(&p->handles,&so,&p->shm_mappings,a0,a1,(uint32_t)a2));}
   if(number==LAMIX_SYS_SHM_UNMAP)return m22_error(lamix_shm_unmap(&so,&p->shm_mappings,a0));
+#if defined(LAMIX_M27_PROFILE)
+  if (number >= LAMIX_SYS_PROCESS_SPAWN &&
+      number <= LAMIX_SYS_PROCESS_KILL)
+    return m27_process_call(p, number, a0, a1, a2, a3, a4);
+  if (number >= LAMIX_SYS_FILE_OPEN && number <= LAMIX_SYS_CONSOLE_READ)
+    return m27_file_call(p, number, a0, a1, a2, a3);
+#endif
   (void)a5;return -LAMIX_ENOSYS;
 }
 #endif
@@ -715,12 +1198,19 @@ static int64_t m21_debug_write(void *context, uint64_t pointer,
   uint8_t copy[LAMIX_SYSCALL_MAX_WRITE];
   if (!m21_copy_user(instance, pointer, copy, length))
     return -LAMIX_EFAULT;
+#if defined(LAMIX_M27_PROFILE)
+  m27_log_append(copy, (size_t)length);
+#endif
 #if defined(LAMIX_M24_SMP)
   /* Keep concurrent process writes contiguous in the serial stream. */
   int serial_token = m24_serial_enter();
 #endif
   for (uint64_t i = 0; i < length; ++i)
     serial_char((char)copy[i]);
+#if defined(LAMIX_M27_PROFILE) && defined(LAMIX_M16_GRAPHICS)
+  for (uint64_t i = 0; i < length; ++i)
+    m27_console_char((char)copy[i]);
+#endif
 #if defined(LAMIX_M24_SMP)
   m24_serial_leave(serial_token);
 #endif
@@ -808,8 +1298,15 @@ static void m20_run(void) {
   extern const uint8_t m23_initramfs_start[], m23_initramfs_end[];
   const size_t archive_size = (size_t)(m23_initramfs_end - m23_initramfs_start);
   lamix_initramfs_file alpha, beta;
+#if defined(LAMIX_M27_PROFILE)
+  static const char *const alpha_argv[] = {"init"};
+  static const char *const beta_argv[] = {"alpha", "a"};
+  const size_t alpha_argc = 1, beta_argc = 2;
+#else
   static const char *const alpha_argv[] = {"alpha", "a"};
   static const char *const beta_argv[] = {"beta", "b"};
+  const size_t alpha_argc = 2, beta_argc = 2;
+#endif
   static const char *const environment[] = {"MODE=m23"};
   process_operations operations = {.context = 0,
       .allocate_frame = m20_allocate_frame, .release_frame = m20_release_frame,
@@ -817,6 +1314,13 @@ static void m20_run(void) {
       .vmm = {.context = 0, .allocate_page = vmm_allocate,
         .release_page = vmm_release, .access_page = vmm_access,
         .invalidate = vmm_invalidate}};
+#if defined(LAMIX_M27_PROFILE)
+  operations.initial_m27_permissions = LAMIX_RIGHT_FILE_READ |
+      LAMIX_RIGHT_FILE_WRITE | LAMIX_RIGHT_FILE_ENUM |
+      LAMIX_RIGHT_SERVICE_CONTROL | LAMIX_RIGHT_SYSTEM_REBOOT |
+      LAMIX_RIGHT_LOG_READ | LAMIX_RIGHT_PROCESS_SPAWN;
+  m27_process_operations = operations;
+#endif
   scheduler_operations scheduler_ops = {0, m19_allocate, m19_deallocate,
       m19_irq_save, m19_irq_restore, m19_request_reschedule, m19_fatal,
       m20_context_switch,
@@ -832,10 +1336,17 @@ static void m20_run(void) {
       0
 #endif
   };
+#if defined(LAMIX_M27_PROFILE)
+  if (lamix_initramfs_find(m23_initramfs_start, archive_size, "init.elf",
+                           &alpha) != LAMIX_INITRAMFS_OK ||
+      lamix_initramfs_find(m23_initramfs_start, archive_size, "alpha.elf",
+                           &beta) != LAMIX_INITRAMFS_OK) {
+#else
   if (lamix_initramfs_find(m23_initramfs_start, archive_size, "alpha.elf",
                            &alpha) != LAMIX_INITRAMFS_OK ||
       lamix_initramfs_find(m23_initramfs_start, archive_size, "beta.elf",
                            &beta) != LAMIX_INITRAMFS_OK) {
+#endif
     serial("M23:INITRAMFS:FAIL\nM23:FAIL\n"); halt();
   }
   m20_boot_stack_top = m20_boot_stack_top ? m20_boot_stack_top : tss.rsp0;
@@ -846,6 +1357,13 @@ static void m20_run(void) {
   scheduler_status sched = scheduler_init(&m19_scheduler, &scheduler_ops,
                                            m20_user_idle);
 #endif
+#if defined(LAMIX_M27_PROFILE)
+  if (sched != SCHED_OK || !m27_filesystem_init()) {
+    serial("M27:VFS:FAIL\nM27:FAIL\n"); halt();
+  }
+  if (m27_reboot_marker_check())
+    for (;;) __asm__ volatile("cli; hlt" ::: "memory");
+#endif
   uint8_t *bad_elf = sched == SCHED_OK
       ? m19_allocate(0, alpha.size) : 0;
   if (!bad_elf) {
@@ -855,7 +1373,7 @@ static void m20_run(void) {
   bad_elf[0] = 0;
   process_status malformed = process_create_elf(&m23_rejected_process,
       &operations, &kernel_space, &m19_scheduler, 99, bad_elf, alpha.size,
-      alpha_argv, 2, environment, 1, 2);
+      alpha_argv, alpha_argc, environment, 1, 2);
   m19_deallocate(0, bad_elf);
   if (malformed != PROCESS_INVALID) {
     serial("M23:MALFORMED_ELF:FAIL\nM23:FAIL\n");halt();
@@ -863,14 +1381,20 @@ static void m20_run(void) {
   serial("M23:MALFORMED_ELF:PASS\n");
   process_status a = sched == SCHED_OK
       ? process_create_elf(&m20_process_a, &operations, &kernel_space,
-          &m19_scheduler, 1, alpha.data, alpha.size, alpha_argv, 2,
+          &m19_scheduler, 1, alpha.data, alpha.size, alpha_argv, alpha_argc,
           environment, 1, 2) : PROCESS_SCHEDULER_ERROR;
+#if defined(LAMIX_M27_PROFILE)
+  process_operations restricted_operations = operations;
+  restricted_operations.initial_m27_permissions = 0;
+#else
+  process_operations restricted_operations = operations;
+#endif
   process_status b = a == PROCESS_OK
-      ? process_create_elf(&m20_process_b, &operations, &kernel_space,
-          &m19_scheduler, 2, beta.data, beta.size, beta_argv, 2,
+      ? process_create_elf(&m20_process_b, &restricted_operations, &kernel_space,
+          &m19_scheduler, 2, beta.data, beta.size, beta_argv, beta_argc,
           environment, 1, 2) : PROCESS_SCHEDULER_ERROR;
-  scheduler_status begin = b == PROCESS_OK ? scheduler_begin(&m19_scheduler)
-                                           : SCHED_BAD_STATE;
+  scheduler_status begin = a == PROCESS_OK && b == PROCESS_OK
+      ? scheduler_begin(&m19_scheduler) : SCHED_BAD_STATE;
   if (sched != SCHED_OK || a != PROCESS_OK || b != PROCESS_OK ||
       begin != SCHED_OK) {
     serial("M23:CREATE:FAIL sched=");hex(sched);serial(" a=");hex(a);
@@ -879,6 +1403,16 @@ static void m20_run(void) {
   }
   m19_scheduler_ready = 1;
 #if defined(LAMIX_M24_SMP)
+#if defined(LAMIX_M27_PROFILE)
+  /* M27 may load/reap ELF processes after APs come online. Commit bounded
+     heap backing for their metadata up front, so a process operation cannot
+     unexpectedly grow the shared kernel heap while another CPU is running. */
+  void *process_heap_reserve = m19_allocate(0, 1024u * 1024u);
+  if (!process_heap_reserve) {
+    serial("M27:PROCESS_HEAP_RESERVE:FAIL\nM27:FAIL\n"); halt();
+  }
+  m19_deallocate(0, process_heap_reserve);
+#endif
   if (!m24_start_aps()) {
     serial("M24:AP_START:FAIL\nM24:FAIL\n"); halt();
   }
@@ -899,9 +1433,19 @@ static void m20_run(void) {
   }
 #if defined(LAMIX_M25_BLOCK)
 #if defined(LAMIX_M26_FS)
+#if !defined(LAMIX_M27_PROFILE)
   if (!m26_filesystem_test()) halt();
+#endif
 #else
   if (!m25_block_test()) halt();
+#endif
+#if defined(LAMIX_M27_PROFILE)
+  if (vfs_sync(&m27_filesystem) != VFS_OK) {
+    serial("M27:SYNC:FAIL\nM27:FAIL\n"); halt();
+  }
+  /* This is a profile smoke test manager, not proof of a user-space
+     service manager.  Keep the marker scoped to what actually ran. */
+  serial("M27:SMOKE:PASS\n");
 #endif
 #endif
 #if defined(LAMIX_M24_SMP)
@@ -2791,7 +3335,7 @@ static void m26_fs_unlock(void *context, uintptr_t flags) {
   m26_fs_lock_flags[cpu] = 0;
   m24_lock_release(&m26_fs_lock_word, flags);
 }
-static int m26_filesystem_test(void) {
+static __attribute__((unused)) int m26_filesystem_test(void) {
   if (m25_block_init() != BLOCK_OK ||
       m25_driver.device.logical_block_size != 512) {
     serial("M26:DEVICE:FAIL\nM26:FAIL\n");
@@ -2886,6 +3430,56 @@ fail:
   vfs_destroy(&fs);
   return 0;
 }
+#if defined(LAMIX_M27_PROFILE)
+static int m27_filesystem_init(void) {
+  if (m27_filesystem_ready) return 1;
+  if (m25_block_init() != BLOCK_OK ||
+      m25_driver.device.logical_block_size != 512) return 0;
+  uint64_t first;
+  uint32_t sectors;
+  if (m26_gpt_user_extent(&m25_driver.device, &first, &sectors) != VFS_OK)
+    return 0;
+  vfs_memory memory = {0, m19_allocate, m19_deallocate, m26_fs_lock,
+                       m26_fs_unlock};
+  if (vfs_init(&m27_filesystem, &memory) != VFS_OK ||
+      tmpfs_init(&m27_root, &memory, 128) != VFS_OK ||
+      fat32_mount(&m27_data, &m25_driver.device, first, sectors, &memory) !=
+          VFS_OK ||
+      vfs_mount_fs(&m27_filesystem, "/", &tmpfs_operations, &m27_root,
+                   &m27_root_mount) != VFS_OK ||
+      vfs_mount_fs(&m27_filesystem, "/data", &fat32_operations, &m27_data,
+                   &m27_data_mount) != VFS_OK) {
+    if (m27_data.mounted) fat32_operations.destroy(&m27_data);
+    return 0;
+  }
+  m27_filesystem_ready = 1;
+  serial("M27:VFS:READY root=tmpfs data=fat32\n");
+  return 1;
+}
+static int m27_reboot_marker_check(void) {
+  vfs_file file = {0};
+  vfs_status opened = vfs_open(&m27_filesystem,
+                               "/data/M27-REBOOT.TXT", 0, &file);
+  if (opened == VFS_NOT_FOUND) return 0;
+  if (opened != VFS_OK) {
+    serial("M27:REBOOT:FAIL open\nM27:FAIL\n"); halt();
+  }
+  char bytes[16] = {0};
+  size_t count = 0;
+  vfs_status status = vfs_read(&file, bytes, sizeof(bytes), &count);
+  (void)vfs_close(&file);
+  static const char expected[] = "durable";
+  if (status != VFS_OK || count != sizeof(expected) - 1) {
+    serial("M27:REBOOT:FAIL read\nM27:FAIL\n"); halt();
+  }
+  for (size_t i = 0; i < sizeof(expected) - 1; ++i)
+    if (bytes[i] != expected[i]) {
+      serial("M27:REBOOT:FAIL contents\nM27:FAIL\n"); halt();
+    }
+  serial("M27:REBOOT:PERSIST:PASS\nM27:SMOKE:PASS\n");
+  return 1;
+}
+#endif
 #endif
 #endif
 #if defined(LAMIX_M16_GRAPHICS)
@@ -2977,6 +3571,13 @@ static int m17_renderer_init(const lbp_view *view) {
     return -1;
   }
   if (gpu_ready) serial("M17:SCANOUT:PASS\n");
+#if defined(LAMIX_M27_PROFILE)
+  m27_surface = surface;
+  m27_surface_ready = 1;
+  m27_gpu_ready = (uint8_t)gpu_ready;
+  m27_cursor_x = 8;
+  m27_cursor_y = 136;
+#endif
   serial("M17:FRAME:PASS checksum="); hex(checksum); serial("\n");
   serial("M16:RENDERER:PASS\nM16:FRAME:PASS checksum="); hex(checksum);
   serial("\nM17:READY\nM17:PASS\n");

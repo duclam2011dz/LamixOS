@@ -22,6 +22,11 @@ typedef enum vfs_status {
 } vfs_status;
 
 typedef enum vfs_kind { VFS_FILE, VFS_DIRECTORY } vfs_kind;
+typedef struct vfs_dirent {
+  char name[256];
+  vfs_kind kind;
+  uint64_t size;
+} vfs_dirent;
 typedef struct vfs_node vfs_node;
 typedef struct vfs_mount vfs_mount;
 typedef struct vfs_ops {
@@ -34,6 +39,7 @@ typedef struct vfs_ops {
   vfs_status (*rename)(void *, const char *, const char *);
   vfs_status (*sync)(void *);
   void (*destroy)(void *);
+  vfs_status (*list)(void *, const char *, size_t, vfs_dirent *);
 } vfs_ops;
 
 typedef struct vfs_memory {
@@ -74,6 +80,7 @@ vfs_status vfs_mount_fs(vfs *, const char *, const vfs_ops *, void *,
                         vfs_mount *);
 vfs_status vfs_unmount(vfs *, const char *);
 vfs_status vfs_lookup(vfs *, const char *, vfs_node *);
+vfs_status vfs_list(vfs *, const char *, size_t, vfs_dirent *);
 vfs_status vfs_create(vfs *, const char *, vfs_kind);
 vfs_status vfs_open(vfs *, const char *, int, vfs_file *);
 vfs_status vfs_close(vfs_file *);

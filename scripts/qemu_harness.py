@@ -40,6 +40,9 @@ class Config:
     qmp_screendump_path: Path | None = None
     extra_args: list[str] | None = None
     cpu_count: int = 1
+    no_reboot: bool = True
+    serial_pipe: bool = False
+    serial_input_script: list[tuple[str, str] | tuple[str, str, float]] | None = None
 
 
 @dataclass
@@ -87,9 +90,16 @@ def build_command(config, directory):
         raise ValueError("cpu_count phải nằm trong khoảng 1..16")
     command = [config.qemu, "-machine", "pc" if config.profile == "bios" else "q35",
                "-accel", "tcg", "-smp", str(config.cpu_count), "-m", "256M", "-display", "none",
-               "-nic", "none", "-monitor", "none", "-no-reboot", "-no-shutdown",
-               "-chardev", f"file,id=serial0,path={qemu_value(directory / 'serial.log')}",
-               "-serial", "chardev:serial0", "-qmp", "stdio"]
+               "-nic", "none", "-monitor", "none", "-no-shutdown"]
+    if config.no_reboot:
+        command.append("-no-reboot")
+    if config.serial_pipe:
+        command += ["-chardev", f"pipe,id=serial0,path={qemu_value(directory / 'serial')}",
+                    "-serial", "chardev:serial0"]
+    else:
+        command += ["-chardev", f"file,id=serial0,path={qemu_value(directory / 'serial.log')}",
+                    "-serial", "chardev:serial0"]
+    command += ["-qmp", "stdio"]
     if config.test_stage2_memory_mib is not None or config.test_stage2_cpu is not None:
         if config.purpose != "bios-stage2":
             raise ValueError("CPU/RAM test overrides chỉ cho bios-stage2")
@@ -139,13 +149,17 @@ def build_command(config, directory):
 class SerialScanner:
     """Theo dõi literal line bằng bộ đệm giới hạn, raw log vẫn giữ đầy đủ."""
 
-    def __init__(self, path, success, panic, trigger=None, screendump=None):
+    def __init__(self, path, success, panic, trigger=None, screendump=None,
+                 input_triggers=None):
         self.file = path.open("rb")
         self.markers = [value.encode("utf-8") if value else None for value in (success, panic)]
         self.success = False
         self.panic = False
         self.trigger = trigger.encode("utf-8") if trigger else None
         self.trigger_seen = False
+        self.input_triggers = [value.encode("utf-8") for value in
+                               (input_triggers or [])]
+        self.input_triggers_seen = [False] * len(self.input_triggers)
         self.screendump = screendump.encode("utf-8") if screendump else None
         self.screendump_seen = False
         self.buffer = bytearray()
@@ -157,6 +171,8 @@ class SerialScanner:
             self.success |= self.markers[0] is not None and line == self.markers[0]
             self.panic |= self.markers[1] is not None and line == self.markers[1]
             self.trigger_seen |= self.trigger is not None and line == self.trigger
+            for index, marker in enumerate(self.input_triggers):
+                self.input_triggers_seen[index] |= line == marker
             self.screendump_seen |= self.screendump is not None and line == self.screendump
         self.buffer.clear()
         self.discard = False
@@ -204,6 +220,7 @@ class QMP:
         self.responses = {}
         self.next_id = 10
         self.script_active = None
+        self.script_delay_until = 0.0
         self.script_done = False
         self.screendump_active = None
         self.screendump_done = False
@@ -266,6 +283,10 @@ class QMP:
     def advance_script(self, script, trigger_seen):
         if not self.ready or not trigger_seen or self.script_done:
             return
+        if self.script_delay_until:
+            if time.monotonic() < self.script_delay_until:
+                return
+            self.script_delay_until = 0.0
         if self.script_active is not None:
             response = self.responses.pop(self.script_active, None)
             if response is None:
@@ -278,6 +299,12 @@ class QMP:
                 self.script_done = True
                 return
             item = script.pop(0)
+            if isinstance(item, dict) and "delay_ms" in item:
+                delay = item["delay_ms"]
+                if not isinstance(delay, int) or not 0 <= delay <= 1000:
+                    raise ProtocolError("QMP delay_ms phải từ 0 đến 1000")
+                self.script_delay_until = time.monotonic() + delay / 1000
+                return
             if not isinstance(item, dict) or not isinstance(item.get("execute"), str):
                 raise ProtocolError("QMP script item không hợp lệ")
             identity = self.next_id
@@ -374,7 +401,8 @@ def run(config, command_factory=build_command):
     serial.touch()
     (directory / "stderr.log").touch()
     (directory / "qmp.log").touch()
-    process = qmp = scanner = None
+    process = qmp = scanner = serial_link = serial_capture = None
+    serial_pipe_paths = []
     stderr = transcript = None
     try:
         if config.purpose not in ("os", "bios-stage1", "bios-stage2", "uefi-loader"):
@@ -387,6 +415,22 @@ def run(config, command_factory=build_command):
             raise ValueError("fault injection chỉ cho BIOS stages")
         if config.profile not in ("bios", "uefi"):
             raise ValueError("profile phải là bios hoặc uefi")
+        serial_input_script = config.serial_input_script or []
+        if any(not isinstance(item, tuple) or len(item) not in (2, 3) or
+               not all(isinstance(value, str) and value for value in item[:2]) or
+               (len(item) == 3 and (not isinstance(item[2], (int, float)) or
+                                     not math.isfinite(item[2]) or item[2] < 0))
+               for item in serial_input_script):
+            raise ValueError("serial_input_script cần (marker, text[, delay_seconds])")
+        if serial_input_script and not config.serial_pipe:
+            raise ValueError("serial input cần serial_pipe")
+        if config.serial_pipe:
+            for suffix in (".in", ".out"):
+                fifo = Path(f"{directory / 'serial'}{suffix}")
+                os.mkfifo(fifo, 0o600)
+                serial_pipe_paths.append(fifo)
+            serial_link = os.open(serial_pipe_paths[0], os.O_RDWR | os.O_NONBLOCK)
+            serial_capture = os.open(serial_pipe_paths[1], os.O_RDWR | os.O_NONBLOCK)
         timeout = config.timeout if config.timeout is not None else (10 if config.launch_only else 30)
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("timeout phải hữu hạn và > 0")
@@ -420,7 +464,8 @@ def run(config, command_factory=build_command):
             script = expand_run_directory(script)
             scanner = SerialScanner(serial, config.success_marker, config.panic_marker,
                                     config.qmp_trigger_marker,
-                                    config.qmp_screendump_marker)
+                                    config.qmp_screendump_marker,
+                                    [item[0] for item in serial_input_script])
             child_env = os.environ.copy()
             child_env["TMPDIR"] = str(directory)  # Snapshot tạm thuộc đúng run, không /var/tmp host.
             process = subprocess.Popen(result.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -428,6 +473,12 @@ def run(config, command_factory=build_command):
             result.pid = process.pid
             qmp = QMP(process, transcript)
             deadline = started + timeout
+            serial_texts = [item[1].encode("ascii") for item in serial_input_script]
+            serial_delays = [item[2] if len(item) == 3 else 0.0
+                             for item in serial_input_script]
+            serial_stage = 0
+            serial_input_at = 0
+            serial_next_send = [None] * len(serial_texts)
             while True:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
@@ -436,6 +487,37 @@ def run(config, command_factory=build_command):
                     raise DeadlineExpired("hết deadline monotonic")
                 scanner.scan()
                 qmp.advance_script(script, scanner.trigger_seen)
+                if serial_capture is not None:
+                    for _ in range(16):
+                        try:
+                            block = os.read(serial_capture, 4096)
+                        except BlockingIOError:
+                            break
+                        if not block:
+                            break
+                        with serial.open("ab", buffering=0) as output_stream:
+                            output_stream.write(block)
+                if (serial_link and serial_stage < len(serial_texts) and
+                        scanner.input_triggers_seen[serial_stage] and
+                        serial_next_send[serial_stage] is None):
+                    serial_next_send[serial_stage] = (time.monotonic() +
+                                                       serial_delays[serial_stage])
+                if (serial_link and serial_stage < len(serial_texts) and
+                        scanner.input_triggers_seen[serial_stage] and
+                        serial_input_at < len(serial_texts[serial_stage]) and
+                        serial_next_send[serial_stage] is not None and
+                        time.monotonic() >= serial_next_send[serial_stage]):
+                    try:
+                        os.write(serial_link,
+                                 bytes((serial_texts[serial_stage][serial_input_at],)))
+                        serial_input_at += 1
+                        serial_next_send[serial_stage] = time.monotonic() + 0.02
+                    except BlockingIOError:
+                        pass
+                if (serial_stage < len(serial_texts) and
+                        serial_input_at == len(serial_texts[serial_stage])):
+                    serial_stage += 1
+                    serial_input_at = 0
                 screenshot_path = config.qmp_screendump_path
                 if screenshot_path is not None:
                     screenshot_path = Path(str(screenshot_path).replace(
@@ -459,6 +541,7 @@ def run(config, command_factory=build_command):
                 if qmp.ready and (config.launch_only or
                                   (scanner.success and
                                    (not config.qmp_script or qmp.script_done) and
+                                  serial_stage == len(serial_texts) and
                                    (not config.qmp_screendump_marker or
                                     qmp.screendump_done))):
                     if config.launch_only and qmp.running is not False:
@@ -474,6 +557,17 @@ def run(config, command_factory=build_command):
     except Exception as exc:
         result.status, result.detail = "PROTOCOL_ERROR", f"host exception: {type(exc).__name__}: {exc}"
     finally:
+        for descriptor in (serial_link, serial_capture):
+            if descriptor is not None:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+        for fifo in serial_pipe_paths:
+            try:
+                fifo.unlink(missing_ok=True)
+            except OSError:
+                pass
         if process is not None:
             result.cleanup_forced, result.cleanup_error = cleanup(process, qmp)
             result.returncode = process.poll()

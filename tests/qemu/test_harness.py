@@ -213,6 +213,7 @@ def test_serial_trigger_marker_is_observed_as_exact_line(tmp_path):
 
 def test_qmp_script_sends_one_command_and_waits_for_reply():
     qmp=QMP.__new__(QMP); qmp.ready=True; qmp.script_done=False; qmp.script_active=None
+    qmp.script_delay_until=0
     qmp.responses={}; qmp.next_id=10; sent=[]; qmp.send=lambda name,identity,args=None: sent.append((name,identity,args))
     script=[{"execute":"input-send-event","arguments":{"events":[]}}, {"execute":"input-send-event","arguments":{"events":[1]}}]
     qmp.advance_script(script,False); assert not sent
@@ -222,6 +223,16 @@ def test_qmp_script_sends_one_command_and_waits_for_reply():
     qmp.advance_script(script,True); assert len(sent)==2 and sent[1][1]==11
     qmp.responses[11]={"id":11,"return":{}}
     qmp.advance_script(script,True); assert qmp.script_done and qmp.script_active is None
+
+def test_qmp_script_supports_bounded_delay(monkeypatch):
+    qmp=QMP.__new__(QMP); qmp.ready=True; qmp.script_done=False; qmp.script_active=None
+    qmp.script_delay_until=0; qmp.responses={}; qmp.next_id=10; sent=[]
+    qmp.send=lambda name,identity,args=None: sent.append((name,identity,args))
+    now=[10.0]; monkeypatch.setattr("scripts.qemu_harness.time.monotonic",lambda:now[0])
+    script=[{"delay_ms":25},{"execute":"input-send-event","arguments":{"events":[]}}]
+    qmp.advance_script(script,True); assert not sent and qmp.script_delay_until==10.025
+    now[0]=10.024; qmp.advance_script(script,True); assert not sent
+    now[0]=10.026; qmp.advance_script(script,True); assert len(sent)==1
 
 
 def test_cli_boot_skip_is_77(tmp_path):

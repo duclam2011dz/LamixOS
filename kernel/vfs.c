@@ -130,6 +130,17 @@ vfs_status vfs_lookup(vfs *fs, const char *p, vfs_node *out) {
   mount_unlock(m, flags);
   return s;
 }
+vfs_status vfs_list(vfs *fs, const char *p, size_t index, vfs_dirent *out) {
+  if (!fs || !valid_path(p) || !out)
+    return VFS_INVALID;
+  vfs_mount *m = mount_for(fs, p);
+  if (!m || !m->ops->list)
+    return VFS_UNSUPPORTED;
+  uintptr_t flags = mount_lock(m);
+  vfs_status s = m->ops->list(m->context, relative(m, p), index, out);
+  mount_unlock(m, flags);
+  return s;
+}
 vfs_status vfs_create(vfs *fs, const char *p, vfs_kind k) {
   if (!fs || !valid_path(p))
     return VFS_INVALID;
@@ -420,8 +431,51 @@ static void tdestroy(void *c) {
   t->entries = 0;
   t->count = 0;
 }
+static vfs_status tlist(void *c, const char *p, size_t index,
+                        vfs_dirent *out) {
+  tmpfs *t = c;
+  if (!t || !out || !valid_path(p))
+    return VFS_INVALID;
+  vfs_node node;
+  vfs_status s = tlookup(c, p, &node);
+  if (s != VFS_OK)
+    return s;
+  if (node.kind != VFS_DIRECTORY)
+    return VFS_NOT_DIRECTORY;
+  size_t parent_length = path_len(p);
+  if (parent_length > 1 && p[parent_length - 1] == '/')
+    return VFS_INVALID;
+  size_t seen = 0;
+  for (tmpfs_entry *e = t->entries; e; e = e->next) {
+    if (!bytes_equal(e->path, p, parent_length) ||
+        (parent_length != 1 && e->path[parent_length] != '/'))
+      continue;
+    const char *child = e->path + parent_length;
+    if (parent_length == 1)
+      child = e->path + 1;
+    else
+      ++child;
+    if (!*child)
+      continue;
+    size_t length = 0;
+    while (child[length] && child[length] != '/')
+      ++length;
+    if (!length || child[length])
+      continue;
+    if (seen++ != index)
+      continue;
+    if (length >= sizeof(out->name))
+      return VFS_TOO_LARGE;
+    bytes_copy(out->name, child, length);
+    out->name[length] = 0;
+    out->kind = e->kind;
+    out->size = e->size;
+    return VFS_OK;
+  }
+  return VFS_NOT_FOUND;
+}
 const vfs_ops tmpfs_operations = {tlookup, tcreate, tread, twrite,
-                                  tremove, trename, tsync, tdestroy};
+                                  tremove, trename, tsync, tdestroy, tlist};
 vfs_status tmpfs_init(tmpfs *t, const vfs_memory *m, size_t limit) {
   if (!t || !m || !limit)
     return VFS_INVALID;
