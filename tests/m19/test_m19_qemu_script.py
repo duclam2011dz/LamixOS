@@ -10,7 +10,7 @@ from scripts.lamix_qemu import LATEST_PROFILE, resolve_profile
 
 def test_latest_profile_tracks_current_milestone():
     assert resolve_profile("latest") == LATEST_PROFILE
-    assert LATEST_PROFILE in {"m19", "m20", "m21", "m22", "m23", "m24", "m25", "m26"}
+    assert LATEST_PROFILE in {"m19", "m20", "m21", "m22", "m23", "m24", "m25", "m26", "m27"}
     assert resolve_profile("m17") == "m17"
     assert resolve_profile("m19") == "m19"
     assert resolve_profile("m20") == "m20"

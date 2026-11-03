@@ -141,8 +141,8 @@ def m27_artifacts():
 
 
 def test_profile_gate_and_explicit_selection():
-    assert LATEST_PROFILE == "m26"
-    assert resolve_profile("latest") == "m26"
+    assert LATEST_PROFILE == "m27"
+    assert resolve_profile("latest") == "m27"
     assert resolve_profile("m27") == "m27"
 
 

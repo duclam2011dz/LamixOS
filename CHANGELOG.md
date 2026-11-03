@@ -4,11 +4,11 @@ Theo dạng Keep a Changelog đơn giản. Chỉ ghi thay đổi thực tế; ch
 
 ## Unreleased
 
-### M27 — IN_PROGRESS (2026-11-03)
+### M27 — DONE (2026-11-03)
 
-- Thêm init/service lifecycle shell với bounded restart/backoff, static manifest rights subset và wrapper `lamix_process_spawn_with_rights`; spawn mặc định cấp 0 rights. Thêm shell builtins file/log/service/reboot, external ELF launch, serial/UART và framebuffer path. Reboot flush VFS rồi reset qua port `0xCF9`. `LATEST_PROFILE=m26` giữ trong giai đoạn nghiệm thu.
+- Thêm init/service lifecycle shell với bounded restart/backoff, static manifest rights subset và wrapper `lamix_process_spawn_with_rights`; spawn mặc định cấp 0 rights. Thêm shell builtins file/log/service/reboot, external ELF launch, serial/UART và framebuffer path. Reboot flush VFS rồi reset qua port `0xCF9`. `LATEST_PROFILE=m27`; M26 vẫn chọn tường minh.
 - Cross-build **PASS**; CTest M27 **4/4 PASS**, guest **12/12 PASS** trên SeaBIOS `pc`/OVMF `q35` × 3; gồm service lifecycle, PS/2/serial, QMP framebuffer screenshot, negative rights/grant escalation, và reboot thật với FAT32 persistence. QEMU harness host **36/36 PASS**.
-- Regressions CTest M17 **3/3**, M19 **3/3**, M20 **3/3**, M21 **3/3**, M22 **4/4**, M23 **3/3**, M24 **4/4**, M25 **4/4**, M26 **4/4** (**31/31 PASS**); docs validator và unittest tài liệu **41/41 PASS**. CI/review/merge trên SHA nghiệm thu chưa chạy nên M27 vẫn IN_PROGRESS; `LATEST_PROFILE=m26`.
+- Regressions CTest M17 **3/3**, M19 **3/3**, M20 **3/3**, M21 **3/3**, M22 **4/4**, M23 **3/3**, M24 **4/4**, M25 **4/4**, M26 **4/4** (**31/31 PASS**); docs validator và unittest tài liệu **41/41 PASS**. Bốn workflow CI đều **SUCCESS** trên acceptance SHA `b6c2eecbd129286e3c16e3c15c35dbdf02c22e28`; PR #35 merge commit `4e6e45d52c110e0bf90af1b756da981f1176a2d9`; annotated tag object `dab60063ca67288224a139ae43a12177fb19122d` peel về acceptance SHA. `LATEST_PROFILE=m27`; M26 vẫn chọn tường minh. Người dùng đã miễn review PR do là maintainer duy nhất.
 
 ### M26 — DONE (2026-11-02)
 

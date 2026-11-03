@@ -6,7 +6,7 @@ LBP v1 M03 có [headers C/C++](../include/lamix/boot/lbp.h), [API thư viện C]
 |---|---|
 | LBP records/layout/kernel note/entry contract | [BOOT_PROTOCOL](BOOT_PROTOCOL.md), [LBP_LAYOUT](LBP_LAYOUT.md) |
 | GPT byte-array structs và host model | [IMAGE_LAYOUT](IMAGE_LAYOUT.md) |
-| Syscall ABI Lamix-specific x86_64 | M21 ABI 1.0; M22 profile ABI 1.1 đã nghiệm thu; M27 ABI 1.2 đang triển khai, chưa nghiệm thu |
+| Syscall ABI Lamix-specific x86_64 | M21 ABI 1.0; M22 profile ABI 1.1 và M27 profile ABI 1.2 đã nghiệm thu |
 | Handles/capabilities và IPC | M22 ABI 1.1 profile riêng đã nghiệm thu; chưa phải SDK cấp cao |
 | Static ELF64 và user runtime | M23 profile riêng đã nghiệm thu; chưa phải public SDK |
 | Lamix 2D SDK | Chưa triển khai; milestones gaming |
@@ -54,11 +54,11 @@ Entry dùng `IA32_EFER.SCE`, `STAR`, `LSTAR`, `FMASK`, chuyển sang kernel stac
 
 ## VFS nội bộ M26 (đã nghiệm thu)
 
-`kernel/vfs.h` cung cấp API nội bộ `vfs_lookup/create/open/read/write/close/remove/rename/sync` cùng mount/unmount; `kernel/fat32.h` nối FAT32 với `block_device` M25 và VFS. Profile `m26-kernel` khởi tạo tmpfs root và FAT32 8.3/LFN tại `/data`, có directory lồng nhau. Rename file được hỗ trợ; rename directory trả `VFS_UNSUPPORTED`. Đây là API kernel/test manager, không phải syscall, user storage API hay SDK. `LATEST_PROFILE=m26`; profile M25 vẫn chọn tường minh được. Chi tiết nghiệm thu tại [M26 plan](../PLANS.md) và [testing evidence](TESTING.md#vfs-tmpfs-và-fat32-m26-done).
+`kernel/vfs.h` cung cấp API nội bộ `vfs_lookup/create/open/read/write/close/remove/rename/sync` cùng mount/unmount; `kernel/fat32.h` nối FAT32 với `block_device` M25 và VFS. Profile `m26-kernel` khởi tạo tmpfs root và FAT32 8.3/LFN tại `/data`, có directory lồng nhau. Rename file được hỗ trợ; rename directory trả `VFS_UNSUPPORTED`. Đây là API kernel/test manager, không phải syscall, user storage API hay SDK. M26 được nghiệm thu với `LATEST_PROFILE=m26`; hiện M27 là latest và profile M26 vẫn chọn tường minh được. Chi tiết nghiệm thu tại [M26 plan](../PLANS.md) và [testing evidence](TESTING.md#vfs-tmpfs-và-fat32-m26-done).
 
-## M27 syscall wrappers (đang nghiệm thu)
+## M27 syscall wrappers (đã nghiệm thu trong profile riêng)
 
-Profile `m27-kernel` gate ABI minor 1.2 và append IDs 12–26 trong `user/include/lamix/syscall.h`; profile M26 giữ ABI 1.1 và `LATEST_PROFILE=m26`. Wrappers file/process/log/reboot/console là giao diện thử nghiệm, chưa phải compatibility promise. `lamix_process_spawn_with_rights()` truyền một rights subset được kiểm tra là tập con quyền caller; spawn mặc định không chuyển quyền. Init khai báo quyền shell trong static service manifest; external app không được cấp file rights. Service control hỗ trợ status/start/stop/restart. Các API chỉ dùng trong profile M27, chưa phải SDK cấp cao.
+Profile `m27-kernel` gate ABI minor 1.2 và append IDs 12–26 trong `user/include/lamix/syscall.h`; profile M26 giữ ABI 1.1. Wrappers file/process/log/reboot/console là giao diện thử nghiệm, chưa phải compatibility promise. `lamix_process_spawn_with_rights()` truyền một rights subset được kiểm tra là tập con quyền caller; spawn mặc định không chuyển quyền. Init khai báo quyền shell trong static service manifest; external app không được cấp file rights. Service control hỗ trợ status/start/stop/restart. Các API chỉ dùng trong profile M27, chưa phải SDK cấp cao. `LATEST_PROFILE=m27`; profile M26 vẫn chọn tường minh được.
 
 ## Software renderer M16 (nội bộ kernel, DONE)
 
